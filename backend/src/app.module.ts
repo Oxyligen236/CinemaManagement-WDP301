@@ -1,3 +1,4 @@
+import { UserModule } from './modules/user/user.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './modules/infra/database/database.module';
@@ -7,6 +8,7 @@ import { AppService } from './app.service';
 
 @Module({
   imports: [
+    UserModule,
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     TempModule,
