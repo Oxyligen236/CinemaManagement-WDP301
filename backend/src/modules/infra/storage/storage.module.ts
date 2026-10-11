@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from '../../auth/auth.module';
-import { StorageController } from './infrastructure/controllers/storage.controller';
+// import { StorageController } from './infrastructure/controllers/storage.controller';
 import { S3Client } from '@aws-sdk/client-s3';
 import { STORAGE_SERVICE } from './application/interface/storage.interface';
 import { S3StorageService } from './infrastructure/s3-storage.service';
@@ -19,7 +19,7 @@ import { DeleteStorageHandler } from './application/handlers/delete-storage.hand
     ConfigModule,
     TypeOrmModule.forFeature([StorageEntity]),
   ],
-  controllers: [StorageController],
+  // controllers: [StorageController],
   providers: [
     {
       provide: S3Client,
