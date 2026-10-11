@@ -17,6 +17,12 @@ export default function Home() {
         >
           Create an account
         </Link>
+        <Link
+          href="/login"
+          className="mt-3 block rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600"
+        >
+          Sign in
+        </Link>
       </section>
     </main>
   );

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -11,17 +11,16 @@ type VerifyResponse = {
 };
 
 export default function VerifyEmailPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [code, setCode] = useState("");
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    setMessage("");
     setSubmitting(true);
 
     try {
@@ -40,8 +39,7 @@ export default function VerifyEmailPage() {
         );
       }
 
-      setMessage(data.message ?? "Email verified. Your account has been created.");
-      setCode("");
+      router.push(`/login?email=${encodeURIComponent(email)}`);
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -96,12 +94,6 @@ export default function VerifyEmailPage() {
           {error && (
             <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
           )}
-          {message && (
-            <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {message}
-            </p>
-          )}
-
           <button
             type="submit"
             disabled={submitting}
