@@ -12,6 +12,8 @@ import {
   RegisterDto,
   VerifyEmailDto,
 } from '../application/dto/register.dto';
+import { LoginDto } from '../application/dto/login.dto';
+import { UserAuthenticationService } from '../application/services/user-authentication.service';
 import { UserRegistrationService } from '../application/services/user-registration.service';
 
 @Controller('auth')
@@ -19,6 +21,7 @@ import { UserRegistrationService } from '../application/services/user-registrati
 export class UserController {
   constructor(
     private readonly userRegistrationService: UserRegistrationService,
+    private readonly userAuthenticationService: UserAuthenticationService,
   ) {}
 
   @Post('register')
@@ -30,5 +33,11 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   verifyEmail(@Body() input: VerifyEmailDto) {
     return this.userRegistrationService.verifyEmail(input.email, input.code);
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  login(@Body() input: LoginDto) {
+    return this.userAuthenticationService.login(input.email, input.password);
   }
 }

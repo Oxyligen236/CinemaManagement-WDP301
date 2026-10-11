@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -10,7 +10,7 @@ type VerifyResponse = {
   message?: string;
 };
 
-export default function VerifyEmailPage() {
+function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
@@ -60,14 +60,19 @@ export default function VerifyEmailPage() {
         <p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
           Verify your email
         </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">Check your inbox</h1>
+        <h1 className="mt-3 text-3xl font-bold text-slate-900">
+          Check your inbox
+        </h1>
         <p className="mt-3 text-slate-500">
-          Enter the 6-digit code sent to your email. The code expires in 5 minutes.
+          Enter the 6-digit code sent to your email. The code expires in 5
+          minutes.
         </p>
 
         <form className="mt-8 space-y-5 text-left" onSubmit={handleSubmit}>
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700">
+              Email
+            </span>
             <input
               required
               type="email"
@@ -77,7 +82,9 @@ export default function VerifyEmailPage() {
             />
           </label>
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Verification code</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700">
+              Verification code
+            </span>
             <input
               required
               minLength={6}
@@ -85,14 +92,18 @@ export default function VerifyEmailPage() {
               inputMode="numeric"
               pattern="[0-9]{6}"
               value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
+              onChange={(event) =>
+                setCode(event.target.value.replace(/\D/g, ""))
+              }
               placeholder="000000"
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-2xl tracking-[0.5em] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
             />
           </label>
 
           {error && (
-            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </p>
           )}
           <button
             type="submit"
@@ -103,10 +114,21 @@ export default function VerifyEmailPage() {
           </button>
         </form>
 
-        <Link href="/register" className="mt-6 inline-block text-sm font-semibold text-indigo-600 hover:text-indigo-700">
-          Back to registration
+        <Link
+          href="/login"
+          className="mt-6 inline-block text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+        >
+          Back to login
         </Link>
       </section>
     </main>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyEmailForm />
+    </Suspense>
   );
 }

@@ -1,18 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("Login API is not available yet. Please connect this form to POST /auth/login.");
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+      const response = await fetch(`${apiUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message ?? "Unable to sign in.");
+      }
+
+      localStorage.setItem("cinema_access_token", result.accessToken);
+      localStorage.setItem("cinema_user", JSON.stringify(result.user));
+      router.push("/");
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Unable to sign in. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -56,9 +85,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
+            disabled={isSubmitting}
             className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
           >
-            Sign in
+            {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
 
@@ -70,5 +100,13 @@ export default function LoginPage() {
         </p>
       </section>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
