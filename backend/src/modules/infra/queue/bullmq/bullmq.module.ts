@@ -4,6 +4,26 @@ import { BullModule } from '@nestjs/bullmq';
 import { BullmqService } from './bullmq.service';
 import { QUEUE_SERVICE } from '../application/queue-service.interface';
 
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [
     BullModule.forRootAsync({

@@ -8,6 +8,26 @@ import { CACHE_SERVICE } from '../application/interface/cache-service.interface'
 import Redis from 'ioredis/built/Redis.js';
 import { RedisService } from './redis.service';
 
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [ConfigModule],
   controllers: [],

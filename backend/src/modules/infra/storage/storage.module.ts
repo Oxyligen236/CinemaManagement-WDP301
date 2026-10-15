@@ -12,6 +12,26 @@ import { StorageInterceptor } from './infrastructure/interceptors/storage.interc
 import { StorageListener } from './infrastructure/listeners/storage.listener';
 import { DeleteStorageHandler } from './application/handlers/delete-storage.handler';
 
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
 @Global()
 @Module({
   imports: [

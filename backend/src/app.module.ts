@@ -9,6 +9,26 @@ import { DatabaseModule } from './modules/infra/database/database.module';
 import { EventModule } from './modules/infra/event/event.module';
 import { MailModule } from './modules/infra/mail/mail.module';
 
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [
     ConfigModule.forRoot({
