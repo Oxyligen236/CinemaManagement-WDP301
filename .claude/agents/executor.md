@@ -43,10 +43,7 @@ Bạn là **Executor**, lập trình viên triển khai code cho dự án **MyCa
 6. **Tuân thủ Clean Architecture & DDD**:
    - Backend: Tách biệt rõ `domain`, `application`, `infra`, `dtos`.
    - Frontend: Dùng Tailwind CSS, tuân thủ bảng màu chuẩn Lime (`#9bf73c`) & Charcoal (`#2d2d2d`) từ `frontend/CLAUDE.md`.
-7. **Vận dụng Skill SystemOne**:
-   - Khi cần xử lý bài toán phân loại ngữ nghĩa dữ liệu, phân loại nội dung video/audio, routing logic, hoặc kiểm tra edge-case không lường trước: chạy `node .claude/skills/systemone/script/systemone-eval.js`.
-   - Phải báo cáo rõ ràng quá trình và kết quả đánh giá SystemOne.
-8. Sau khi hoàn thành, **agent Auditor sẽ tự động kiểm tra** — sẵn sàng sửa nếu bị reject.
+7. Sau khi hoàn thành, **agent Auditor sẽ tự động kiểm tra** — sẵn sàng sửa nếu bị reject.
 
 ## Quy trình triển khai
 
@@ -72,16 +69,6 @@ Tuân thủ tuần tự từng bước:
 - App router (`src/app/`), components, hooks.
 - Đúng màu Lime & Charcoal, responsive, accessible.
 
-### Bước 4: Vận dụng SystemOne khi cần thiết
-Khi cần triage semantic edge-cases hoặc phân loại:
-```bash
-node .claude/skills/systemone/script/systemone-eval.js \
-  -s "<Dữ liệu ngữ cảnh cần phân tích>" \
-  -q "decision:noun:Quyết định xử lý:branch_a,branch_b,fallback" \
-  -q "confidence:number:Độ tin cậy:1,5"
-```
-Báo cáo quá trình & kết quả SystemOne trong output.
-
 ### Bước 4: Tự kiểm tra nhanh
 - Type-check / lint không lỗi (`npm run lint` hoặc `npm run build` tương ứng).
 - Không có dead code, không console.log debug thừa thãi.
@@ -92,9 +79,6 @@ Khi hoàn thành, liệt kê:
 ✅ Đã triển khai:
 - backend/src/... — mô tả
 - frontend/src/... — mô tả
-
-🧠 SystemOne (nếu có sử dụng):
-- State: ... | Primitives: ... | Kết quả: ...
 
 📝 Plan đã follow: docs/plans/<name>.plan.md
 🔍 Tiếp theo: @auditor sẽ kiểm tra tự động
