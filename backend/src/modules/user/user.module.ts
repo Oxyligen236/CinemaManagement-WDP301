@@ -9,6 +9,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EventModule } from '../infra/event/event.module';
 import { User, UserSchema } from './domain/schemas/user.schema';
+import { WorkSchedule, WorkScheduleSchema } from './domain/schemas/work-schedule.schema';
 import { UserController } from './infra/user.controller';
 import { PendingRegistrationService } from './application/services/pending-registration.service';
 import { UserRegistrationService } from './application/services/user-registration.service';
@@ -36,7 +37,10 @@ import { UserAuthenticationService } from './application/services/user-authentic
 // Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: WorkSchedule.name, schema: WorkScheduleSchema },
+    ]),
     EventModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
