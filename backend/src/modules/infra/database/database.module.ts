@@ -2,6 +2,26 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
+// Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [
     MongooseModule.forRootAsync({
