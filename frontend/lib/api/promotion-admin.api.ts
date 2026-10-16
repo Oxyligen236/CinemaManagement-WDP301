@@ -11,7 +11,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {};
-  const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+  const token =
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('cinema_access_token') ||
+    sessionStorage.getItem('access_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
