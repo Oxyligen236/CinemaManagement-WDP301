@@ -53,7 +53,7 @@ Bạn là **Auditor**, kiểm thử viên nghiêm ngặt cho dự án **MyCast**
   - `domain`: Enums, Domain Events, Entities, Value Objects (không phụ thuộc framework).
   - `application`: Usecase interfaces, DTOs (validation đầy đủ), Services (đã gom nhóm các interface có chung nghiệp vụ/phụ thuộc, không phân mảnh vụn vặt), Event Handlers.
   - `infra`: Controllers, Guards, Middlewares, Listeners, Adapters.
-- Frontend: Màu sắc chuẩn Lime (`#9bf73c`) & Charcoal (`#2d2d2d`).
+- Frontend: Tuân thủ `frontend/design.md` và kiểm tra cập nhật `docs/screen.mmd` khi có thay đổi/bổ sung màn hình.
 - DTO validation đầy đủ, không lộ sensitive data.
 
 ### Giai đoạn 3: Thực thi Test theo Pha

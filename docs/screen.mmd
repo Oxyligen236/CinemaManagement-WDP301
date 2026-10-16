@@ -1,0 +1,18 @@
+flowchart TD
+    %% Public Flow
+    Home["/ (Trang chủ)"]
+    Login["/login (Đăng nhập)"]
+    Register["/register (Đăng ký)"]
+    VerifyEmail["/verify-email (Xác thực Email)"]
+
+    Home -->|Click Đăng nhập| Login
+    Home -->|Click Đăng ký| Register
+    Login -->|Click Đăng ký| Register
+    Login -->|Đăng nhập thành công (User)| Home
+    Register -->|Đăng ký thành công| VerifyEmail
+    Register -->|Click Đăng nhập| Login
+    VerifyEmail -->|Xác thực thành công| Login
+
+    %% Admin Portal
+    AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
+    Login -->|Đăng nhập thành công (Admin)| AdminPromotions

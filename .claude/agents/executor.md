@@ -66,8 +66,9 @@ Tuân thủ tuần tự từng bước:
    - `exports`: Export các Service và module cần thiết để module khác sử dụng qua API/schema.
 
 ### Bước 3: Triển khai frontend (Next.js)
-- App router (`src/app/`), components, hooks.
-- Đúng màu Lime & Charcoal, responsive, accessible.
+- App router (`src/app/` hoặc `app/`), components, hooks.
+- Tuân thủ `frontend/design.md`, responsive, accessible.
+- **Bắt buộc cập nhật `docs/screen.mmd`**: ghi nhận màn hình mới/thay đổi và các luồng chuyển tiếp (ngắn gọn, hạn chế chi tiết).
 
 ### Bước 4: Tự kiểm tra nhanh
 - Type-check / lint không lỗi (`npm run lint` hoặc `npm run build` tương ứng).
