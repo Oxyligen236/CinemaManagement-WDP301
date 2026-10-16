@@ -1,35 +1,22 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Promotion, PromotionSchema } from './domain/schemas/promotion.schema';
+import { AuthModule } from '../auth/auth.module';
+import { EventModule } from '../infra/event/event.module';
+import { PromotionAdminController } from './infra/controllers/promotion-admin.controller';
+import { PromotionAdminService } from './application/services/promotion-admin.service';
+import { PromotionPublicService } from './application/services/promotion-public.service';
 
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
-// Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Promotion.name, schema: PromotionSchema },
     ]),
+    AuthModule,
+    EventModule,
   ],
-  controllers: [],
-  providers: [],
-  exports: [MongooseModule],
+  controllers: [PromotionAdminController],
+  providers: [PromotionAdminService, PromotionPublicService],
+  exports: [PromotionPublicService],
 })
 export class PromotionModule {}

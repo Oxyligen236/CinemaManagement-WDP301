@@ -3,7 +3,10 @@ import { HydratedDocument } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { DiscountType } from '../enums/discount-type.enum';
 
-export type PromotionDocument = HydratedDocument<Promotion>;
+export type PromotionDocument = HydratedDocument<Promotion> & {
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 @Schema({
   collection: 'promotions',
