@@ -36,7 +36,9 @@ import { UserAuthenticationService } from './application/services/user-authentic
 // Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+    ]),
     EventModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

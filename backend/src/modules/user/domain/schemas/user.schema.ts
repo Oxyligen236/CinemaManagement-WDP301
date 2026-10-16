@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { randomUUID } from 'crypto';
 import { Role } from '../enums/role.enum';
 
 export type UserDocument = HydratedDocument<User>;
@@ -14,6 +15,7 @@ export class User {
     unique: true,
     trim: true,
     lowercase: true,
+    default: () => randomUUID(),
   })
   userId!: string;
 

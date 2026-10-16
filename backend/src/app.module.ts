@@ -18,6 +18,7 @@ import { PromotionModule } from './modules/promotion/promotion.module';
 import { MovieModule } from './modules/movie/movie.module';
 import { ShowtimeModule } from './modules/showtime/showtime.module';
 import { PriceRuleModule } from './modules/pricerule/pricerule.module';
+import { WorkModule } from './modules/work/work.module';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -59,6 +60,7 @@ import { PriceRuleModule } from './modules/pricerule/pricerule.module';
     MovieModule,
     ShowtimeModule,
     PriceRuleModule,
+    WorkModule,
   ],
   controllers: [AppController],
   providers: [AppService],
