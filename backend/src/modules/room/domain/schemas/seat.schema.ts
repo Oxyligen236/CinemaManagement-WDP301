@@ -54,5 +54,8 @@ export class Seat {
 
 export const SeatSchema = SchemaFactory.createForClass(Seat);
 
-SeatSchema.index({ roomId: 1, rowPosition: 1, columnPosition: 1 }, { unique: true });
+SeatSchema.index(
+  { roomId: 1, rowPosition: 1, columnPosition: 1 },
+  { unique: true },
+);
 SeatSchema.index({ roomId: 1, status: 1 });
