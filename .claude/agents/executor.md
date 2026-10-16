@@ -34,7 +34,8 @@ Bạn là **Executor**, lập trình viên triển khai code cho dự án **MyCa
    - Khi triển khai module NestJS: phần import chỉ được import module khác (`imports: [OtherModule]`).
    - **TUYỆT ĐỐI KHÔNG** import chéo file nội bộ (domain entity, internal service, repo file...) từ module khác (ví dụ cấm: `import { User } from '../user/domain/entities/user.entity'`).
    - Các module chỉ biết nhau và giao tiếp thông qua **API và schema** (public service contracts được export qua module, DTOs, Event schemas).
-4. **Triển khai song song độc lập theo Contract**:
+4. **Không tạo tầng Repository**: Inject và dùng trực tiếp Mongoose Model (`@InjectModel(Xxx.name) private readonly xxxModel: Model<XxxDocument>`) trong Service. Cấm tạo class/interface repository trung gian.
+5. **Triển khai song song độc lập theo Contract**:
    - Khi được phân công triển khai 1 module, chỉ tập trung hoàn thiện module đó.
    - Với các module phụ thuộc đang phát triển song song: dựa tuyệt đối vào **Contract & Mock spec** trong plan để mock API/services khi viết unit test. Không bị block bởi tiến độ module khác.
 5. **Triển khai Service theo nguyên tắc gom chung**:
@@ -55,10 +56,12 @@ Bạn là **Executor**, lập trình viên triển khai code cho dự án **MyCa
 
 Tuân thủ tuần tự từng bước:
 1. **Business rules**: Enums (`domain/enums/`), Domain Events (`domain/events/`).
-2. **API & Schema**: Usecase interfaces, DTOs request/response validation (`dtos/req.dto.ts`, `dtos/res.dto.ts`).
+2. **API & Schema**:
+   - Usecase interfaces: đặt trong thư mục `application/usecase/`, tên file `xxxx.usecase.ts` (**1 file = 1 interface usecase duy nhất**). **Không có tiền tố `I`**, chia nhỏ theo giá trị nghiệp vụ, comment JSDoc đầy đủ (mục đích, quy trình nghiệp vụ các bước, `@param`, `@returns`, `@throws`).
+   - DTOs: chia làm `application/dto/req.dto.ts` (Request DTOs, có validation decorators, phân trang `extends PageRequest`) và `application/dto/res.dto.ts` (Response DTOs, **không chứa validator**, phân trang `Page<T>`).
 3. **Domain Models**: Entities (`domain/entities/`), Value Objects (`domain/value-objects/`).
 4. **Usecase Implementation**:
-   - Class Services (`application/services/`): gom các usecase có chung dependencies/nghiệp vụ vào cùng service.
+   - Class Services (`application/services/`): gom các usecase có chung dependencies/nghiệp vụ vào cùng service. **Mỗi file service chỉ chứa duy nhất 1 class service implement, không chứa bất kỳ thứ khác**.
    - Event Handlers (`application/handlers/`): xử lý các domain/internal events.
 5. **Infrastructure**: Controllers, Guards, Middlewares, Listeners, Adapters (`infra/`).
 6. **NestJS Module wiring**:

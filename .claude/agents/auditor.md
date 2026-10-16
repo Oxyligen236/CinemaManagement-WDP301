@@ -51,8 +51,11 @@ Bạn là **Auditor**, kiểm thử viên nghiêm ngặt cho dự án **MyCast**
   - Phụ thuộc giữa các module chỉ thông qua **API và schema** (exported Service interfaces, DTOs, Event schemas).
 - **Phân lớp Backend Clean Architecture & DDD**:
   - `domain`: Enums, Domain Events, Entities, Value Objects (không phụ thuộc framework).
-  - `application`: Usecase interfaces, DTOs (validation đầy đủ), Services (đã gom nhóm các interface có chung nghiệp vụ/phụ thuộc, không phân mảnh vụn vặt), Event Handlers.
-  - `infra`: Controllers, Guards, Middlewares, Listeners, Adapters.
+  - `application`:
+    - Usecase interfaces: Đặt trong `application/usecase/`, tên file `xxxx.usecase.ts`, **1 file = 1 interface usecase duy nhất**. **Không tiền tố `I`**, chia nhỏ theo giá trị nghiệp vụ, comment JSDoc đầy đủ (mục đích, quy trình các bước, `@param`, `@returns`, `@throws`).
+    - DTOs: Chia làm `application/dto/req.dto.ts` (Request DTOs, có validation đầy đủ, phân trang `extends PageRequest`) và `application/dto/res.dto.ts` (Response DTOs, **không chứa validator**, phân trang `Page<T>`). Không lộ sensitive data.
+    - Services: Inject và dùng trực tiếp Mongoose Model, gom nhóm các interface có chung nghiệp vụ/phụ thuộc, không phân mảnh vụn vặt, Event Handlers. **Mỗi file service chỉ chứa duy nhất 1 class service implement, không chứa thứ khác**.
+  - `infra`: Controllers, Guards, Middlewares, Listeners, Adapters. **Không có tầng repository trung gian**.
 - Frontend: Tuân thủ `frontend/design.md` và kiểm tra cập nhật `docs/screen.mmd` khi có thay đổi/bổ sung màn hình.
 - DTO validation đầy đủ, không lộ sensitive data.
 

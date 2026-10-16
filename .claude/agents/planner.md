@@ -62,17 +62,24 @@ Khi thiết kế backend (NestJS Clean Architecture & DDD), **bắt buộc tuân
    - Các trạng thái, phân loại: Enums (`domain/enums/`).
    - Các sự kiện miền phát sinh từ quy tắc nghiệp vụ: Domain Events (`domain/events/`).
 3. **Phát triển API & Schema (Usecase Interfaces & DTOs)**:
-   - Định nghĩa hợp đồng usecase (`application/interfaces/` hoặc usecase types).
-   - Định nghĩa DTOs request/response kèm validation rules (`dtos/req.dto.ts`, `dtos/res.dto.ts`).
+   - **Usecase Interfaces** (`application/usecase/`):
+     - Thư mục đặt tên là `usecase/`. Đặt tên file: `xxxx.usecase.ts`.
+     - **1 file chỉ chứa 1 interface usecase duy nhất**.
+     - **Cấm tiền tố `I`** trong tên interface.
+     - **Chia nhỏ interface**: mỗi interface phục vụ 1 giá trị nghiệp vụ cụ thể.
+     - **Bắt buộc comment JSDoc**: ghi giá trị nghiệp vụ trên interface; trên từng hàm ghi rõ mục đích, quy trình nghiệp vụ (từng bước), `@param`, `@returns`, `@throws`.
+   - **DTOs (`application/dto/`)**:
+     - `req.dto.ts`: Chứa Request DTOs (có validation decorators). Phân trang bắt buộc `extends PageRequest`.
+     - `res.dto.ts`: Chứa Response DTOs (**không chứa validator**). Phân trang trả về `Page<T>` (từ `src/common/dto/page.dto`).
 4. **Thiết kế Entity & các thành phần khác trong Domain**:
    - Domain Entities (`domain/entities/`).
-   - Value Objects (`domain/value-objects/`), Domain Services, Repository interfaces.
+   - Value Objects (`domain/value-objects/`), Domain Services. **Không tạo Repository interface**.
 5. **Implement các Usecase (Class Services & Event Handlers)**:
-   - **Các class Service**: Ưu tiên gom nhiều interface có chung phụ thuộc và nghiệp vụ vào 1 class service (`application/services/`), tránh phân mảnh 1 class cho từng interface vụn vặt.
+   - **Các class Service**: Dùng trực tiếp Mongoose Model (`@InjectModel(Xxx.name)`), gom nhiều interface có chung phụ thuộc và nghiệp vụ vào 1 class service (`application/services/`). **Trong mỗi file service chỉ chứa duy nhất 1 class service implement, không chứa bất kỳ thứ khác**.
    - **Các class Handler xử lý Event**: Handlers / Listeners lắng nghe và xử lý domain/internal events (`application/handlers/`).
 6. **Triển khai Infrastructure (Infra)**:
    - Controllers (`infra/controllers/`), Guards (`infra/guards/`), Middlewares, Strategies.
-   - Listeners (`infra/listeners/`), Repository implementations, External adapters.
+   - Listeners (`infra/listeners/`), External adapters. **Không tạo Repository class**.
    - Cấu hình NestJS Module: Chỉ import module khác (`imports: [OtherModule]`), export các Service/Schema công khai.
 
 ### Bước 3: Viết plan chi tiết
