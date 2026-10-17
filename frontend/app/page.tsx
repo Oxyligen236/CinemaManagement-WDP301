@@ -7,6 +7,7 @@ type User = {
   email: string;
   firstName: string;
   lastName: string;
+  role?: string;
 };
 
 export default function Home() {
@@ -44,10 +45,18 @@ export default function Home() {
             <p className="mt-3 text-slate-500">
               You are signed in as {user.email}.
             </p>
+            {user.role === "ADMIN" && (
+              <Link
+                href="/admin/dashboard"
+                className="mt-8 block rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
+              >
+                Go to admin dashboard
+              </Link>
+            )}
             <button
               type="button"
               onClick={logout}
-              className="mt-8 w-full rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600"
+              className="mt-3 w-full rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600"
             >
               Sign out
             </button>

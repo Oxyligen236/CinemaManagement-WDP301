@@ -8,6 +8,7 @@ import { TempModule } from './modules/temp/temp.module';
 import { DatabaseModule } from './modules/infra/database/database.module';
 import { EventModule } from './modules/infra/event/event.module';
 import { MailModule } from './modules/infra/mail/mail.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { MailModule } from './modules/infra/mail/mail.module';
     EventModule,
     MailModule,
     UserModule,
+    AdminModule,
     TempModule,
   ],
   controllers: [AppController],

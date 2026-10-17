@@ -32,7 +32,7 @@ function LoginForm() {
 
       localStorage.setItem("cinema_access_token", result.accessToken);
       localStorage.setItem("cinema_user", JSON.stringify(result.user));
-      router.push("/");
+      router.push(result.user?.role === "ADMIN" ? "/admin/dashboard" : "/");
     } catch (submitError) {
       setError(
         submitError instanceof Error

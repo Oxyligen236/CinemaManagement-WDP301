@@ -4,8 +4,6 @@ https://docs.nestjs.com/modules
 */
 
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EventModule } from '../infra/event/event.module';
 import { User, UserSchema } from './domain/schemas/user.schema';
@@ -14,6 +12,7 @@ import { PendingRegistrationService } from './application/services/pending-regis
 import { UserRegistrationService } from './application/services/user-registration.service';
 import { UserAuthenticationService } from './application/services/user-authentication.service';
 import { MailModule } from '../infra/mail/mail.module';
+import { AuthModule } from '../auth/auth.module';
 import { PasswordResetService } from './application/services/password-reset.service';
 
 @Module({
@@ -21,19 +20,7 @@ import { PasswordResetService } from './application/services/password-reset.serv
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     EventModule,
     MailModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>(
-          'JWT_SECRET',
-          'change-this-development-secret',
-        ),
-        signOptions: {
-          expiresIn: config.get<number>('JWT_EXPIRES_IN_SECONDS', 86400),
-        },
-      }),
-    }),
+    AuthModule,
   ],
   controllers: [UserController],
   providers: [
