@@ -57,7 +57,9 @@ function LoginForm() {
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
+            <span className="mb-2 block text-sm font-medium text-slate-700">
+              Email
+            </span>
             <input
               required
               type="email"
@@ -67,7 +69,19 @@ function LoginForm() {
             />
           </label>
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-700">
+                Password
+              </span>
+
+              <Link
+                href="/forgot-password"
+                className="text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             <input
               required
               type="password"
@@ -94,7 +108,10 @@ function LoginForm() {
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Need an account?{" "}
-          <Link href="/register" className="font-semibold text-indigo-600 hover:text-indigo-700">
+          <Link
+            href="/register"
+            className="font-semibold text-indigo-600 hover:text-indigo-700"
+          >
             Create one
           </Link>
         </p>
