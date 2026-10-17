@@ -116,16 +116,6 @@ export default function RegisterPage() {
             {submitting ? "Sending code..." : "Continue"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Already have an account?{" "}
-          <Link
-            href="/verify-email"
-            className="font-semibold text-indigo-600 hover:text-indigo-700"
-          >
-            Verify email
-          </Link>
-        </p>
       </section>
     </main>
   );
