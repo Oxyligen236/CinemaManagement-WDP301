@@ -13,16 +13,22 @@ import { UserController } from './infra/user.controller';
 import { PendingRegistrationService } from './application/services/pending-registration.service';
 import { UserRegistrationService } from './application/services/user-registration.service';
 import { UserAuthenticationService } from './application/services/user-authentication.service';
+import { MailModule } from '../infra/mail/mail.module';
+import { PasswordResetService } from './application/services/password-reset.service';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     EventModule,
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET', 'change-this-development-secret'),
+        secret: config.get<string>(
+          'JWT_SECRET',
+          'change-this-development-secret',
+        ),
         signOptions: {
           expiresIn: config.get<number>('JWT_EXPIRES_IN_SECONDS', 86400),
         },
@@ -34,6 +40,7 @@ import { UserAuthenticationService } from './application/services/user-authentic
     PendingRegistrationService,
     UserRegistrationService,
     UserAuthenticationService,
+    PasswordResetService,
   ],
 })
 export class UserModule {}

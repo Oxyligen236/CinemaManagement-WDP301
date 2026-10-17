@@ -37,7 +37,9 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = (await response.json().catch(() => ({}))) as RegisterResponse;
+      const data = (await response
+        .json()
+        .catch(() => ({}))) as RegisterResponse;
 
       if (!response.ok) {
         throw new Error(
@@ -66,7 +68,9 @@ export default function RegisterPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
           Cinema Management
         </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">Create account</h1>
+        <h1 className="mt-3 text-3xl font-bold text-slate-900">
+          Create account
+        </h1>
         <p className="mt-2 text-slate-500">
           Enter your details. We&apos;ll send a verification code to your email.
         </p>
@@ -112,13 +116,6 @@ export default function RegisterPage() {
             {submitting ? "Sending code..." : "Continue"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Already have an account?{" "}
-          <Link href="/verify-email" className="font-semibold text-indigo-600 hover:text-indigo-700">
-            Verify email
-          </Link>
-        </p>
       </section>
     </main>
   );
@@ -139,7 +136,9 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-2 block text-sm font-medium text-slate-700">
+        {label}
+      </span>
       <input
         required
         type={type}
@@ -147,7 +146,9 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
       />
-      {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
+      {hint && (
+        <span className="mt-1 block text-xs text-slate-400">{hint}</span>
+      )}
     </label>
   );
 }
