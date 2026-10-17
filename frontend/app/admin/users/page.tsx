@@ -8,7 +8,7 @@ const TOKEN_KEY = "cinema_access_token";
 const USER_KEY = "cinema_user";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
-type Role = "ADMIN" | "USER" | "MANAGER" | "STAFF";
+type Role = "ADMIN" | "USER" | "BRANCHMANAGER" | "STAFF";
 
 type User = {
   userId: string;
@@ -20,17 +20,18 @@ type User = {
   branchId?: string;
 };
 
+type Branch = {
+  branchId: string;
+  branchName: string;
+  address: string;
+};
+
 type UserForm = Pick<
   User,
   "email" | "firstName" | "lastName" | "role" | "isActive"
->;
+> & { branchId: string; password: string };
 
-const navigationItems = [
-  { label: "Manage user", href: "/admin/users" },
-  { label: "Manage staff", href: "/admin/staff" },
-  { label: "View employee list", href: "/admin/employees" },
-  { label: "Add employee", href: "/admin/employees/new" },
-];
+const navigationItems = [{ label: "Manage user", href: "/admin/users" }];
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error
@@ -42,8 +43,10 @@ export default function ManageUsersPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [users, setUsers] = useState<User[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserForm | null>(null);
+  const [creating, setCreating] = useState(false);
   const [currentUserId, setCurrentUserId] = useState("");
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
@@ -69,7 +72,7 @@ export default function ManageUsersPage() {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token ?? ""}`,
+        Authorization: "Bearer " + (token ?? ""),
         ...options?.headers,
       },
     });
@@ -87,6 +90,7 @@ export default function ManageUsersPage() {
     const result = (await response.json()) as {
       message?: string | string[];
       users?: User[];
+      branches?: Branch[];
       user?: User;
     };
     if (!response.ok) {
@@ -115,6 +119,7 @@ export default function ManageUsersPage() {
       setUsers(result.users ?? []);
       setSelectedUser(null);
       setForm(null);
+      setCreating(false);
     } catch (loadError) {
       setError(getErrorMessage(loadError));
     } finally {
@@ -148,6 +153,18 @@ export default function ManageUsersPage() {
     }
     queueMicrotask(() => {
       void loadUsers();
+      void request("/admin/branches")
+        .then((result) => {
+          const uniqueBranches = Array.from(
+            new Map(
+              (result.branches ?? [])
+                .filter((branch) => branch.branchId)
+                .map((branch) => [branch.branchId, branch]),
+            ).values(),
+          );
+          setBranches(uniqueBranches);
+        })
+        .catch((branchError) => setError(getErrorMessage(branchError)));
     });
     // The initial request intentionally uses the default empty filters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,6 +178,25 @@ export default function ManageUsersPage() {
       lastName: user.lastName,
       role: user.role,
       isActive: user.isActive,
+      branchId: user.branchId ?? "",
+      password: "",
+    });
+    setCreating(false);
+    setError("");
+    setMessage("");
+  }
+
+  function startCreating() {
+    setSelectedUser(null);
+    setCreating(true);
+    setForm({
+      email: "",
+      firstName: "",
+      lastName: "",
+      role: "USER",
+      isActive: true,
+      branchId: "",
+      password: "",
     });
     setError("");
     setMessage("");
@@ -174,12 +210,33 @@ export default function ManageUsersPage() {
     setError("");
     setMessage("");
     try {
+      const { branchId, password: _password, ...profile } = form;
       const result = await request(`/admin/users/${selectedUser.userId}`, {
         method: "PATCH",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...profile,
+          role: selectedUser.isActive ? form.role : selectedUser.role,
+        }),
       });
-      const updatedUser = result.user;
+      let updatedUser = result.user;
       if (!updatedUser) throw new Error("Updated user data was not returned.");
+      if (
+        branchId &&
+        branchId !== selectedUser.branchId &&
+        (updatedUser.role === "BRANCHMANAGER" || updatedUser.role === "STAFF")
+      ) {
+        const branchResult = await request(
+          `/admin/users/${selectedUser.userId}/branch`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ branchId }),
+          },
+        );
+        if (!branchResult.user) {
+          throw new Error("Updated branch assignment was not returned.");
+        }
+        updatedUser = branchResult.user;
+      }
       setUsers((currentUsers) =>
         currentUsers.map((user) =>
           user.userId === updatedUser.userId ? updatedUser : user,
@@ -192,6 +249,8 @@ export default function ManageUsersPage() {
         lastName: updatedUser.lastName,
         role: updatedUser.role,
         isActive: updatedUser.isActive,
+        branchId: updatedUser.branchId ?? "",
+        password: "",
       });
       setMessage(
         typeof result.message === "string"
@@ -200,6 +259,33 @@ export default function ManageUsersPage() {
       );
     } catch (saveError) {
       setError(getErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createUser(event: FormEvent) {
+    event.preventDefault();
+    if (!form) return;
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await request("/admin/users", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+      setMessage(
+        typeof result.message === "string"
+          ? result.message
+          : "User created successfully.",
+      );
+      setCreating(false);
+      setForm(null);
+      await loadUsers();
+    } catch (createError) {
+      setError(getErrorMessage(createError));
     } finally {
       setSaving(false);
     }
@@ -253,12 +339,23 @@ export default function ManageUsersPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
               User management
             </p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">
-              Manage users
-            </h1>
-            <p className="mt-2 text-slate-700">
-              Search, review, and update user accounts.
-            </p>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h1 className="mt-2 text-3xl font-bold text-slate-900">
+                  Manage users
+                </h1>
+                <p className="mt-2 text-slate-700">
+                  Search, review, and manage user accounts.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={startCreating}
+                className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
+              >
+                Create user
+              </button>
+            </div>
           </header>
 
           <form
@@ -285,7 +382,7 @@ export default function ManageUsersPage() {
               >
                 <option value="">All roles</option>
                 <option value="ADMIN">Admin</option>
-                <option value="MANAGER">Manager</option>
+                <option value="BRANCHMANAGER">Branch Manager</option>
                 <option value="STAFF">Staff</option>
                 <option value="USER">User</option>
               </select>
@@ -379,17 +476,39 @@ export default function ManageUsersPage() {
             </section>
             <section className="rounded-3xl bg-white p-6 shadow-lg shadow-slate-200 xl:sticky xl:top-0">
               <h2 className="text-lg font-semibold text-slate-900">
-                User details
+                {creating ? "Create user" : "User details"}
               </h2>
               {!form ? (
                 <p className="mt-4 text-sm text-slate-700">
                   Select a user to view and manage their account.
                 </p>
               ) : (
-                <form onSubmit={saveUser} className="mt-5 space-y-4">
-                  <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs font-medium text-slate-700">
-                    ID: {selectedUser?.userId}
-                  </p>
+                <form
+                  onSubmit={creating ? createUser : saveUser}
+                  className="mt-5 space-y-4"
+                >
+                  {!creating && (
+                    <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs font-medium text-slate-700">
+                      ID: {selectedUser?.userId}
+                    </p>
+                  )}
+                  {creating && (
+                    <label className="block">
+                      <span className="text-sm font-semibold text-slate-900">
+                        Temporary password
+                      </span>
+                      <input
+                        type="password"
+                        required
+                        minLength={8}
+                        value={form.password}
+                        onChange={(event) =>
+                          setForm({ ...form, password: event.target.value })
+                        }
+                        className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500"
+                      />
+                    </label>
+                  )}
                   <label className="block">
                     <span className="text-sm font-semibold text-slate-900">
                       Email
@@ -434,20 +553,70 @@ export default function ManageUsersPage() {
                   </div>
                   <label className="block">
                     <span className="text-sm font-semibold text-slate-900">
-                      Role
+                      Branch Assignment
                     </span>
+
+                    <select
+                      required={
+                        form.role === "BRANCHMANAGER" || form.role === "STAFF"
+                      }
+                      value={form.branchId}
+                      disabled={!creating && selectedUser?.isActive === false}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          branchId: event.target.value,
+                        })
+                      }
+                      className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="">Select an active branch</option>
+                      {branches.map((branch) => (
+                        <option key={branch.branchId} value={branch.branchId}>
+                          {branch.branchName} - {branch.address}
+                        </option>
+                      ))}
+                    </select>
+
+                    {!creating && selectedUser?.isActive === false && (
+                      <p
+                        role="status"
+                        className="mt-2 text-sm font-medium text-amber-700"
+                      >
+                        Cannot assign branch to an inactive account
+                      </p>
+                    )}
+                  </label>
+                  <label className="block">
+                    <span className="text-sm font-semibold text-slate-900">
+                      Assign Role
+                    </span>
+
                     <select
                       value={form.role}
+                      disabled={!creating && selectedUser?.isActive === false}
                       onChange={(event) =>
-                        setForm({ ...form, role: event.target.value as Role })
+                        setForm({
+                          ...form,
+                          role: event.target.value as Role,
+                        })
                       }
-                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500"
+                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                     >
                       <option value="ADMIN">Admin</option>
                       <option value="BRANCHMANAGER">Branch Manager</option>
                       <option value="STAFF">Staff</option>
                       <option value="USER">User</option>
                     </select>
+
+                    {!creating && selectedUser?.isActive === false && (
+                      <p
+                        role="status"
+                        className="mt-2 text-sm font-medium text-amber-700"
+                      >
+                        Cannot modify roles for an inactive account
+                      </p>
+                    )}
                   </label>
                   <label className="flex items-center gap-3 rounded-xl border border-slate-300 px-4 py-3">
                     <input
@@ -470,7 +639,11 @@ export default function ManageUsersPage() {
                     disabled={saving}
                     className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
                   >
-                    {saving ? "Saving..." : "Save changes"}
+                    {saving
+                      ? "Saving..."
+                      : creating
+                        ? "Create user"
+                        : "Save changes"}
                   </button>
                 </form>
               )}

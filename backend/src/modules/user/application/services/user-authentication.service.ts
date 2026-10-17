@@ -32,6 +32,7 @@ export class UserAuthenticationService {
       sub: user.userId,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
     };
 
     return {

@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Req,
   UseGuards,
@@ -14,6 +15,8 @@ import {
 import { AdminService } from '../application/admin.service';
 import {
   ManageUsersQueryDto,
+  AssignBranchDto,
+  CreateUserDto,
   UpdateUserDto,
 } from '../application/dto/manage-user.dto';
 import { JwtGuard } from '../../auth/infra/guards/jwt.guard';
@@ -39,9 +42,27 @@ export class AdminController {
     return this.adminService.getUsers(query);
   }
 
+  @Get('branches')
+  getActiveBranches() {
+    return this.adminService.getActiveBranches();
+  }
+
   @Get('users/:userId')
   getUser(@Param('userId') userId: string) {
     return this.adminService.getUser(userId);
+  }
+
+  @Patch('users/:userId/branch')
+  assignBranch(
+    @Param('userId') userId: string,
+    @Body() input: AssignBranchDto,
+  ) {
+    return this.adminService.assignBranch(userId, input);
+  }
+
+  @Post('users')
+  createUser(@Body() input: CreateUserDto) {
+    return this.adminService.createUser(input);
   }
 
   @Patch('users/:userId')

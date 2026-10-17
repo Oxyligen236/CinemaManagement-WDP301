@@ -20,12 +20,7 @@ type DashboardData = {
 
 type Status = "checking" | "ready" | "error";
 
-const navigationItems = [
-  { label: "Manage user", href: "/admin/users" },
-  { label: "Manage staff", href: "/admin/staff" },
-  { label: "View employee list", href: "/admin/employees" },
-  { label: "Add employee", href: "/admin/employees/new" },
-];
+const navigationItems = [{ label: "Manage user", href: "/admin/users" }];
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -67,7 +62,7 @@ export default function AdminDashboardPage() {
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
     fetch(`${apiUrl}/admin/dashboard`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: "Bearer " + token },
     })
       .then(async (response) => {
         if (response.status === 401) {

@@ -6,6 +6,7 @@ export interface AuthUser {
   sub: string; // userId
   email: string;
   role: Role;
+  tokenVersion: number;
 }
 
 export type AuthenticatedRequest = Request & { user?: AuthUser };

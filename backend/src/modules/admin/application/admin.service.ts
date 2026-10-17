@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   BadRequestException,
   ConflictException,
@@ -7,10 +8,15 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { Role } from '../../user/domain/enums/role.enum';
 import { AuthUser } from '../../auth/domain/auth-user';
+import { Branch, BranchDocument } from '../../branch/domain/schemas/branch.schema';
+import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
 import {
+  CreateUserDto,
+  AssignBranchDto,
   ManageUsersQueryDto,
   UpdateUserDto,
 } from './dto/manage-user.dto';
@@ -20,14 +26,14 @@ export class AdminService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(Branch.name)
+    private readonly branchModel: Model<BranchDocument>,
   ) {}
 
   async getDashboard(authUser: AuthUser) {
     // Kiểm tra lại trong DB: token cũ vẫn còn hạn nhưng tài khoản
     // đã bị khóa / bị hạ quyền thì không được vào nữa.
-    const admin = await this.userModel
-      .findOne({ userId: authUser.sub })
-      .exec();
+    const admin = await this.userModel.findOne({ userId: authUser.sub }).exec();
 
     if (!admin || !admin.isActive || admin.role !== Role.ADMIN) {
       throw new ForbiddenException(
@@ -92,7 +98,9 @@ export class AdminService {
 
     const users = await this.userModel
       .find(filter)
-      .select('userId email firstName lastName role isActive branchId createdAt updatedAt')
+      .select(
+        'userId email firstName lastName role isActive branchId createdAt updatedAt',
+      )
       .sort({ createdAt: -1 })
       .lean()
       .exec();
@@ -103,7 +111,9 @@ export class AdminService {
   async getUser(userId: string) {
     const user = await this.userModel
       .findOne({ userId })
-      .select('userId email firstName lastName role isActive branchId createdAt updatedAt')
+      .select(
+        'userId email firstName lastName role isActive branchId createdAt updatedAt',
+      )
       .lean()
       .exec();
 
@@ -112,6 +122,132 @@ export class AdminService {
     }
 
     return { user };
+  }
+
+  async getActiveBranches() {
+      const branches = await this.branchModel
+        .find({ branchStatus: BranchStatus.ACTIVE })
+        .select('branchId branchName address branchStatus')
+        .sort({ branchName: 1 })
+        .lean()
+        .exec();
+
+      return { branches };
+    }
+
+  async assignBranch(userId: string, input: AssignBranchDto) {
+      const user = await this.userModel
+        .findOne({ userId })
+        .select('userId firstName lastName role isActive branchId')
+        .exec();
+
+      if (!user) throw new NotFoundException('User not found');
+      if (!user.isActive) {
+        throw new BadRequestException(
+          'Cannot assign branch to an inactive account',
+        );
+      }
+      if (user.role !== Role.BRANCHMANAGER && user.role !== Role.STAFF) {
+        throw new BadRequestException(
+          'Only Branch Manager or Staff accounts can be assigned to a branch',
+        );
+      }
+
+      const branch = await this.branchModel
+        .findOne({
+          branchId: input.branchId,
+          branchStatus: BranchStatus.ACTIVE,
+        })
+        .select('branchId')
+        .lean()
+        .exec();
+
+      if (!branch) {
+        throw new BadRequestException(
+          'Selected branch is inactive and cannot be assigned.',
+        );
+      }
+
+      const updatedUser = await this.userModel
+        .findOneAndUpdate(
+          { userId },
+          { $set: { branchId: input.branchId }, $inc: { tokenVersion: 1 } },
+          { new: true, runValidators: true },
+        )
+        .select(
+          'userId email firstName lastName role isActive branchId createdAt updatedAt',
+        )
+        .lean()
+        .exec();
+
+      if (!updatedUser) throw new NotFoundException('User not found');
+      return {
+        message: 'Update asset(s) successfully.',
+        user: updatedUser,
+      };
+  }
+
+  async createUser(input: CreateUserDto) {
+    const email = input.email.toLowerCase();
+    if (input.branchId) {
+      if (
+        input.isActive === false ||
+        (input.role !== Role.BRANCHMANAGER && input.role !== Role.STAFF)
+      ) {
+        throw new BadRequestException(
+          'Only Branch Manager or Staff accounts can be assigned to a branch',
+        );
+      }
+      const branch = await this.branchModel
+        .findOne({
+          branchId: input.branchId,
+          branchStatus: BranchStatus.ACTIVE,
+        })
+        .select('branchId')
+        .lean()
+        .exec();
+      if (!branch) {
+        throw new BadRequestException(
+          'Selected branch is inactive and cannot be assigned.',
+        );
+      }
+    }
+    try {
+        const user = await this.userModel.create({
+          email,
+          password: await bcrypt.hash(input.password, 10),
+          firstName: input.firstName,
+          lastName: input.lastName,
+          role: input.role ?? Role.USER,
+          isActive: input.isActive ?? true,
+          branchId: input.branchId || undefined,
+        });
+
+        return {
+          message: 'User created successfully',
+          user: {
+            userId: user.userId,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            isActive: user.isActive,
+            branchId: user.branchId,
+          },
+        };
+      } catch (error: unknown) {
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 11000
+        ) {
+          throw new ConflictException(
+            'Username must be unique across the entire system.',
+          );
+        }
+        throw error;
+      }
   }
 
   async updateUser(userId: string, input: UpdateUserDto, adminUserId: string) {
@@ -123,7 +259,9 @@ export class AdminService {
       userId === adminUserId &&
       (input.isActive === false || input.role === Role.USER)
     ) {
-      throw new ForbiddenException('You cannot disable or demote your own account');
+      throw new ForbiddenException(
+        'You cannot disable or demote your own account',
+      );
     }
 
     if (input.email) {
@@ -132,11 +270,22 @@ export class AdminService {
 
     try {
       const user = await this.userModel
-        .findOneAndUpdate({ userId }, { $set: input }, {
-          new: true,
-          runValidators: true,
-        })
-        .select('userId email firstName lastName role isActive branchId createdAt updatedAt')
+        .findOneAndUpdate(
+          { userId },
+          {
+            $set: input,
+            ...(input.isActive === false
+              ? { $inc: { tokenVersion: 1 } }
+              : {}),
+          },
+          {
+            new: true,
+            runValidators: true,
+          },
+        )
+        .select(
+          'userId email firstName lastName role isActive branchId createdAt updatedAt',
+        )
         .lean()
         .exec();
 

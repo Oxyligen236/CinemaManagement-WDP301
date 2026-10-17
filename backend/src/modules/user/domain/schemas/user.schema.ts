@@ -45,6 +45,12 @@ export class User {
 
   @Prop({
     required: true,
+    default: 0,
+  })
+  tokenVersion!: number;
+
+  @Prop({
+    required: true,
     trim: true,
     maxlength: 100,
   })
