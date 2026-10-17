@@ -132,31 +132,33 @@ export default function AdminDashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-100 lg:flex">
-      <aside className="w-full shrink-0 bg-slate-950 text-white lg:min-h-screen lg:w-72">
-        <div className="flex h-full flex-col px-5 py-6">
-          <div className="border-b border-slate-800 pb-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-400">
+      {/* Sidebar */}
+      <aside className="w-full shrink-0 bg-slate-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:overflow-y-auto xl:w-72">
+        <div className="flex flex-col px-4 py-5 sm:px-5 lg:min-h-full lg:py-6">
+          <div className="border-b border-slate-800 pb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400 sm:text-sm">
               Cinema Management
             </p>
             <p className="mt-2 text-xl font-bold">Admin portal</p>
           </div>
 
-          <nav aria-label="Admin navigation" className="mt-6 flex-1">
+          <nav aria-label="Admin navigation" className="mt-5 lg:flex-1">
             <p className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Administration
             </p>
-            <ul className="mt-3 space-y-2">
+
+            <ul className="mt-3 flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible">
               {navigationItems.map((item) => {
                 const isActive = pathname === item.href;
 
                 return (
-                  <li key={item.href}>
+                  <li key={item.href} className="shrink-0 lg:w-full">
                     <Link
                       href={item.href}
                       aria-current={isActive ? "page" : undefined}
-                      className={`block rounded-xl px-3 py-3 text-sm font-semibold transition ${
+                      className={`block whitespace-nowrap rounded-xl px-3 py-3 text-sm font-semibold transition lg:whitespace-normal ${
                         isActive
-                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-950/30"
+                          ? "bg-indigo-600 text-white"
                           : "text-slate-300 hover:bg-slate-800 hover:text-white"
                       }`}
                     >
@@ -171,67 +173,79 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={logout}
-            className="rounded-xl border border-slate-700 px-4 py-3 text-left text-sm font-semibold text-slate-300 transition hover:border-indigo-400 hover:text-white"
+            className="mt-3 hidden w-full rounded-xl border border-slate-700 px-4 py-3 text-left text-sm font-semibold text-slate-300 transition hover:border-indigo-400 hover:text-white lg:block"
           >
             Sign out
           </button>
         </div>
       </aside>
 
-      <div className="w-full px-6 py-8 lg:px-10 lg:py-12">
-        <div className="mx-auto w-full max-w-5xl space-y-6">
-          <section className="rounded-3xl bg-white p-8 shadow-xl shadow-slate-200 sm:p-10">
+      {/* Dashboard content */}
+      <div className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:px-10">
+        <div className="mx-auto w-full max-w-7xl space-y-5 sm:space-y-6">
+          {/* Welcome */}
+          <section className="rounded-2xl bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8 lg:p-10">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600 sm:text-sm">
                   Cinema Management
                 </p>
-                <h1 className="mt-3 text-3xl font-bold text-slate-900">
+
+                <h1 className="mt-3 break-words text-2xl font-bold text-slate-900 sm:text-3xl lg:text-4xl">
                   Welcome, {admin.firstName} {admin.lastName}
                 </h1>
-                <p className="mt-2 text-slate-500">Admin</p>
+
+                <p className="mt-2 text-sm text-slate-500 sm:text-base">
+                  Admin dashboard
+                </p>
               </div>
+
               <button
                 type="button"
                 onClick={logout}
-                className="rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600 lg:hidden"
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600 lg:hidden"
               >
                 Sign out
               </button>
             </div>
           </section>
 
-          <section className="grid gap-4 sm:grid-cols-3">
+          {/* Statistics */}
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {cards.map((card) => (
               <div
                 key={card.label}
-                className="rounded-3xl bg-white p-6 shadow-lg shadow-slate-200"
+                className="min-w-0 rounded-2xl bg-white p-5 shadow-sm sm:rounded-3xl sm:p-6"
               >
                 <p className="text-sm font-medium text-slate-500">
                   {card.label}
                 </p>
-                <p className="mt-2 text-4xl font-bold text-slate-900">
+
+                <p className="mt-2 break-words text-3xl font-bold text-slate-900 sm:text-4xl">
                   {card.value}
                 </p>
               </div>
             ))}
           </section>
 
-          <section className="rounded-3xl bg-white p-8 shadow-lg shadow-slate-200">
-            <h2 className="text-lg font-semibold text-slate-900">
+          {/* Users by role */}
+          <section className="rounded-2xl bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8">
+            <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
               Users by role
             </h2>
-            <ul className="mt-4 grid gap-3 sm:grid-cols-4">
+
+            <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {Object.entries(stats.usersByRole)
                 .filter(([role]) => role.toLowerCase() !== "admin")
                 .map(([role, count]) => (
                   <li
                     key={role}
-                    className="rounded-2xl bg-slate-50 px-4 py-3 text-center"
+                    className="min-w-0 rounded-2xl bg-slate-50 px-4 py-4 text-center"
                   >
-                    <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">
+                    <p className="break-words text-xs font-semibold uppercase tracking-wider text-indigo-600">
                       {role}
                     </p>
+
                     <p className="mt-1 text-2xl font-bold text-slate-900">
                       {count}
                     </p>
