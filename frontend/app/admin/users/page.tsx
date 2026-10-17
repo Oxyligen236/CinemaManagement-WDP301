@@ -444,7 +444,7 @@ export default function ManageUsersPage() {
                       className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-indigo-500"
                     >
                       <option value="ADMIN">Admin</option>
-                      <option value="MANAGER">Manager</option>
+                      <option value="BRANCHMANAGER">Branch Manager</option>
                       <option value="STAFF">Staff</option>
                       <option value="USER">User</option>
                     </select>
