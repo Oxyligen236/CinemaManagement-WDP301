@@ -13,6 +13,38 @@ flowchart TD
     Register -->|Click Đăng nhập| Login
     VerifyEmail -->|Xác thực thành công| Login
 
-    %% Admin Portal
-    AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
-    Login -->|Đăng nhập thành công (Admin)| AdminPromotions
+    %% Customer Orders & Tickets Flow
+    subgraph CustomerFlow [Customer Experience]
+        CustomerOrders["/profile/orders (Lịch sử đặt vé cá nhân)"]
+        TicketQRModal["[Modal] Chi tiết vé & Mã QR"]
+        Home -->|Xem lịch sử mua vé| CustomerOrders
+        CustomerOrders -->|Click Xem vé & QR| TicketQRModal
+    end
+
+    %% Staff Operations Flow
+    subgraph StaffFlow [Staff Operations]
+        StaffLayout["/(staff) Layout (Menu POS tối giản)"]
+        StaffOrders["/(staff)/orders (Lịch sử đơn hàng quầy)"]
+        StaffOrderDetail["[Modal] Chi tiết F&B + Vé quầy"]
+        StaffScan["/(staff)/tickets/scan (Soát vé QR / Barcode)"]
+        ScanResultBanner["[Banner] Kết quả soát vé: Hợp lệ / Từ chối"]
+
+        Login -->|Đăng nhập thành công (Staff)| StaffOrders
+        StaffLayout --> StaffOrders
+        StaffLayout --> StaffScan
+        StaffOrders -->|Click Chi tiết F&B + Vé| StaffOrderDetail
+        StaffScan -->|Chọn showtime rồi quét QR / nhập mã| ScanResultBanner
+    end
+
+    %% Admin Portal Flow
+    subgraph AdminFlow [Admin Management]
+        AdminLayout["/(admin) Layout (Sidebar quản trị)"]
+        AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
+        AdminOrders["/orders (Admin - Quản lý toàn bộ đơn hàng)"]
+        AdminOrderDetail["[Modal] Chi tiết đơn hàng toàn diện"]
+
+        Login -->|Đăng nhập thành công (Admin)| AdminPromotions
+        AdminLayout --> AdminPromotions
+        AdminLayout --> AdminOrders
+        AdminOrders -->|Click Xem chi tiết| AdminOrderDetail
+    end

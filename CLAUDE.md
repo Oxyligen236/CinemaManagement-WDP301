@@ -38,8 +38,8 @@
 ## DTO & Pagination Rule (Bắt buộc)
 
 - **Cấu trúc file DTO trong module**: Chia làm 2 file đặt tại `application/dto/`:
-  - `req.dto.ts`: Chứa toàn bộ Request DTO (giá trị đầu vào), bắt buộc có validation decorators (`class-validator`, `class-transformer`).
-  - `res.dto.ts`: Chứa toàn bộ Response DTO (giá trị đầu ra), **không chứa validator**.
+  - `req.dto.ts`: Chứa toàn bộ Request DTO (giá trị đầu vào), bắt buộc có validation decorators (`class-validator`, `class-transformer`). Tên class Request DTO bắt buộc có hậu tố `Req` (ví dụ: `CreatePromotionReq`, `QueryPromotionsReq`, cấm dùng `CreatePromotionDto`).
+  - `res.dto.ts`: Chứa toàn bộ Response DTO (giá trị đầu ra), **không chứa validator**. Tên class Response DTO bắt buộc có hậu tố `Res` (ví dụ: `PromotionRes`, `OrderDetailRes`, cấm dùng `PromotionResponseDto`).
 - **Phân trang**:
   - DTO Request phân trang: Đặt trong `req.dto.ts` và bắt buộc `extends PageRequest` (từ `src/common/dto/page.dto`).
   - Response phân trang: Bắt buộc trả về `Page<T>` (sử dụng `Page.from(...)` từ `src/common/dto/page.dto`), không tự định nghĩa class response phân trang riêng lẻ cho từng module.
