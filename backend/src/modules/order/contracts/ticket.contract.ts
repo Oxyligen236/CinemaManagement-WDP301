@@ -1,0 +1,19 @@
+export interface TicketItemSummaryDto {
+  ticketId: string;
+  ticketCode: string;
+  price: number;
+  ticketStatus: string;
+  usedAt?: Date;
+  seatShowtimeId: string;
+  movieTitle: string;
+  roomName: string;
+  seatLabel: string;
+  startTime: Date;
+  endTime: Date;
+}
+
+export const TICKET_CONTRACT = Symbol('TICKET_CONTRACT');
+
+export interface TicketContract {
+  getTicketsByOrderId(orderId: string): Promise<TicketItemSummaryDto[]>;
+}
