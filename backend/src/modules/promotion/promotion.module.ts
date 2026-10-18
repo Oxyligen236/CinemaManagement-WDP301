@@ -16,7 +16,10 @@ import { PromotionPublicService } from './application/services/promotion-public.
     EventModule,
   ],
   controllers: [PromotionAdminController],
-  providers: [PromotionAdminService, PromotionPublicService],
-  exports: [PromotionPublicService],
+  providers: [
+    PromotionAdminService,
+    PromotionPublicService,
+  ],
+  exports: [PromotionPublicService, PromotionAdminService],
 })
 export class PromotionModule {}

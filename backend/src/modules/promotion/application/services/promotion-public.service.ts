@@ -12,7 +12,9 @@ import { PromotionResponseDto } from '../dto/res.dto';
 
 @Injectable()
 export class PromotionPublicService
-  implements ValidatePromotionUsecase, GetPublicPromotionUsecase
+  implements
+    ValidatePromotionUsecase,
+    GetPublicPromotionUsecase
 {
   constructor(
     @InjectModel(Promotion.name)
