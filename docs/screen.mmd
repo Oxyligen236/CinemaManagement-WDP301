@@ -16,3 +16,24 @@ flowchart TD
     %% Admin Portal
     AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
     Login -->|Đăng nhập thành công (Admin)| AdminPromotions
+
+    %% Branch Manager Portal
+    BMDashboard["/manager (Branch Manager Dashboard)"]
+    ManageShowtime["/manager/showtimes (Manage Showtime)"]
+    ManageRoom["/manager/rooms (Manage Room)"]
+    ConfigPricing["/manager/pricing (Config Ticket Pricing)"]
+    ViewWorkSchedule["/manager/work-schedules (View Work Schedule)"]
+    ViewEmployee["/manager/staff (View Employee)"]
+    AddEmployee["/manager/staff/add (Add Employee)"]
+    BranchReport["/manager/statistics (View Branch Statistic Report)"]
+
+    Login -->|Đăng nhập thành công (Manager)| BMDashboard
+    Home -->|Click Branch Manager Portal| BMDashboard
+    BMDashboard -->|Chọn Quản lý Suất chiếu| ManageShowtime
+    BMDashboard -->|Chọn Quản lý Phòng chiếu| ManageRoom
+    BMDashboard -->|Chọn Cấu hình Giá vé| ConfigPricing
+    BMDashboard -->|Chọn Lịch làm việc| ViewWorkSchedule
+    BMDashboard -->|Chọn Nhân viên Chi nhánh| ViewEmployee
+    BMDashboard -->|Chọn Báo cáo Thống kê| BranchReport
+    ViewEmployee -->|Click Thêm Nhân viên| AddEmployee
+    AddEmployee -->|Quay lại Danh sách Nhân viên| ViewEmployee
