@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from "next/link";
 import {
   CalendarClock,
   MonitorPlay,
@@ -8,7 +8,7 @@ import {
   MapPin,
   CheckCircle2,
   ArrowRight,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface KpiItem {
   rank: string;
@@ -21,36 +21,36 @@ interface KpiItem {
 
 const BRANCH_KPI_CARDS: KpiItem[] = [
   {
-    rank: '01',
-    label: 'Suất chiếu hôm nay',
-    value: '24 suất',
-    subtext: 'Đang mở bán trên 6 phòng chiếu',
+    rank: "01",
+    label: "Suất chiếu hôm nay",
+    value: "24 suất",
+    subtext: "Đang mở bán trên 6 phòng chiếu",
     icon: CalendarClock,
-    href: '/manager/showtimes',
+    href: "/manager/showtimes",
   },
   {
-    rank: '02',
-    label: 'Phòng chiếu hoạt động',
-    value: '6 / 6 phòng',
-    subtext: 'Tổng cộng 780 ghế tiêu chuẩn & VIP',
+    rank: "02",
+    label: "Phòng chiếu hoạt động",
+    value: "6 / 6 phòng",
+    subtext: "Tổng cộng 780 ghế tiêu chuẩn & VIP",
     icon: MonitorPlay,
-    href: '/manager/rooms',
+    href: "/manager/rooms",
   },
   {
-    rank: '03',
-    label: 'Nhân viên ca hiện tại',
-    value: '18 nhân sự',
-    subtext: 'Ca Sáng: 8 • Ca Chiều: 6 • Ca Tối: 4',
+    rank: "03",
+    label: "Nhân viên ca hiện tại",
+    value: "18 nhân sự",
+    subtext: "Ca Sáng: 8 • Ca Chiều: 6 • Ca Tối: 4",
     icon: Users,
-    href: '/manager/work-schedules',
+    href: "/manager/work-schedules",
   },
   {
-    rank: '04',
-    label: 'Doanh thu tạm tính hôm nay',
-    value: '48.500.000 ₫',
-    subtext: '+12.4% so với cùng kỳ tuần trước',
+    rank: "04",
+    label: "Doanh thu tạm tính hôm nay",
+    value: "48.500.000 ₫",
+    subtext: "+12.4% so với cùng kỳ tuần trước",
     icon: BarChart3,
-    href: '/manager/statistics',
+    href: "/manager/statistics",
   },
 ];
 
@@ -98,7 +98,8 @@ export default function BranchManagerDashboardPage() {
 
             <p className="flex items-center gap-1.5 text-[13px] text-[#dad2b4]">
               <MapPin className="h-4 w-4 shrink-0 text-[#c1b687]" />
-              Tầng 3, TTTM Lotte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng, Quận 7, TP.HCM
+              Tầng 3, TTTM Lotte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng,
+              Quận 7, TP.HCM
             </p>
           </div>
 

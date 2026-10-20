@@ -3,8 +3,18 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2, KeyRound, RotateCcw } from "lucide-react";
+import {
+  AuthShell,
+  AuthErrorBanner,
+  AuthSuccessBanner,
+  AUTH_INPUT_CLASS,
+  AUTH_LABEL_CLASS,
+  AUTH_PRIMARY_BUTTON_CLASS,
+  AUTH_SECONDARY_BUTTON_CLASS,
+} from "@/components/auth/auth-shell";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
 type ApiResponse = {
   message?: string;
@@ -45,19 +55,19 @@ export default function ForgotPasswordPage() {
         throw new Error(
           typeof data.message === "string"
             ? data.message
-            : "Unable to request a reset code.",
+            : "Không thể yêu cầu mã đặt lại.",
         );
       }
 
       setMessage(
-        "If this email is registered, a reset code has been sent. Please check your inbox.",
+        "Nếu email này đã được đăng ký, mã đặt lại đã được gửi. Vui lòng kiểm tra hộp thư của bạn.",
       );
       setStep("reset");
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "Unable to connect to the server.",
+          : "Không thể kết nối đến máy chủ.",
       );
     } finally {
       setSubmitting(false);
@@ -71,17 +81,17 @@ export default function ForgotPasswordPage() {
     setMessage("");
 
     if (code.length !== 6) {
-      setError("The verification code must contain 6 digits.");
+      setError("Mã xác thực phải gồm đúng 6 chữ số.");
       return;
     }
 
     if (newPassword.length < 8) {
-      setError("The new password must contain at least 8 characters.");
+      setError("Mật khẩu mới phải có tối thiểu 8 ký tự.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError("The password confirmation does not match.");
+      setError("Mật khẩu xác nhận không khớp.");
       return;
     }
 
@@ -106,7 +116,7 @@ export default function ForgotPasswordPage() {
         throw new Error(
           typeof data.message === "string"
             ? data.message
-            : "The reset code is invalid or expired.",
+            : "Mã đặt lại không hợp lệ hoặc đã hết hạn.",
         );
       }
 
@@ -115,183 +125,166 @@ export default function ForgotPasswordPage() {
       setError(
         resetError instanceof Error
           ? resetError.message
-          : "Unable to reset your password.",
+          : "Không thể đặt lại mật khẩu của bạn.",
       );
     } finally {
       setSubmitting(false);
     }
   }
 
+  const isRequestStep = step === "request"; // derived, không phải state
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl shadow-slate-200 sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-          Cinema Management
-        </p>
-
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">
-          Forgot password
-        </h1>
-
-        {step === "request" ? (
-          <>
-            <p className="mt-2 text-slate-500">
-              Enter your email and we&apos;ll send you a password reset code.
-            </p>
-
-            <form className="mt-8 space-y-5" onSubmit={requestResetCode}>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Email
-                </span>
-
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                />
-              </label>
-
-              {error && (
-                <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting ? "Sending code..." : "Send reset code"}
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <p className="mt-2 text-slate-500">
-              Enter the 6-digit code sent to your email. The code expires in 5
-              minutes.
-            </p>
-
-            {message && (
-              <p className="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {message}
-              </p>
-            )}
-
-            <form className="mt-8 space-y-5" onSubmit={resetPassword}>
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Email
-                </span>
-
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Reset code
-                </span>
-
-                <input
-                  required
-                  minLength={6}
-                  maxLength={6}
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  value={code}
-                  onChange={(event) =>
-                    setCode(event.target.value.replace(/\D/g, ""))
-                  }
-                  placeholder="000000"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-2xl tracking-[0.5em] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  New password
-                </span>
-
-                <input
-                  required
-                  minLength={8}
-                  type="password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  placeholder="At least 8 characters"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">
-                  Confirm new password
-                </span>
-
-                <input
-                  required
-                  minLength={8}
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="Repeat your new password"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                />
-              </label>
-
-              {error && (
-                <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {submitting ? "Resetting password..." : "Reset password"}
-              </button>
-            </form>
-
-            <button
-              type="button"
-              onClick={() => {
-                setStep("request");
-                setCode("");
-                setNewPassword("");
-                setConfirmPassword("");
-                setMessage("");
-                setError("");
-              }}
-              className="mt-5 w-full text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-            >
-              Request another code
-            </button>
-          </>
-        )}
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Remember your password?{" "}
-          <Link
-            href="/login"
-            className="font-semibold text-indigo-600 hover:text-indigo-700"
-          >
-            Back to login
+    <AuthShell
+      eyebrow="ĐẶT LẠI MẬT KHẨU"
+      title="Quên mật khẩu"
+      description={
+        isRequestStep
+          ? "Nhập email của bạn, chúng tôi sẽ gửi mã đặt lại mật khẩu."
+          : "Nhập mã 6 chữ số đã được gửi đến email của bạn. Mã có hiệu lực trong 5 phút."
+      }
+      panelTitle={isRequestStep ? "Yêu cầu Mã Đặt lại" : "Đặt lại Mật khẩu Mới"}
+      panelAside={isRequestStep ? "Bước 1 / 2" : "Bước 2 / 2"}
+      icon={KeyRound}
+      maxWidthClass="max-w-[520px]"
+      footerSlot={
+        <p className="text-center text-[13px] text-[#666]">
+          Đã nhớ mật khẩu?{" "}
+          <Link href="/login" className="font-bold text-[#da291c] hover:underline">
+            Quay lại Đăng nhập
           </Link>
         </p>
-      </section>
-    </main>
+      }
+    >
+      {isRequestStep ? (
+        <form className="space-y-4" onSubmit={requestResetCode}>
+          <div>
+            <label htmlFor="forgot-email" className={AUTH_LABEL_CLASS}>
+              Email
+            </label>
+            <input
+              id="forgot-email"
+              required
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              className={AUTH_INPUT_CLASS}
+            />
+          </div>
+          {error && <AuthErrorBanner message={error} />}
+          <button type="submit" disabled={submitting} className={AUTH_PRIMARY_BUTTON_CLASS}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+            {submitting ? "Đang gửi mã..." : "Gửi mã đặt lại"}
+          </button>
+        </form>
+      ) : (
+        <>
+          {message && <AuthSuccessBanner message={message} />}
+
+          <form className="mt-4 space-y-4" onSubmit={resetPassword}>
+            <div>
+              <label htmlFor="reset-email" className={AUTH_LABEL_CLASS}>
+                Email
+              </label>
+              <input
+                id="reset-email"
+                required
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="email"
+                className={AUTH_INPUT_CLASS}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="reset-code" className={AUTH_LABEL_CLASS}>
+                Mã đặt lại
+              </label>
+              <input
+                id="reset-code"
+                required
+                minLength={6}
+                maxLength={6}
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
+                placeholder="000000"
+                autoComplete="one-time-code"
+                aria-describedby="reset-code-hint"
+                className={`${AUTH_INPUT_CLASS} text-center text-[20px] font-bold tracking-[0.4em]`}
+              />
+              <p id="reset-code-hint" className="mt-1 text-[11px] text-[#777]">
+                Gồm đúng 6 chữ số.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="reset-new-password" className={AUTH_LABEL_CLASS}>
+                Mật khẩu mới
+              </label>
+              <input
+                id="reset-new-password"
+                required
+                minLength={8}
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="Tối thiểu 8 ký tự"
+                autoComplete="new-password"
+                aria-describedby="reset-new-password-hint"
+                className={AUTH_INPUT_CLASS}
+              />
+              <p id="reset-new-password-hint" className="mt-1 text-[11px] text-[#777]">
+                Tối thiểu 8 ký tự.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="reset-confirm-password" className={AUTH_LABEL_CLASS}>
+                Xác nhận mật khẩu mới
+              </label>
+              <input
+                id="reset-confirm-password"
+                required
+                minLength={8}
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="Nhập lại mật khẩu mới"
+                autoComplete="new-password"
+                className={AUTH_INPUT_CLASS}
+              />
+            </div>
+
+            {error && <AuthErrorBanner message={error} />}
+
+            <button type="submit" disabled={submitting} className={AUTH_PRIMARY_BUTTON_CLASS}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+              {submitting ? "Đang đặt lại mật khẩu..." : "Đặt lại mật khẩu"}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep("request");
+              setCode("");
+              setNewPassword("");
+              setConfirmPassword("");
+              setMessage("");
+              setError("");
+            }}
+            className={`${AUTH_SECONDARY_BUTTON_CLASS} mt-4`}
+          >
+            <RotateCcw className="h-4 w-4" />
+            Yêu cầu mã khác
+          </button>
+        </>
+      )}
+    </AuthShell>
   );
 }

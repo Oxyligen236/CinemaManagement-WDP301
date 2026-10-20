@@ -3,8 +3,16 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2, UserPlus } from "lucide-react";
+import {
+  AuthShell,
+  AuthErrorBanner,
+  AUTH_INPUT_CLASS,
+  AUTH_LABEL_CLASS,
+  AUTH_PRIMARY_BUTTON_CLASS,
+} from "@/components/auth/auth-shell";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
 type RegisterResponse = {
   email?: string;
@@ -45,7 +53,7 @@ export default function RegisterPage() {
         throw new Error(
           typeof data.message === "string"
             ? data.message
-            : "Unable to create your account.",
+            : "Không thể tạo tài khoản của bạn.",
         );
       }
 
@@ -55,7 +63,7 @@ export default function RegisterPage() {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "Unable to connect to the server.",
+          : "Không thể kết nối đến máy chủ.",
       );
     } finally {
       setSubmitting(false);
@@ -63,92 +71,96 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <section className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-xl shadow-slate-200 sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-          Cinema Management
+    <AuthShell
+      eyebrow="ĐĂNG KÝ THÀNH VIÊN"
+      title="Tạo tài khoản mới"
+      description="Nhập thông tin của bạn. Chúng tôi sẽ gửi mã xác thực đến email."
+      panelTitle="Thông tin Tài khoản"
+      panelAside="Tất cả bắt buộc"
+      icon={UserPlus}
+      maxWidthClass="max-w-[560px]"
+      footerSlot={
+        <p className="text-center text-[13px] text-[#666]">
+          Đã có tài khoản?{" "}
+          <Link href="/login" className="font-bold text-[#da291c] hover:underline">
+            Đăng nhập
+          </Link>
         </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">
-          Create account
-        </h1>
-        <p className="mt-2 text-slate-500">
-          Enter your details. We&apos;ll send a verification code to your email.
-        </p>
-
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field
-              label="First name"
-              value={form.firstName}
-              onChange={(value) => updateField("firstName", value)}
-            />
-            <Field
-              label="Last name"
-              value={form.lastName}
-              onChange={(value) => updateField("lastName", value)}
-            />
-          </div>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label="Email"
-            type="email"
-            value={form.email}
-            onChange={(value) => updateField("email", value)}
+            id="register-firstname"
+            label="Tên"
+            value={form.firstName}
+            onChange={(value) => updateField("firstName", value)}
           />
           <Field
-            label="Password"
-            type="password"
-            value={form.password}
-            onChange={(value) => updateField("password", value)}
-            hint="At least 8 characters"
+            id="register-lastname"
+            label="Họ"
+            value={form.lastName}
+            onChange={(value) => updateField("lastName", value)}
           />
+        </div>
+        <Field
+          id="register-email"
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={(value) => updateField("email", value)}
+        />
+        <Field
+          id="register-password"
+          label="Mật khẩu"
+          type="password"
+          value={form.password}
+          onChange={(value) => updateField("password", value)}
+          hint="Tối thiểu 8 ký tự"
+        />
 
-          {error && (
-            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </p>
-          )}
+        {error && <AuthErrorBanner message={error} />}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Sending code..." : "Continue"}
-          </button>
-        </form>
-      </section>
-    </main>
+        <button type="submit" disabled={submitting} className={AUTH_PRIMARY_BUTTON_CLASS}>
+          {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+          {submitting ? "Đang gửi mã..." : "Tiếp tục"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 
 function Field({
+  id,
   label,
   value,
   onChange,
   type = "text",
   hint,
 }: {
+  id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   hint?: string;
 }) {
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-medium text-slate-700">
-        {label}
-      </span>
+    <div>
+      <label htmlFor={id} className={AUTH_LABEL_CLASS}>{label}</label>
       <input
+        id={id}
         required
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+        aria-describedby={hintId}
+        className={AUTH_INPUT_CLASS}
       />
       {hint && (
-        <span className="mt-1 block text-xs text-slate-400">{hint}</span>
+        <p id={hintId} className="mt-1 text-[11px] text-[#777]">{hint}</p>
       )}
-    </label>
+    </div>
   );
 }
