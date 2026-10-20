@@ -135,7 +135,19 @@ export class AdminService {
       return { branches };
     }
 
-  async assignBranch(userId: string, input: AssignBranchDto) {
+  async assignBranch(
+    userId: string,
+    input: AssignBranchDto,
+    adminUserId: string,
+  ) {
+      // Admin không được tự gán chi nhánh cho chính mình: tài khoản quản trị
+      // là cấp toàn hệ thống, không thuộc về bất kỳ chi nhánh nào.
+      if (userId === adminUserId) {
+        throw new ForbiddenException(
+          'You cannot assign a branch to your own account',
+        );
+      }
+
       const user = await this.userModel
         .findOne({ userId })
         .select('userId firstName lastName role isActive branchId')
@@ -255,13 +267,26 @@ export class AdminService {
       throw new BadRequestException('At least one field is required');
     }
 
-    if (
-      userId === adminUserId &&
-      (input.isActive === false || input.role === Role.USER)
-    ) {
-      throw new ForbiddenException(
-        'You cannot disable or demote your own account',
-      );
+    // Tự bảo vệ tài khoản quản trị đang đăng nhập: không được tự đổi vai trò
+    // (tránh tự khóa quyền quản trị) và không được tự vô hiệu hóa.
+    if (userId === adminUserId) {
+      const self = await this.userModel
+        .findOne({ userId })
+        .select('role')
+        .lean()
+        .exec();
+
+      if (!self) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (input.role !== undefined && input.role !== self.role) {
+        throw new ForbiddenException('You cannot change your own role');
+      }
+
+      if (input.isActive === false) {
+        throw new ForbiddenException('You cannot disable your own account');
+      }
     }
 
     if (input.email) {

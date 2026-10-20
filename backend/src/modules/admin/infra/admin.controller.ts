@@ -56,8 +56,13 @@ export class AdminController {
   assignBranch(
     @Param('userId') userId: string,
     @Body() input: AssignBranchDto,
+    @Req() req: AuthenticatedRequest,
   ) {
-    return this.adminService.assignBranch(userId, input);
+    return this.adminService.assignBranch(
+      userId,
+      input,
+      (req.user as AuthUser).sub,
+    );
   }
 
   @Post('users')

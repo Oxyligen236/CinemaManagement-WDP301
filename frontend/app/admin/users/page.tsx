@@ -227,13 +227,19 @@ export default function ManageUsersPage() {
         method: "PATCH",
         body: JSON.stringify({
           ...profile,
-          role: selectedUser.isActive ? form.role : selectedUser.role,
+          role:
+            editingSelf || !selectedUser.isActive
+              ? selectedUser.role
+              : form.role,
         }),
       });
       let updatedUser = result.user;
       if (!updatedUser)
-        throw new Error("Hệ thống không trả về dữ liệu người dùng sau cập nhật.");
+        throw new Error(
+          "Hệ thống không trả về dữ liệu người dùng sau cập nhật.",
+        );
       if (
+        !editingSelf &&
         branchId &&
         branchId !== selectedUser.branchId &&
         (updatedUser.role === "BRANCHMANAGER" || updatedUser.role === "STAFF")
@@ -303,6 +309,9 @@ export default function ManageUsersPage() {
       setSaving(false);
     }
   }
+
+  const editingSelf =
+    !creating && !!selectedUser && selectedUser.userId === currentUserId;
 
   return (
     <div className="space-y-6 font-['Arial',sans-serif]">
@@ -555,6 +564,17 @@ export default function ManageUsersPage() {
                 </p>
               )}
 
+              {editingSelf && (
+                <p
+                  role="status"
+                  className="flex items-start gap-2 border border-[#f5d9a8] bg-[#fdf8ee] px-3 py-2.5 text-[12px] font-semibold text-[#b45309]"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Tài khoản quản trị viên không thể tự thay đổi vai trò, tự gán
+                  chi nhánh hoặc tự vô hiệu hóa tài khoản.
+                </p>
+              )}
+
               {creating && (
                 <div>
                   <label htmlFor="admin-form-password" className={LABEL_CLASS}>
@@ -636,10 +656,14 @@ export default function ManageUsersPage() {
                 <select
                   id="admin-form-branch"
                   required={
-                    form.role === "BRANCHMANAGER" || form.role === "STAFF"
+                    !editingSelf &&
+                    (form.role === "BRANCHMANAGER" || form.role === "STAFF")
                   }
                   value={form.branchId}
-                  disabled={!creating && selectedUser?.isActive === false}
+                  disabled={
+                    !creating &&
+                    (editingSelf || selectedUser?.isActive === false)
+                  }
                   onChange={(event) =>
                     setForm({
                       ...form,
@@ -656,14 +680,25 @@ export default function ManageUsersPage() {
                   ))}
                 </select>
 
-                {!creating && selectedUser?.isActive === false && (
+                {editingSelf ? (
                   <p
                     role="status"
                     className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b45309]"
                   >
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    Không thể gán chi nhánh cho tài khoản đã bị vô hiệu hóa
+                    Không thể gán chi nhánh cho tài khoản quản trị viên.
                   </p>
+                ) : (
+                  !creating &&
+                  selectedUser?.isActive === false && (
+                    <p
+                      role="status"
+                      className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b45309]"
+                    >
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Không thể gán chi nhánh cho tài khoản đã bị vô hiệu hóa
+                    </p>
+                  )
                 )}
               </div>
 
@@ -674,7 +709,10 @@ export default function ManageUsersPage() {
                 <select
                   id="admin-form-role"
                   value={form.role}
-                  disabled={!creating && selectedUser?.isActive === false}
+                  disabled={
+                    !creating &&
+                    (editingSelf || selectedUser?.isActive === false)
+                  }
                   onChange={(event) =>
                     setForm({
                       ...form,
@@ -689,14 +727,25 @@ export default function ManageUsersPage() {
                   <option value="USER">Khách hàng</option>
                 </select>
 
-                {!creating && selectedUser?.isActive === false && (
+                {editingSelf ? (
                   <p
                     role="status"
                     className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b45309]"
                   >
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    Không thể thay đổi vai trò của tài khoản đã bị vô hiệu hóa
+                    Không thể thay đổi vai trò của tài khoản quản trị viên.
                   </p>
+                ) : (
+                  !creating &&
+                  selectedUser?.isActive === false && (
+                    <p
+                      role="status"
+                      className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b45309]"
+                    >
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Không thể thay đổi vai trò của tài khoản đã bị vô hiệu hóa
+                    </p>
+                  )
                 )}
               </div>
 
