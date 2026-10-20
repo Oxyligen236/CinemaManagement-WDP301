@@ -40,7 +40,13 @@ function LoginForm() {
 
       localStorage.setItem("cinema_access_token", result.accessToken);
       localStorage.setItem("cinema_user", JSON.stringify(result.user));
-      router.push(result.user?.role === "ADMIN" ? "/admin/dashboard" : "/");
+      router.push(
+        result.user?.role === "ADMIN"
+          ? "/admin/dashboard"
+          : result.user?.role === "BRANCHMANAGER"
+            ? "/manager"
+            : "/",
+      );
     } catch (submitError) {
       setError(
         submitError instanceof Error
