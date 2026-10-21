@@ -1,7 +1,5 @@
-import {
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+/* eslint-disable prettier/prettier */
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -22,7 +20,11 @@ export class UserAuthenticationService {
       .select('+password')
       .exec();
 
-    if (!user || !user.isActive || !(await bcrypt.compare(password, user.password))) {
+    if (
+      !user ||
+      !user.isActive ||
+      !(await bcrypt.compare(password, user.password))
+    ) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -30,6 +32,7 @@ export class UserAuthenticationService {
       sub: user.userId,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion ?? 0,
     };
 
     return {

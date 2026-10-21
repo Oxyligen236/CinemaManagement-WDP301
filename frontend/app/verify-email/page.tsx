@@ -3,8 +3,17 @@
 import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Loader2, MailCheck } from "lucide-react";
+import {
+  AUTH_INPUT_CLASS,
+  AUTH_LABEL_CLASS,
+  AUTH_PRIMARY_BUTTON_CLASS,
+  AUTH_SECONDARY_BUTTON_CLASS,
+  AuthErrorBanner,
+  AuthShell,
+} from "@/components/auth/auth-shell";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
 type VerifyResponse = {
   message?: string;
@@ -35,7 +44,7 @@ function VerifyEmailForm() {
         throw new Error(
           typeof data.message === "string"
             ? data.message
-            : "The verification code is invalid or expired.",
+            : "Mã xác thực không hợp lệ hoặc đã hết hạn.",
         );
       }
 
@@ -44,7 +53,7 @@ function VerifyEmailForm() {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "Unable to connect to the server.",
+          : "Không thể kết nối đến máy chủ.",
       );
     } finally {
       setSubmitting(false);
@@ -52,76 +61,75 @@ function VerifyEmailForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl shadow-slate-200 sm:p-10">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl">
-          ✉
-        </div>
-        <p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-          Verify your email
-        </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">
-          Check your inbox
-        </h1>
-        <p className="mt-3 text-slate-500">
-          Enter the 6-digit code sent to your email. The code expires in 5
-          minutes.
-        </p>
-
-        <form className="mt-8 space-y-5 text-left" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">
-              Email
-            </span>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">
-              Verification code
-            </span>
-            <input
-              required
-              minLength={6}
-              maxLength={6}
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              value={code}
-              onChange={(event) =>
-                setCode(event.target.value.replace(/\D/g, ""))
-              }
-              placeholder="000000"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-2xl tracking-[0.5em] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-
-          {error && (
-            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Verifying..." : "Verify email"}
-          </button>
-        </form>
-
-        <Link
-          href="/login"
-          className="mt-6 inline-block text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-        >
-          Back to login
+    <AuthShell
+      eyebrow="XÁC THỰC EMAIL"
+      title="Kiểm tra hộp thư của bạn"
+      description="Nhập mã 6 chữ số đã được gửi đến email của bạn. Mã có hiệu lực trong 5 phút."
+      panelTitle="Nhập Mã Xác thực"
+      panelAside="Hiệu lực 5 phút"
+      icon={MailCheck}
+      footerSlot={
+        <Link href="/login" className={AUTH_SECONDARY_BUTTON_CLASS}>
+          <ArrowLeft className="h-4 w-4" />
+          Quay lại Đăng nhập
         </Link>
-      </section>
-    </main>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="verify-email" className={AUTH_LABEL_CLASS}>
+            Email
+          </label>
+          <input
+            id="verify-email"
+            required
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            className={AUTH_INPUT_CLASS}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="verify-code" className={AUTH_LABEL_CLASS}>
+            Mã xác thực
+          </label>
+          <input
+            id="verify-code"
+            required
+            minLength={6}
+            maxLength={6}
+            inputMode="numeric"
+            pattern="[0-9]{6}"
+            value={code}
+            onChange={(event) =>
+              setCode(event.target.value.replace(/\D/g, ""))
+            }
+            placeholder="000000"
+            autoComplete="one-time-code"
+            aria-describedby="verify-code-hint"
+            className={`${AUTH_INPUT_CLASS} text-center text-[20px] font-bold tracking-[0.4em]`}
+          />
+          <p id="verify-code-hint" className="mt-1 text-[11px] text-[#777]">
+            Gồm đúng 6 chữ số, không chứa khoảng trắng.
+          </p>
+        </div>
+
+        {error && <AuthErrorBanner message={error} />}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className={AUTH_PRIMARY_BUTTON_CLASS}
+        >
+          {submitting && (
+            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+          )}
+          {submitting ? "Đang xác thực..." : "Xác thực Email"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 
