@@ -103,7 +103,17 @@ export class PromotionAdminService
       ),
     );
 
-    return PromotionResponseDto.of(created);
+    return PromotionResponseDto.of(
+      created.promotionId,
+      created.promotionCode,
+      created.discountValue,
+      created.discountType,
+      created.startDate,
+      created.endDate,
+      created.isActive,
+      created.createdAt,
+      created.updatedAt,
+    );
   }
 
   async getPromotions(
@@ -141,7 +151,19 @@ export class PromotionAdminService
     ]);
 
     return Page.from(
-      PromotionResponseDto.ofArray(items),
+      items.map((p) =>
+        PromotionResponseDto.of(
+          p.promotionId,
+          p.promotionCode,
+          p.discountValue,
+          p.discountType,
+          p.startDate,
+          p.endDate,
+          p.isActive,
+          p.createdAt,
+          p.updatedAt,
+        ),
+      ),
       total,
       page,
       limit,
@@ -154,7 +176,17 @@ export class PromotionAdminService
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
 
-    return PromotionResponseDto.of(promotion);
+    return PromotionResponseDto.of(
+      promotion.promotionId,
+      promotion.promotionCode,
+      promotion.discountValue,
+      promotion.discountType,
+      promotion.startDate,
+      promotion.endDate,
+      promotion.isActive,
+      promotion.createdAt,
+      promotion.updatedAt,
+    );
   }
 
   async updatePromotion(
@@ -210,7 +242,17 @@ export class PromotionAdminService
       ),
     );
 
-    return PromotionResponseDto.of(updated);
+    return PromotionResponseDto.of(
+      updated.promotionId,
+      updated.promotionCode,
+      updated.discountValue,
+      updated.discountType,
+      updated.startDate,
+      updated.endDate,
+      updated.isActive,
+      updated.createdAt,
+      updated.updatedAt,
+    );
   }
 
   async changePromotionStatus(
@@ -232,6 +274,16 @@ export class PromotionAdminService
       ),
     );
 
-    return PromotionResponseDto.of(updated);
+    return PromotionResponseDto.of(
+      updated.promotionId,
+      updated.promotionCode,
+      updated.discountValue,
+      updated.discountType,
+      updated.startDate,
+      updated.endDate,
+      updated.isActive,
+      updated.createdAt,
+      updated.updatedAt,
+    );
   }
 }

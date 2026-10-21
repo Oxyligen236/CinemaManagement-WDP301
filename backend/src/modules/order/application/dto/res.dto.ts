@@ -9,14 +9,24 @@ export class OrderSummaryRes {
   ticketCount!: number;
   hasProducts!: boolean;
 
-  static of(source: Record<string, any>): OrderSummaryRes {
+  static of(
+    orderId: string,
+    userId: string,
+    totalAmount: number,
+    status: OrderStatus,
+    createdAt: Date,
+    ticketCount: number,
+    hasProducts: boolean,
+  ): OrderSummaryRes {
     const res = new OrderSummaryRes();
-    Object.assign(res, source);
+    res.orderId = orderId;
+    res.userId = userId;
+    res.totalAmount = totalAmount;
+    res.status = status;
+    res.createdAt = createdAt;
+    res.ticketCount = ticketCount;
+    res.hasProducts = hasProducts;
     return res;
-  }
-
-  static ofArray(sources: Record<string, any>[] | null | undefined): OrderSummaryRes[] {
-    return (sources ?? []).map((source) => OrderSummaryRes.of(source));
   }
 }
 
@@ -28,14 +38,22 @@ export class OrderItemProductRes {
   unitPrice!: number;
   subTotal!: number;
 
-  static of(source: Record<string, any>): OrderItemProductRes {
+  static of(
+    productId: string,
+    productName: string,
+    imageUrl: string | undefined,
+    quantity: number,
+    unitPrice: number,
+    subTotal: number,
+  ): OrderItemProductRes {
     const res = new OrderItemProductRes();
-    Object.assign(res, source);
+    res.productId = productId;
+    res.productName = productName;
+    res.imageUrl = imageUrl;
+    res.quantity = quantity;
+    res.unitPrice = unitPrice;
+    res.subTotal = subTotal;
     return res;
-  }
-
-  static ofArray(sources: Record<string, any>[] | null | undefined): OrderItemProductRes[] {
-    return (sources ?? []).map((source) => OrderItemProductRes.of(source));
   }
 }
 
@@ -50,14 +68,28 @@ export class OrderItemTicketRes {
   seatLabel!: string;
   startTime!: Date;
 
-  static of(source: Record<string, any>): OrderItemTicketRes {
+  static of(
+    ticketId: string,
+    ticketCode: string,
+    price: number,
+    ticketStatus: string,
+    usedAt: Date | undefined,
+    movieTitle: string,
+    roomName: string,
+    seatLabel: string,
+    startTime: Date,
+  ): OrderItemTicketRes {
     const res = new OrderItemTicketRes();
-    Object.assign(res, source);
+    res.ticketId = ticketId;
+    res.ticketCode = ticketCode;
+    res.price = price;
+    res.ticketStatus = ticketStatus;
+    res.usedAt = usedAt;
+    res.movieTitle = movieTitle;
+    res.roomName = roomName;
+    res.seatLabel = seatLabel;
+    res.startTime = startTime;
     return res;
-  }
-
-  static ofArray(sources: Record<string, any>[] | null | undefined): OrderItemTicketRes[] {
-    return (sources ?? []).map((source) => OrderItemTicketRes.of(source));
   }
 }
 
@@ -68,9 +100,19 @@ export class PromotionSummaryRes {
   discountValue!: number;
   discountAmount!: number;
 
-  static of(source: Record<string, any>): PromotionSummaryRes {
+  static of(
+    promotionId: string,
+    promotionCode: string,
+    discountType: string,
+    discountValue: number,
+    discountAmount: number,
+  ): PromotionSummaryRes {
     const res = new PromotionSummaryRes();
-    Object.assign(res, source);
+    res.promotionId = promotionId;
+    res.promotionCode = promotionCode;
+    res.discountType = discountType;
+    res.discountValue = discountValue;
+    res.discountAmount = discountAmount;
     return res;
   }
 }
@@ -85,12 +127,25 @@ export class OrderDetailRes {
   products!: OrderItemProductRes[];
   promotion?: PromotionSummaryRes;
 
-  static of(source: Record<string, any>): OrderDetailRes {
+  static of(
+    orderId: string,
+    userId: string,
+    totalAmount: number,
+    status: OrderStatus,
+    createdAt: Date,
+    tickets: OrderItemTicketRes[],
+    products: OrderItemProductRes[],
+    promotion?: PromotionSummaryRes,
+  ): OrderDetailRes {
     const res = new OrderDetailRes();
-    Object.assign(res, source);
-    res.tickets = OrderItemTicketRes.ofArray(source.tickets);
-    res.products = OrderItemProductRes.ofArray(source.products);
-    if (source.promotion) res.promotion = PromotionSummaryRes.of(source.promotion);
+    res.orderId = orderId;
+    res.userId = userId;
+    res.totalAmount = totalAmount;
+    res.status = status;
+    res.createdAt = createdAt;
+    res.tickets = tickets;
+    res.products = products;
+    res.promotion = promotion;
     return res;
   }
 }

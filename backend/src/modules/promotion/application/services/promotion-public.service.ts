@@ -99,7 +99,17 @@ export class PromotionPublicService
       return null;
     }
 
-    return PromotionResponseDto.of(promo);
+    return PromotionResponseDto.of(
+      promo.promotionId,
+      promo.promotionCode,
+      promo.discountValue,
+      promo.discountType,
+      promo.startDate,
+      promo.endDate,
+      promo.isActive,
+      promo.createdAt,
+      promo.updatedAt,
+    );
   }
 
 }

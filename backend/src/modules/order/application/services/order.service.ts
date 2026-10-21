@@ -129,17 +129,19 @@ export class OrderService
       this.productOrderModel.find({ orderId }).lean().exec(),
     ]);
 
-    const tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) => ({
-      ticketId: t.ticketId,
-      ticketCode: t.ticketCode,
-      price: t.price,
-      ticketStatus: t.ticketStatus,
-      usedAt: t.usedAt,
-      movieTitle: t.movieTitle,
-      roomName: t.roomName,
-      seatLabel: t.seatLabel,
-      startTime: t.startTime,
-    }));
+    const tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
+      OrderItemTicketRes.of(
+        t.ticketId,
+        t.ticketCode,
+        t.price,
+        t.ticketStatus,
+        t.usedAt,
+        t.movieTitle,
+        t.roomName,
+        t.seatLabel,
+        t.startTime,
+      ),
+    );
 
     const productIds = productOrders.map((po) => po.productId);
     const productsMap =
@@ -149,14 +151,14 @@ export class OrderService
 
     const products: OrderItemProductRes[] = productOrders.map((po) => {
       const prodInfo = productsMap.get(po.productId);
-      return {
-        productId: po.productId,
-        productName: prodInfo?.productName ?? po.productId,
-        imageUrl: prodInfo?.imageUrl,
-        quantity: po.quantity,
-        unitPrice: po.unitPrice,
-        subTotal: po.quantity * po.unitPrice,
-      };
+      return OrderItemProductRes.of(
+        po.productId,
+        prodInfo?.productName ?? po.productId,
+        prodInfo?.imageUrl,
+        po.quantity,
+        po.unitPrice,
+        po.quantity * po.unitPrice,
+      );
     });
 
     let promotion: PromotionSummaryRes | undefined;
@@ -173,28 +175,26 @@ export class OrderService
         const originalTotal = ticketSubtotal + productSubtotal;
         const discountAmount = Math.max(0, originalTotal - order.totalAmount);
 
-        promotion = {
-          promotionId: promoInfo.promotionId,
-          promotionCode: promoInfo.promotionCode,
-          discountType: promoInfo.discountType,
-          discountValue: promoInfo.discountValue,
+        promotion = PromotionSummaryRes.of(
+          promoInfo.promotionId,
+          promoInfo.promotionCode,
+          promoInfo.discountType,
+          promoInfo.discountValue,
           discountAmount,
-        };
+        );
       }
     }
 
-    const res = new OrderDetailRes();
-    res.orderId = order.orderId;
-    res.userId = order.userId;
-    res.totalAmount = order.totalAmount;
-    res.status = order.status;
-    res.createdAt =
-      (order as unknown as { createdAt?: Date }).createdAt ?? new Date();
-    res.tickets = tickets;
-    res.products = products;
-    res.promotion = promotion;
-
-    return res;
+    return OrderDetailRes.of(
+      order.orderId,
+      order.userId,
+      order.totalAmount,
+      order.status,
+      (order as unknown as { createdAt?: Date }).createdAt ?? new Date(),
+      tickets,
+      products,
+      promotion,
+    );
   }
 
   private async paginateOrders(
@@ -238,18 +238,17 @@ export class OrderService
       hasProductsMap.add(po.orderId);
     }
 
-    const items: OrderSummaryRes[] = orders.map((o) => {
-      const summary = new OrderSummaryRes();
-      summary.orderId = o.orderId;
-      summary.userId = o.userId;
-      summary.totalAmount = o.totalAmount;
-      summary.status = o.status;
-      summary.createdAt =
-        (o as unknown as { createdAt?: Date }).createdAt ?? new Date();
-      summary.ticketCount = ticketCountMap.get(o.orderId) ?? 0;
-      summary.hasProducts = hasProductsMap.has(o.orderId);
-      return summary;
-    });
+    const items: OrderSummaryRes[] = orders.map((o) =>
+      OrderSummaryRes.of(
+        o.orderId,
+        o.userId,
+        o.totalAmount,
+        o.status,
+        (o as unknown as { createdAt?: Date }).createdAt ?? new Date(),
+        ticketCountMap.get(o.orderId) ?? 0,
+        hasProductsMap.has(o.orderId),
+      ),
+    );
 
     return Page.from(items, total, page, limit);
   }

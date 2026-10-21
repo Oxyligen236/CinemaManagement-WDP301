@@ -1,5 +1,4 @@
 import { TicketStatus } from '../../domain/enums/ticket-status.enum';
-import { Ticket, TicketDocument } from '../../domain/schemas/ticket.schema';
 
 export class TicketDetailRes {
   ticketId!: string;
@@ -15,27 +14,87 @@ export class TicketDetailRes {
   startTime!: Date;
   endTime!: Date;
 
-  static of(source: Ticket | TicketDocument | Record<string, any>): TicketDetailRes {
-    const doc = (source as any)?._doc ?? source ?? {};
+  static of(
+    ticketId: string,
+    ticketCode: string,
+    orderId: string,
+    price: number,
+    ticketStatus: TicketStatus,
+    usedAt: Date | undefined,
+    seatShowtimeId: string,
+    movieTitle: string,
+    roomName: string,
+    seatLabel: string,
+    startTime: Date,
+    endTime: Date,
+  ): TicketDetailRes {
     const res = new TicketDetailRes();
-    Object.assign(res, doc);
+    res.ticketId = ticketId;
+    res.ticketCode = ticketCode;
+    res.orderId = orderId;
+    res.price = price;
+    res.ticketStatus = ticketStatus;
+    res.usedAt = usedAt;
+    res.seatShowtimeId = seatShowtimeId;
+    res.movieTitle = movieTitle;
+    res.roomName = roomName;
+    res.seatLabel = seatLabel;
+    res.startTime = startTime;
+    res.endTime = endTime;
     return res;
-  }
-
-  static ofArray(sources: (Ticket | TicketDocument | Record<string, any>)[] | null | undefined): TicketDetailRes[] {
-    return (sources ?? []).map((s) => TicketDetailRes.of(s));
   }
 }
 
-export class ScanTicketResultRes extends TicketDetailRes {
+export class ScanTicketResultRes {
+  ticketId!: string;
+  ticketCode!: string;
+  orderId!: string;
+  price!: number;
+  ticketStatus!: TicketStatus;
+  usedAt?: Date;
+  seatShowtimeId!: string;
+  movieTitle!: string;
+  roomName!: string;
+  seatLabel!: string;
+  startTime!: Date;
+  endTime!: Date;
   scannedBy!: string;
   scannedAt!: Date;
   message!: string;
 
-  static of(source: Record<string, any>): ScanTicketResultRes {
-    const doc = (source as any)?._doc ?? source ?? {};
+  static of(
+    ticketId: string,
+    ticketCode: string,
+    orderId: string,
+    price: number,
+    ticketStatus: TicketStatus,
+    usedAt: Date | undefined,
+    seatShowtimeId: string,
+    movieTitle: string,
+    roomName: string,
+    seatLabel: string,
+    startTime: Date,
+    endTime: Date,
+    scannedBy: string,
+    scannedAt: Date,
+    message: string,
+  ): ScanTicketResultRes {
     const res = new ScanTicketResultRes();
-    Object.assign(res, doc);
+    res.ticketId = ticketId;
+    res.ticketCode = ticketCode;
+    res.orderId = orderId;
+    res.price = price;
+    res.ticketStatus = ticketStatus;
+    res.usedAt = usedAt;
+    res.seatShowtimeId = seatShowtimeId;
+    res.movieTitle = movieTitle;
+    res.roomName = roomName;
+    res.seatLabel = seatLabel;
+    res.startTime = startTime;
+    res.endTime = endTime;
+    res.scannedBy = scannedBy;
+    res.scannedAt = scannedAt;
+    res.message = message;
     return res;
   }
 }

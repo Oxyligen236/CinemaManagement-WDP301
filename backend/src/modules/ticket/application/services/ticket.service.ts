@@ -115,23 +115,23 @@ export class TicketService
 
     const seatLabel = `${showtimeDetail.rowPosition || ''}${showtimeDetail.columnPosition || ''}`;
 
-    return {
-      ticketId: ticket.ticketId,
-      ticketCode: ticket.ticketCode,
-      orderId: ticket.orderId,
-      price: ticket.price,
-      ticketStatus: ticket.ticketStatus,
-      usedAt: ticket.usedAt,
-      seatShowtimeId: ticket.seatShowtimeId,
-      movieTitle: showtimeDetail.movieTitle,
-      roomName: showtimeDetail.roomName,
+    return ScanTicketResultRes.of(
+      ticket.ticketId,
+      ticket.ticketCode,
+      ticket.orderId,
+      ticket.price,
+      ticket.ticketStatus,
+      ticket.usedAt,
+      ticket.seatShowtimeId,
+      showtimeDetail.movieTitle,
+      showtimeDetail.roomName,
       seatLabel,
-      startTime: showtimeDetail.startTime,
-      endTime: showtimeDetail.endTime,
-      scannedBy: staffId,
+      showtimeDetail.startTime,
+      showtimeDetail.endTime,
+      staffId,
       scannedAt,
-      message: 'Soát vé thành công',
-    };
+      'Soát vé thành công',
+    );
   }
 
   async getTicketDetail(ticketCode: string): Promise<TicketDetailRes> {
@@ -154,20 +154,20 @@ export class TicketService
       ? `${showtimeDetail.rowPosition || ''}${showtimeDetail.columnPosition || ''}`
       : '';
 
-    return {
-      ticketId: ticket.ticketId,
-      ticketCode: ticket.ticketCode,
-      orderId: ticket.orderId,
-      price: ticket.price,
-      ticketStatus: ticket.ticketStatus,
-      usedAt: ticket.usedAt,
-      seatShowtimeId: ticket.seatShowtimeId,
-      movieTitle: showtimeDetail?.movieTitle ?? '',
-      roomName: showtimeDetail?.roomName ?? '',
+    return TicketDetailRes.of(
+      ticket.ticketId,
+      ticket.ticketCode,
+      ticket.orderId,
+      ticket.price,
+      ticket.ticketStatus,
+      ticket.usedAt,
+      ticket.seatShowtimeId,
+      showtimeDetail?.movieTitle ?? '',
+      showtimeDetail?.roomName ?? '',
       seatLabel,
-      startTime: showtimeDetail?.startTime ?? new Date(),
-      endTime: showtimeDetail?.endTime ?? new Date(),
-    };
+      showtimeDetail?.startTime ?? new Date(),
+      showtimeDetail?.endTime ?? new Date(),
+    );
   }
 
   async getTicketsByOrderId(orderId: string): Promise<TicketItemSummaryDto[]> {
