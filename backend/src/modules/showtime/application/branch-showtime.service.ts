@@ -21,7 +21,6 @@ import { Room, RoomDocument } from '../../room/domain/schemas/room.schema';
 import { RoomStatus } from '../../room/domain/enums/room-status.enum';
 import { Seat, SeatDocument } from '../../room/domain/schemas/seat.schema';
 import { SeatStatus } from '../../room/domain/enums/seat-status.enum';
-import { SeatType } from '../../room/domain/enums/seat-type.enum';
 import { Movie, MovieDocument } from '../../movie/domain/schemas/movie.schema';
 import { MovieStatus } from '../../movie/domain/enums/movie-status.enum';
 import {
@@ -43,30 +42,18 @@ import {
   BranchShowtimeQueryDto,
   CreateBranchShowtimeDto,
   UpdateBranchShowtimeDto,
-} from './dto/branch-showtime.dto';
-
-type ManagerBranch = {
-  branchId: string;
-  branchName: string;
-  address: string;
-  branchStatus: BranchStatus;
-};
-
-type MovieSummary = {
-  movieId: string;
-  movieName: string;
-  duration: number;
-  status: MovieStatus;
-  posterKey?: string;
-  isActive: boolean;
-};
-
-type RoomSummary = {
-  roomId: string;
-  roomName: string;
-  roomStatus: RoomStatus;
-  branchId: string;
-};
+} from './dto/req.dto';
+import {
+  BranchShowtimeDeleteResponseDto,
+  BranchShowtimeDetailResponseDto,
+  BranchShowtimeItemDto,
+  BranchShowtimeListResponseDto,
+  BranchShowtimeMutationResponseDto,
+  ManagerBranchDto,
+  ShowtimeMovieOptionDto,
+  ShowtimeOptionsResponseDto,
+  ShowtimeRoomOptionDto,
+} from './dto/res.dto';
 
 @Injectable()
 export class BranchShowtimeService {
@@ -87,10 +74,7 @@ export class BranchShowtimeService {
     private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
   ) {}
 
-  /**
-   * Lấy danh mục Phim đang hoạt động + Phòng chiếu thuộc chi nhánh của Manager
-   */
-  async getOptions(managerUserId?: string) {
+  async getOptions(managerUserId?: string): Promise<ShowtimeOptionsResponseDto> {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
 
@@ -102,13 +86,13 @@ export class BranchShowtimeService {
           })
           .select('movieId movieName duration status posterKey isActive')
           .sort({ movieName: 1 })
-          .lean<MovieSummary[]>()
+          .lean<ShowtimeMovieOptionDto[]>()
           .exec(),
         this.roomModel
           .find({ branchId: branch.branchId })
           .select('roomId roomName roomStatus branchId')
           .sort({ roomName: 1 })
-          .lean<RoomSummary[]>()
+          .lean<ShowtimeRoomOptionDto[]>()
           .exec(),
       ]);
 
@@ -151,20 +135,17 @@ export class BranchShowtimeService {
     });
   }
 
-  /**
-   * Main flow bước 1: Danh sách các suất chiếu tại chi nhánh của Manager
-   */
   async listShowtimes(
     managerUserId: string | undefined,
     query: BranchShowtimeQueryDto,
-  ) {
+  ): Promise<BranchShowtimeListResponseDto> {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
 
       const branchRooms = await this.roomModel
         .find({ branchId: branch.branchId })
         .select('roomId roomName roomStatus branchId')
-        .lean<RoomSummary[]>()
+        .lean<ShowtimeRoomOptionDto[]>()
         .exec();
 
       const branchRoomIds = branchRooms.map((r) => r.roomId);
@@ -191,7 +172,10 @@ export class BranchShowtimeService {
       if (query.date) {
         const startOfDay = new Date(`${query.date}T00:00:00.000+07:00`);
         const endOfDay = new Date(`${query.date}T23:59:59.999+07:00`);
-        if (!Number.isNaN(startOfDay.getTime()) && !Number.isNaN(endOfDay.getTime())) {
+        if (
+          !Number.isNaN(startOfDay.getTime()) &&
+          !Number.isNaN(endOfDay.getTime())
+        ) {
           filter.startTime = { $gte: startOfDay, $lte: endOfDay };
         }
       }
@@ -222,16 +206,16 @@ export class BranchShowtimeService {
     });
   }
 
-  /**
-   * Chi tiết 1 suất chiếu thuộc chi nhánh
-   */
-  async getShowtime(managerUserId: string | undefined, showtimeId: string) {
+  async getShowtime(
+    managerUserId: string | undefined,
+    showtimeId: string,
+  ): Promise<BranchShowtimeDetailResponseDto> {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
       const branchRooms = await this.roomModel
         .find({ branchId: branch.branchId })
         .select('roomId roomName roomStatus branchId')
-        .lean<RoomSummary[]>()
+        .lean<ShowtimeRoomOptionDto[]>()
         .exec();
 
       const showtime = await this.showtimeModel
@@ -251,17 +235,10 @@ export class BranchShowtimeService {
     });
   }
 
-  /**
-   * Main flow bước 3-6 (Tạo mới suất chiếu):
-   * - Kiểm tra BR-BRM-04 (Phòng thuộc chi nhánh & AVAILABLE, Phim active)
-   * - Tính endTime tự động theo BR-BRM-02 (startTime + movie.duration)
-   * - Kiểm tra xung đột lịch chiếu theo BR-BRM-01
-   * - Tạo Showtime + sinh SeatShowtime cho phòng chiếu
-   */
   async createShowtime(
     managerUserId: string | undefined,
     input: CreateBranchShowtimeDto,
-  ) {
+  ): Promise<BranchShowtimeMutationResponseDto> {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
       if (branch.branchStatus !== BranchStatus.ACTIVE) {
@@ -276,12 +253,12 @@ export class BranchShowtimeService {
             status: { $in: [MovieStatus.NOW_SHOWING, MovieStatus.COMING_SOON] },
           })
           .select('movieId movieName duration status isActive')
-          .lean<MovieSummary>()
+          .lean<ShowtimeMovieOptionDto>()
           .exec(),
         this.roomModel
           .findOne({ roomId: input.roomId, branchId: branch.branchId })
           .select('roomId roomName roomStatus branchId')
-          .lean<RoomSummary>()
+          .lean<ShowtimeRoomOptionDto>()
           .exec(),
       ]);
 
@@ -331,17 +308,11 @@ export class BranchShowtimeService {
     });
   }
 
-  /**
-   * Main flow bước 3-6 (Cập nhật suất chiếu):
-   * - Kiểm tra BR-BRM-03 / AF-3: Chặn cập nhật nếu suất chiếu đã có vé bán
-   * - Kiểm tra BR-BRM-04 & tính lại endTime theo BR-BRM-02
-   * - Kiểm tra trùng lịch phòng chiếu theo BR-BRM-01
-   */
   async updateShowtime(
     managerUserId: string | undefined,
     showtimeId: string,
     input: UpdateBranchShowtimeDto,
-  ) {
+  ): Promise<BranchShowtimeMutationResponseDto> {
     return this.guard(async () => {
       if (Object.keys(input).length === 0) {
         throw new BadRequestException(SHOWTIME_MESSAGES.MSG01);
@@ -351,7 +322,7 @@ export class BranchShowtimeService {
       const branchRooms = await this.roomModel
         .find({ branchId: branch.branchId })
         .select('roomId roomName roomStatus branchId')
-        .lean<RoomSummary[]>()
+        .lean<ShowtimeRoomOptionDto[]>()
         .exec();
 
       const existing = await this.showtimeModel
@@ -366,7 +337,6 @@ export class BranchShowtimeService {
         throw new NotFoundException(SHOWTIME_MESSAGES.SHOWTIME_NOT_FOUND);
       }
 
-      // Chặn chỉnh sửa nếu suất chiếu đã bắt đầu hoặc đã qua
       if (new Date(existing.startTime).getTime() <= Date.now()) {
         throw new ConflictException(
           SHOWTIME_MESSAGES.PAST_SHOWTIME_UPDATE_LOCKED,
@@ -400,12 +370,12 @@ export class BranchShowtimeService {
             status: { $in: [MovieStatus.NOW_SHOWING, MovieStatus.COMING_SOON] },
           })
           .select('movieId movieName duration status isActive')
-          .lean<MovieSummary>()
+          .lean<ShowtimeMovieOptionDto>()
           .exec(),
         this.roomModel
           .findOne({ roomId: targetRoomId, branchId: branch.branchId })
           .select('roomId roomName roomStatus branchId')
-          .lean<RoomSummary>()
+          .lean<ShowtimeRoomOptionDto>()
           .exec(),
       ]);
 
@@ -425,7 +395,7 @@ export class BranchShowtimeService {
         movie.duration,
       );
 
-      // BR-BRM-01 / AF-2: Kiểm tra trùng lịch phòng chiếu (bỏ qua chính showtimeId này)
+      // BR-BRM-01 / AF-2: Kiểm tra trùng lịch phòng chiếu
       await this.assertNoRoomConflict(
         room.roomId,
         targetStartTime,
@@ -456,7 +426,6 @@ export class BranchShowtimeService {
         throw new NotFoundException(SHOWTIME_MESSAGES.SHOWTIME_NOT_FOUND);
       }
 
-      // Nếu đổi phòng chiếu thì khởi tạo lại danh sách ghế theo phòng mới
       if (room.roomId !== existing.roomId) {
         await this.seatShowtimeModel.deleteMany({ showtimeId }).exec();
         await this.initializeSeatShowtimes(showtimeId, room.roomId);
@@ -471,11 +440,10 @@ export class BranchShowtimeService {
     });
   }
 
-  /**
-   * Main flow bước 5-6 (Xóa suất chiếu):
-   * - Kiểm tra BR-BRM-03 / AF-3: Chặn xóa nếu suất chiếu đã có vé bán
-   */
-  async deleteShowtime(managerUserId: string | undefined, showtimeId: string) {
+  async deleteShowtime(
+    managerUserId: string | undefined,
+    showtimeId: string,
+  ): Promise<BranchShowtimeDeleteResponseDto> {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
       const branchRooms = await this.roomModel
@@ -496,7 +464,6 @@ export class BranchShowtimeService {
         throw new NotFoundException(SHOWTIME_MESSAGES.SHOWTIME_NOT_FOUND);
       }
 
-      // Chặn xóa nếu suất chiếu đã bắt đầu hoặc đã qua
       if (new Date(existing.startTime).getTime() <= Date.now()) {
         throw new ConflictException(
           SHOWTIME_MESSAGES.PAST_SHOWTIME_DELETE_LOCKED,
@@ -521,14 +488,6 @@ export class BranchShowtimeService {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Helper & Business Rule Validation Methods
-  // ---------------------------------------------------------------------------
-
-  /**
-   * BR-BRM-01: Kiểm tra xem phòng chiếu đã có suất chiếu nào giao nhau với
-   * khoảng [startTime, endTime) hay chưa.
-   */
   private async assertNoRoomConflict(
     roomId: string,
     startTime: Date,
@@ -572,9 +531,6 @@ export class BranchShowtimeService {
     }
   }
 
-  /**
-   * BR-BRM-03: Kiểm tra suất chiếu đã có ghế BOOKED hoặc RESERVED chưa
-   */
   private async hasSoldOrReservedTickets(showtimeId: string): Promise<boolean> {
     const lockedExists = await this.seatShowtimeModel
       .exists({
@@ -586,9 +542,6 @@ export class BranchShowtimeService {
     return Boolean(lockedExists);
   }
 
-  /**
-   * Tạo danh sách SeatShowtime (EMPTY) cho tất cả ghế AVAILABLE của phòng chiếu
-   */
   private async initializeSeatShowtimes(showtimeId: string, roomId: string) {
     const seats = await this.seatModel
       .find({ roomId, status: SeatStatus.AVAILABLE })
@@ -608,13 +561,10 @@ export class BranchShowtimeService {
     );
   }
 
-  /**
-   * Ghép thông tin Phim, Phòng chiếu và Số lượng ghế đã bán vào danh sách Showtime
-   */
   private async enrichShowtimes(
     showtimes: Showtime[],
-    branchRooms: RoomSummary[],
-  ) {
+    branchRooms: ShowtimeRoomOptionDto[],
+  ): Promise<BranchShowtimeItemDto[]> {
     if (showtimes.length === 0) return [];
 
     const movieIds = Array.from(new Set(showtimes.map((s) => s.movieId)));
@@ -624,7 +574,7 @@ export class BranchShowtimeService {
       this.movieModel
         .find({ movieId: { $in: movieIds } })
         .select('movieId movieName duration status posterKey isActive')
-        .lean<MovieSummary[]>()
+        .lean<ShowtimeMovieOptionDto[]>()
         .exec(),
       this.seatShowtimeModel.aggregate<{
         _id: string;
@@ -672,7 +622,7 @@ export class BranchShowtimeService {
       const movie = movieMap.get(showtime.movieId);
       const room = roomMap.get(showtime.roomId);
       const stat = seatStatMap.get(showtime.showtimeId);
-      const totalSeats = stat?.totalSeats ?? 0;
+      const totalSeats = stat?.totalSeats ?? 60;
       const bookedSeats = stat?.bookedSeats ?? 0;
       const reservedSeats = stat?.reservedSeats ?? 0;
       const soldOrReserved = bookedSeats + reservedSeats;
@@ -706,14 +656,9 @@ export class BranchShowtimeService {
     });
   }
 
-  /**
-   * Lấy thông tin chi nhánh của Branch Manager.
-   * Nếu đang ở môi trường phát triển/demo mà chưa có user đăng nhập hoặc chưa gán chi nhánh,
-   * tự động khởi tạo/lấy chi nhánh mặc định "Lotte Cinema Nam Sài Gòn" để có thể thao tác ngay.
-   */
   private async resolveManagerBranch(
     managerUserId?: string,
-  ): Promise<ManagerBranch> {
+  ): Promise<ManagerBranchDto> {
     if (managerUserId) {
       const manager = await this.userModel
         .findOne({ userId: managerUserId })
@@ -726,25 +671,28 @@ export class BranchShowtimeService {
           const assignedBranch = await this.branchModel
             .findOne({ branchId: manager.branchId })
             .select('branchId branchName address branchStatus')
-            .lean<ManagerBranch>()
+            .lean<ManagerBranchDto>()
             .exec();
 
           if (assignedBranch) {
             return assignedBranch;
           }
         }
-      } else if (manager && manager.role !== Role.BRANCHMANAGER && manager.role !== Role.ADMIN) {
+      } else if (
+        manager &&
+        manager.role !== Role.BRANCHMANAGER &&
+        manager.role !== Role.ADMIN
+      ) {
         throw new ForbiddenException(
           'Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.',
         );
       }
     }
 
-    // Fallback cho chi nhánh mặc định (hoặc tự tạo chi nhánh mẫu nếu DB mới tinh)
     let defaultBranch = await this.branchModel
       .findOne({ branchStatus: BranchStatus.ACTIVE })
       .select('branchId branchName address branchStatus')
-      .lean<ManagerBranch>()
+      .lean<ManagerBranchDto>()
       .exec();
 
     if (!defaultBranch) {
@@ -763,135 +711,6 @@ export class BranchShowtimeService {
     }
 
     return defaultBranch;
-  }
-
-  /**
-   * Đảm bảo Database có sẵn dữ liệu Phim đang chiếu và Phòng chiếu mẫu cho chi nhánh
-   * khi chạy lần đầu tiên để Manager có thể lên lịch suất chiếu ngay.
-   */
-  private async ensureSampleMoviesAndRooms(branchId: string) {
-    const [movieCount, roomCount] = await Promise.all([
-      this.movieModel.countDocuments({ isActive: true }).exec(),
-      this.roomModel.countDocuments({ branchId }).exec(),
-    ]);
-
-    if (movieCount === 0) {
-      await this.movieModel.insertMany([
-        {
-          movieName: 'Lật Mặt 8: Vòng Tay Nắng',
-          duration: 132,
-          status: MovieStatus.NOW_SHOWING,
-          isActive: true,
-        },
-        {
-          movieName: 'Thám Tử Kiên: Kỳ Án Không Đầu',
-          duration: 125,
-          status: MovieStatus.NOW_SHOWING,
-          isActive: true,
-        },
-        {
-          movieName: 'Địa Đạo: Mặt Trời Trong Bóng Tối',
-          duration: 128,
-          status: MovieStatus.NOW_SHOWING,
-          isActive: true,
-        },
-        {
-          movieName: 'Doraemon: Nobita Và Cuộc Phiêu Lưu Vào Thế Giới Trong Tranh',
-          duration: 105,
-          status: MovieStatus.NOW_SHOWING,
-          isActive: true,
-        },
-        {
-          movieName: 'Nhiệm Vụ Bất Khả Thi: Nghiệp Báo Cuối Cùng',
-          duration: 163,
-          status: MovieStatus.COMING_SOON,
-          isActive: true,
-        },
-      ]);
-    }
-
-    if (roomCount === 0) {
-      await this.roomModel.insertMany([
-        {
-          roomName: 'Cinema 01 (2D Standard)',
-          roomStatus: RoomStatus.AVAILABLE,
-          branchId,
-        },
-        {
-          roomName: 'Cinema 02 (3D Dolby Atmos)',
-          roomStatus: RoomStatus.AVAILABLE,
-          branchId,
-        },
-        {
-          roomName: 'Cinema 03 (Super Plex)',
-          roomStatus: RoomStatus.AVAILABLE,
-          branchId,
-        },
-        {
-          roomName: 'Cinema 04 (Charlotte VIP)',
-          roomStatus: RoomStatus.MAINTENANCE,
-          branchId,
-        },
-      ]);
-    }
-
-    // Đảm bảo mọi phòng chiếu thuộc chi nhánh đều có sơ đồ ghế (6 hàng A-F x 10 cột = 60 ghế)
-    const branchRooms = await this.roomModel
-      .find({ branchId })
-      .select('roomId')
-      .lean<{ roomId: string }[]>()
-      .exec();
-
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
-    for (const room of branchRooms) {
-      const seatCount = await this.seatModel
-        .countDocuments({ roomId: room.roomId })
-        .exec();
-      if (seatCount === 0) {
-        const seatDocs: {
-          roomId: string;
-          rowPosition: string;
-          columnPosition: number;
-          seatType: SeatType;
-          status: SeatStatus;
-        }[] = [];
-
-        for (const row of rows) {
-          for (let col = 1; col <= 10; col++) {
-            seatDocs.push({
-              roomId: room.roomId,
-              rowPosition: row,
-              columnPosition: col,
-              seatType:
-                row === 'D' || row === 'E'
-                  ? SeatType.VIP
-                  : row === 'F'
-                    ? SeatType.COUPLE
-                    : SeatType.STANDARD,
-              status: SeatStatus.AVAILABLE,
-            });
-          }
-        }
-        await this.seatModel.insertMany(seatDocs, { ordered: false });
-      }
-    }
-
-    // Đồng bộ SeatShowtime cho các suất chiếu cũ chưa có bản ghi ghế
-    const branchRoomIds = branchRooms.map((r) => r.roomId);
-    const existingShowtimes = await this.showtimeModel
-      .find({ roomId: { $in: branchRoomIds } })
-      .select('showtimeId roomId')
-      .lean<{ showtimeId: string; roomId: string }[]>()
-      .exec();
-
-    for (const st of existingShowtimes) {
-      const stSeatCount = await this.seatShowtimeModel
-        .countDocuments({ showtimeId: st.showtimeId })
-        .exec();
-      if (stSeatCount === 0) {
-        await this.initializeSeatShowtimes(st.showtimeId, st.roomId);
-      }
-    }
   }
 
   private async guard<T>(operation: () => Promise<T>): Promise<T> {

@@ -8,53 +8,65 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { PageRequest } from '../../../../common/dto/page.dto';
 
-const trim = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
-
-export class BranchShowtimeQueryDto {
+export class BranchShowtimeQueryDto extends PageRequest {
   /** Lọc theo ngày chiếu định dạng YYYY-MM-DD */
   @IsOptional()
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MaxLength(20)
   date?: string;
 
   /** Lọc theo bộ phim */
   @IsOptional()
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MaxLength(100)
   movieId?: string;
 
   /** Lọc theo phòng chiếu thuộc chi nhánh */
   @IsOptional()
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MaxLength(100)
   roomId?: string;
 
   /** Từ khóa tìm theo tên phim hoặc tên phòng */
   @IsOptional()
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MaxLength(100)
   search?: string;
 }
 
 export class CreateBranchShowtimeDto {
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
   movieId!: string;
 
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
   roomId!: string;
 
   /** Thời điểm bắt đầu chiếu (ISO 8601 string) */
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsNotEmpty()
   @IsDateString()
   startTime!: string;
@@ -69,19 +81,25 @@ export class CreateBranchShowtimeDto {
 
 export class UpdateBranchShowtimeDto {
   @IsOptional()
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
   movieId?: string;
 
   @IsOptional()
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
   roomId?: string;
 
   @IsOptional()
-  @Transform(trim)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsNotEmpty()
   @IsDateString()
   startTime?: string;

@@ -22,7 +22,7 @@ import {
   BranchShowtimeQueryDto,
   CreateBranchShowtimeDto,
   UpdateBranchShowtimeDto,
-} from '../application/dto/branch-showtime.dto';
+} from '../application/dto/req.dto';
 import { SHOWTIME_MESSAGES } from '../domain/showtime.rules';
 
 const flatten = (errors: ValidationError[], parent = ''): string[] =>
