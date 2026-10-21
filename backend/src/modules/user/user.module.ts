@@ -4,8 +4,6 @@ https://docs.nestjs.com/modules
 */
 
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EventModule } from '../infra/event/event.module';
 import { User, UserSchema } from './domain/schemas/user.schema';
@@ -13,6 +11,9 @@ import { UserController } from './infra/user.controller';
 import { PendingRegistrationService } from './application/services/pending-registration.service';
 import { UserRegistrationService } from './application/services/user-registration.service';
 import { UserAuthenticationService } from './application/services/user-authentication.service';
+import { MailModule } from '../infra/mail/mail.module';
+import { AuthModule } from '../auth/auth.module';
+import { PasswordResetService } from './application/services/password-reset.service';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -36,29 +37,17 @@ import { UserAuthenticationService } from './application/services/user-authentic
 // Module chỉ được import Module cấm import thứ khác
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: User.name, schema: UserSchema },
-    ]),
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     EventModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>(
-          'JWT_SECRET',
-          'change-this-development-secret',
-        ),
-        signOptions: {
-          expiresIn: config.get<number>('JWT_EXPIRES_IN_SECONDS', 86400),
-        },
-      }),
-    }),
+    MailModule,
+    AuthModule,
   ],
   controllers: [UserController],
   providers: [
     PendingRegistrationService,
     UserRegistrationService,
     UserAuthenticationService,
+    PasswordResetService,
   ],
 })
 export class UserModule {}
