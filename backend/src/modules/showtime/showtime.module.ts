@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { BranchModule } from '../branch/branch.module';
@@ -21,7 +21,7 @@ import { BranchShowtimeService } from './application/branch-showtime.service';
   imports: [
     AuthModule,
     BranchModule,
-    RoomModule,
+    forwardRef(() => RoomModule),
     MovieModule,
     MongooseModule.forFeature([
       { name: Showtime.name, schema: ShowtimeSchema },
