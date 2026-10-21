@@ -99,20 +99,7 @@ export class PromotionPublicService
       return null;
     }
 
-    return this.mapToResponse(promo);
+    return PromotionResponseDto.of(promo);
   }
 
-  private mapToResponse(promo: PromotionDocument): PromotionResponseDto {
-    return {
-      promotionId: promo.promotionId,
-      promotionCode: promo.promotionCode,
-      discountValue: promo.discountValue,
-      discountType: promo.discountType,
-      startDate: promo.startDate,
-      endDate: promo.endDate,
-      isActive: promo.isActive,
-      createdAt: promo.createdAt ?? new Date(),
-      updatedAt: promo.updatedAt ?? new Date(),
-    };
-  }
 }

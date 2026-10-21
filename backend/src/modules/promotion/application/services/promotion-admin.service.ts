@@ -103,7 +103,7 @@ export class PromotionAdminService
       ),
     );
 
-    return this.mapToResponse(created);
+    return PromotionResponseDto.of(created);
   }
 
   async getPromotions(
@@ -141,7 +141,7 @@ export class PromotionAdminService
     ]);
 
     return Page.from(
-      items.map((item) => this.mapToResponse(item)),
+      PromotionResponseDto.ofArray(items),
       total,
       page,
       limit,
@@ -154,7 +154,7 @@ export class PromotionAdminService
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
 
-    return this.mapToResponse(promotion);
+    return PromotionResponseDto.of(promotion);
   }
 
   async updatePromotion(
@@ -210,7 +210,7 @@ export class PromotionAdminService
       ),
     );
 
-    return this.mapToResponse(updated);
+    return PromotionResponseDto.of(updated);
   }
 
   async changePromotionStatus(
@@ -232,20 +232,6 @@ export class PromotionAdminService
       ),
     );
 
-    return this.mapToResponse(updated);
-  }
-
-  private mapToResponse(promo: PromotionDocument): PromotionResponseDto {
-    return {
-      promotionId: promo.promotionId,
-      promotionCode: promo.promotionCode,
-      discountValue: promo.discountValue,
-      discountType: promo.discountType,
-      startDate: promo.startDate,
-      endDate: promo.endDate,
-      isActive: promo.isActive,
-      createdAt: promo.createdAt,
-      updatedAt: promo.updatedAt,
-    };
+    return PromotionResponseDto.of(updated);
   }
 }
