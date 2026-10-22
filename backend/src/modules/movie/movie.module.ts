@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Movie, MovieSchema } from './domain/schemas/movie.schema';
 import { Genre, GenreSchema } from './domain/schemas/genre.schema';
@@ -14,7 +14,7 @@ import { MovieService } from './application/services/movie.service';
       { name: Movie.name, schema: MovieSchema },
       { name: Genre.name, schema: GenreSchema },
     ]),
-    ShowtimeModule,
+    forwardRef(() => ShowtimeModule),
     StorageModule,
   ],
   controllers: [MovieController],

@@ -106,7 +106,10 @@ describe('TicketService', () => {
       });
 
       await expect(
-        service.scanTicket({ ticketCode: 'VALID-CODE', showtimeId: 'st-1' }, 'staff-1'),
+        service.scanTicket(
+          { ticketCode: 'VALID-CODE', showtimeId: 'st-1' },
+          'staff-1',
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -135,7 +138,10 @@ describe('TicketService', () => {
       });
 
       await expect(
-        service.scanTicket({ ticketCode: 'VALID-CODE', showtimeId: 'st-1' }, 'staff-1'),
+        service.scanTicket(
+          { ticketCode: 'VALID-CODE', showtimeId: 'st-1' },
+          'staff-1',
+        ),
       ).rejects.toThrow('Vé không thuộc suất chiếu đang chọn');
     });
 
@@ -164,7 +170,10 @@ describe('TicketService', () => {
       });
 
       await expect(
-        service.scanTicket({ ticketCode: 'VALID-CODE', showtimeId: 'st-1' }, 'staff-1'),
+        service.scanTicket(
+          { ticketCode: 'VALID-CODE', showtimeId: 'st-1' },
+          'staff-1',
+        ),
       ).rejects.toThrow('Suất chiếu đã kết thúc, vé đã hết hạn sử dụng');
     });
 

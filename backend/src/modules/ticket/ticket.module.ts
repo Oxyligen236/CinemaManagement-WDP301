@@ -1,8 +1,14 @@
 ﻿import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Ticket, TicketSchema } from './domain/schemas/ticket.schema';
-import { SeatShowtime, SeatShowtimeSchema } from '../showtime/domain/schemas/seat-showtime.schema';
-import { Showtime, ShowtimeSchema } from '../showtime/domain/schemas/showtime.schema';
+import {
+  SeatShowtime,
+  SeatShowtimeSchema,
+} from '../showtime/domain/schemas/seat-showtime.schema';
+import {
+  Showtime,
+  ShowtimeSchema,
+} from '../showtime/domain/schemas/showtime.schema';
 import { Movie, MovieSchema } from '../movie/domain/schemas/movie.schema';
 import { Room, RoomSchema } from '../room/domain/schemas/room.schema';
 import { Seat, SeatSchema } from '../room/domain/schemas/seat.schema';
@@ -38,4 +44,3 @@ import { ShowtimeContractImpl } from './contracts/showtime-contract.impl';
   exports: [TicketService, SHOWTIME_CONTRACT],
 })
 export class TicketModule {}
-
