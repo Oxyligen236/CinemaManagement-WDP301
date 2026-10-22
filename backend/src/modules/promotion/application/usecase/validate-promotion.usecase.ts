@@ -22,6 +22,9 @@ export interface ValidatePromotionUsecase {
   }): Promise<{
     isValid: boolean;
     promotionId?: string;
+    promotionCode?: string;
+    discountType?: string;
+    discountValue?: number;
     discountAmount: number;
     reason?: string;
   }>;

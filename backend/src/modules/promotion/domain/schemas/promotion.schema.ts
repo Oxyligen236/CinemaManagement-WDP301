@@ -57,6 +57,31 @@ export class Promotion {
     default: true,
   })
   isActive!: boolean;
+
+  @Prop({
+    required: false,
+    min: 0,
+  })
+  minOrderValue?: number;
+
+  @Prop({
+    required: false,
+    min: 0,
+  })
+  maxDiscountAmount?: number;
+
+  @Prop({
+    required: false,
+    min: 0,
+  })
+  usageLimit?: number;
+
+  @Prop({
+    required: false,
+    default: 0,
+    min: 0,
+  })
+  usedCount?: number;
 }
 
 export const PromotionSchema = SchemaFactory.createForClass(Promotion);

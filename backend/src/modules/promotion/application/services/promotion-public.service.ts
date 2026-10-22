@@ -12,9 +12,7 @@ import { PromotionResponseDto } from '../dto/res.dto';
 
 @Injectable()
 export class PromotionPublicService
-  implements
-    ValidatePromotionUsecase,
-    GetPublicPromotionUsecase
+  implements ValidatePromotionUsecase, GetPublicPromotionUsecase
 {
   constructor(
     @InjectModel(Promotion.name)
@@ -28,6 +26,9 @@ export class PromotionPublicService
   }): Promise<{
     isValid: boolean;
     promotionId?: string;
+    promotionCode?: string;
+    discountType?: string;
+    discountValue?: number;
     discountAmount: number;
     reason?: string;
   }> {
@@ -79,14 +80,49 @@ export class PromotionPublicService
       };
     }
 
-    const discountAmount =
+    if (
+      promotion.minOrderValue !== undefined &&
+      promotion.minOrderValue > 0 &&
+      orderAmount < promotion.minOrderValue
+    ) {
+      return {
+        isValid: false,
+        discountAmount: 0,
+        reason: `Order value must be at least ${promotion.minOrderValue}`,
+      };
+    }
+
+    if (
+      promotion.usageLimit !== undefined &&
+      promotion.usageLimit > 0 &&
+      (promotion.usedCount ?? 0) >= promotion.usageLimit
+    ) {
+      return {
+        isValid: false,
+        discountAmount: 0,
+        reason: 'Promotion usage limit has been reached',
+      };
+    }
+
+    let discountAmount =
       promotion.discountType === DiscountType.PERCENTAGE
         ? Math.round((orderAmount * promotion.discountValue) / 100)
         : Math.min(promotion.discountValue, orderAmount);
 
+    if (
+      promotion.discountType === DiscountType.PERCENTAGE &&
+      promotion.maxDiscountAmount !== undefined &&
+      promotion.maxDiscountAmount > 0
+    ) {
+      discountAmount = Math.min(discountAmount, promotion.maxDiscountAmount);
+    }
+
     return {
       isValid: true,
       promotionId: promotion.promotionId,
+      promotionCode: promotion.promotionCode,
+      discountType: promotion.discountType,
+      discountValue: promotion.discountValue,
       discountAmount,
     };
   }
@@ -111,5 +147,4 @@ export class PromotionPublicService
       promo.updatedAt,
     );
   }
-
 }
