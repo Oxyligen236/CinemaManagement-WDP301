@@ -21,6 +21,7 @@ import {
   POSTER_MAX_SIZE,
   uploadMovieAsset,
 } from "../api";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 interface Props {
   genres: Genre[];
@@ -91,7 +92,12 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
       revokeBlob();
     } catch (error) {
       if (uploadId !== uploadIdRef.current) return;
-      setPosterError(error instanceof ApiError ? error.message : MSG10);
+      setPosterError(
+        getFriendlyErrorMessage(
+          error,
+          "Tải áp phích lên máy chủ thất bại.",
+        ),
+      );
     } finally {
       if (uploadId === uploadIdRef.current) {
         setPosterUploading(false);
@@ -178,7 +184,10 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
       onCreated();
     } catch (error) {
       setSubmitError(
-        error instanceof ApiError ? error.message : "Unable to create film.",
+        getFriendlyErrorMessage(
+          error,
+          "Không thể tạo phim. Vui lòng kiểm tra lại thông tin.",
+        ),
       );
     } finally {
       setSubmitting(false);

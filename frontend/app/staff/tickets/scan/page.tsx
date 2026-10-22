@@ -8,6 +8,7 @@ import { orderApi } from '@/lib/api/order.api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
+import { getFriendlyErrorMessage } from '@/lib/utils/error-handler';
 
 const QrScanner = dynamic(
   () => import('@/components/staff/QrScanner').then((module) => module.QrScanner),
@@ -135,7 +136,7 @@ export default function TicketScanPage() {
       setTicketCodeInput('');
     } catch (err: unknown) {
       playSound(false);
-      const errMsg = err instanceof Error ? err.message : 'Vé không hợp lệ hoặc đã sử dụng';
+      const errMsg = getFriendlyErrorMessage(err, 'Vé không hợp lệ hoặc đã sử dụng');
       setLastResult({
         success: false,
         errorMessage: errMsg,

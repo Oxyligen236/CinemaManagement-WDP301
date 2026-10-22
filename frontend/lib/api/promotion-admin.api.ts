@@ -6,6 +6,7 @@ import {
   QueryPromotionsDto,
   PaginatedPromotionResponse,
 } from '../types/promotion.types';
+import { getFriendlyErrorMessage } from '../utils/error-handler';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -40,7 +41,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   try {
     const res = await fetch(url, { ...options, headers });
     if (!res.ok) {
-      let errorMessage = `Yêu cầu thất bại (${res.status})`;
+      let errorMessage = 'Yêu cầu không thành công';
       let errorData;
       try {
         errorData = await res.json();
@@ -52,7 +53,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       } catch {
         // Body is not json
       }
-      throw new ApiError(errorMessage, res.status, errorData);
+      const friendlyMessage = getFriendlyErrorMessage({ status: res.status, message: errorMessage });
+      throw new ApiError(friendlyMessage, res.status, errorData);
     }
     return (await res.json()) as T;
   } catch (err: unknown) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 export const TOKEN_KEY = "cinema_access_token";
 export const USER_KEY = "cinema_user";
@@ -85,7 +86,7 @@ export class ApiError extends Error {
 }
 
 export function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Không thể hoàn tất thao tác.";
+  return getFriendlyErrorMessage(error, "Không thể hoàn tất thao tác.");
 }
 
 /**
@@ -153,14 +154,17 @@ export function useManagerApi() {
       } & T;
 
       if (!response.ok) {
-        const message = Array.isArray(result.message)
+        const rawMessage = Array.isArray(result.message)
           ? result.message.join(", ")
           : result.message;
+        const message = getFriendlyErrorMessage(
+          { status: response.status, message: rawMessage },
+          response.status >= 500
+            ? "Hệ thống đang bận, vui lòng thử lại sau."
+            : "Không thể hoàn tất thao tác.",
+        );
         throw new ApiError(
-          message ??
-            (response.status >= 500
-              ? "Hệ thống đang gián đoạn, không thể hoàn tất thao tác."
-              : "Không thể hoàn tất thao tác."),
+          message,
           response.status,
           result.errors ?? [],
           result.fields ?? [],

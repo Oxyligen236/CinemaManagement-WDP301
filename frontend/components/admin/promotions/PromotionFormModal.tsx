@@ -11,6 +11,7 @@ import { toInputDateTimeLocal } from '../../../lib/utils/formatters';
 import { Modal } from '../../ui/Modal';
 import { Button } from '../../ui/Button';
 import { Input } from '../../ui/Input';
+import { getFriendlyErrorMessage } from '../../../lib/utils/error-handler';
 
 export interface PromotionFormModalProps {
   isOpen: boolean;
@@ -129,7 +130,7 @@ function PromotionFormFields({
       }
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi lưu thông tin';
+      const msg = getFriendlyErrorMessage(err, 'Có lỗi xảy ra khi lưu thông tin');
       setErrors((prev) => ({ ...prev, form: msg }));
     } finally {
       setIsSubmitting(false);

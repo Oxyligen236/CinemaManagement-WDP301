@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 const TOKEN_KEY = "cinema_access_token";
 const USER_KEY = "cinema_user";
@@ -54,9 +55,7 @@ const LABEL_CLASS =
   "block text-[12px] font-bold uppercase tracking-wide text-[#6f6247]";
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "Không thể hoàn tất thao tác.";
+  return getFriendlyErrorMessage(error, "Không thể hoàn tất thao tác.");
 }
 
 export default function ManageUsersPage() {
@@ -111,7 +110,12 @@ export default function ManageUsersPage() {
       const responseMessage = Array.isArray(result.message)
         ? result.message.join(", ")
         : result.message;
-      throw new Error(responseMessage ?? "Không thể hoàn tất thao tác.");
+      throw new Error(
+        getFriendlyErrorMessage(
+          { status: response.status, message: responseMessage },
+          "Không thể hoàn tất thao tác.",
+        ),
+      );
     }
     return result;
   }

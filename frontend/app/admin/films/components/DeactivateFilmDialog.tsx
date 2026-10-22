@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, deactivateMovie, Movie, MSG07 } from "../api";
+import { ApiError, deactivateMovie, Movie } from "../api";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 interface Props {
   movie: Movie;
@@ -25,10 +26,10 @@ export default function DeactivateFilmDialog({
       await deactivateMovie(movie.movieId);
       onDeactivated();
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.status === 409 ? MSG07 : err.message);
+      if (err instanceof ApiError && err.status === 409) {
+        setError("Không thể vô hiệu hóa phim đang có suất chiếu đã lên lịch hoặc đang diễn ra.");
       } else {
-        setError("Unable to deactivate film.");
+        setError(getFriendlyErrorMessage(err, "Không thể vô hiệu hóa phim. Vui lòng thử lại sau."));
       }
     } finally {
       setSubmitting(false);
