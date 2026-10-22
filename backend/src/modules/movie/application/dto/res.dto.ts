@@ -1,0 +1,31 @@
+import { MovieStatus } from '../../domain/enums/movie-status.enum';
+
+export class MovieResDto {
+  movieId!: string;
+  movieName!: string;
+  duration!: number;
+  status!: MovieStatus;
+  posterKey?: string;
+  posterUrl?: string;
+  trailerUrl?: string;
+  description?: string;
+  releaseDate?: string;
+  isActive!: boolean;
+  genreIds!: string[];
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export class UploadMovieAssetResDto {
+  storageKey!: string;
+  url!: string;
+  originalName!: string;
+  size!: number;
+  contentType!: string;
+}
+
+export class GenreResDto {
+  genreId!: string;
+  genreName!: string;
+  genreDescription?: string;
+}

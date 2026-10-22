@@ -1,7 +1,13 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { DayPriceRule, DayPriceRuleSchema } from './domain/schemas/day-price-rule.schema';
-import { SeatPriceRule, SeatPriceRuleSchema } from './domain/schemas/seat-price-rule.schema';
+import {
+  DayPriceRule,
+  DayPriceRuleSchema,
+} from './domain/schemas/day-price-rule.schema';
+import {
+  SeatPriceRule,
+  SeatPriceRuleSchema,
+} from './domain/schemas/seat-price-rule.schema';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác

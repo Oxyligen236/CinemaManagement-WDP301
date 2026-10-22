@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 import { Transform } from 'class-transformer';
 import {
   IsEmail,

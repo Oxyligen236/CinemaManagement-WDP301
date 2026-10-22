@@ -1,0 +1,56 @@
+- generic [ref=f1e1]:
+  - main [ref=f1e2]:
+    - heading "Quản lý phim" [level=1] [ref=f1e3]
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - generic [ref=f1e6]: Tên phim
+        - searchbox "Tên phim" [ref=f1e7]
+      - generic [ref=f1e8]:
+        - generic [ref=f1e9]: Thể loại
+        - combobox "Thể loại" [ref=f1e10]:
+          - option "Tất cả" [selected]
+          - option "Hoạt hình"
+          - option "Hài"
+          - option "Hành động"
+          - option "Kinh dị"
+          - option "Tình cảm"
+      - generic [ref=f1e11]:
+        - generic [ref=f1e12]: Trạng thái
+        - combobox "Trạng thái" [ref=f1e13]:
+          - option "Tất cả" [selected]
+          - option "Sắp chiếu"
+          - option "Đang chiếu"
+          - option "Đã kết thúc"
+      - button "Tìm kiếm" [active] [ref=f1e14]
+      - button "Tạo phim mới" [ref=f1e15]
+    - generic [ref=f1e16]:
+      - table [ref=f1e18]:
+        - rowgroup [ref=f1e19]:
+          - row [ref=f1e20]:
+            - columnheader "Poster" [ref=f1e21]
+            - columnheader "Tên phim" [ref=f1e22]
+            - columnheader "Thể loại" [ref=f1e23]
+            - columnheader "Thời lượng (phút)" [ref=f1e24]
+            - columnheader "Ngày công chiếu" [ref=f1e25]
+            - columnheader "Trạng thái" [ref=f1e26]
+            - columnheader "Kích hoạt" [ref=f1e27]
+            - columnheader "Hành động" [ref=f1e28]
+        - rowgroup [ref=f1e29]:
+          - row [ref=f1e387]:
+            - cell [ref=f1e388]:
+              - img "Poster Ngôi Nhà Ma Ám" [ref=f1e389]
+            - cell "Ngôi Nhà Ma Ám" [ref=f1e390]
+            - cell "Kinh dị" [ref=f1e391]
+            - cell "105" [ref=f1e392]
+            - cell "15 thg 10, 2026" [ref=f1e393]
+            - cell "Đang chiếu" [ref=f1e394]
+            - cell "Đang hoạt động" [ref=f1e396]
+            - cell [ref=f1e398]:
+              - button "Vô hiệu hóa" [ref=f1e399]
+      - generic [ref=f1e185]:
+        - generic [ref=f1e186]: Trang 1/1 - Tổng 1 phim
+        - generic [ref=f1e187]:
+          - button "Trước" [disabled] [ref=f1e188]
+          - button "Sau" [disabled] [ref=f1e189]
+  - button "Open Next.js Dev Tools" [ref=f1e50] [cursor=pointer]
+  - alert [ref=f1e54]
