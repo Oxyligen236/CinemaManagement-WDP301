@@ -1,17 +1,28 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
+  Post,
   Query,
   Req,
+  UnauthorizedException,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { OrderService } from '../../application/services/order.service';
-import { QueryMyOrdersReq } from '../../application/dto/req.dto';
-import { OrderDetailRes, OrderSummaryRes } from '../../application/dto/res.dto';
+import {
+  ApplyPromotionReq,
+  CreateBookingOrderReq,
+  QueryMyOrdersReq,
+} from '../../application/dto/req.dto';
+import {
+  BookingSummaryRes,
+  OrderDetailRes,
+  OrderSummaryRes,
+} from '../../application/dto/res.dto';
 import { Page } from '../../../../common/dto/page.dto';
 
 interface AuthenticatedRequest {
@@ -27,6 +38,20 @@ interface AuthenticatedRequest {
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
+  @Post('booking')
+  async createBooking(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: CreateBookingOrderReq,
+  ): Promise<BookingSummaryRes> {
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException(
+        'User ID is missing from authorization context',
+      );
+    }
+    return this.orderService.createBookingOrder(userId, body);
+  }
+
   @Get('me')
   async getMyOrders(
     @Req() req: AuthenticatedRequest,
@@ -34,6 +59,35 @@ export class OrderController {
   ): Promise<Page<OrderSummaryRes>> {
     const userId = req.user?.userId || req.user?.sub || 'user-default';
     return this.orderService.getMyOrderHistory(userId, query);
+  }
+
+  @Get(':orderId/summary')
+  async getBookingSummary(
+    @Req() req: AuthenticatedRequest,
+    @Param('orderId') orderId: string,
+  ): Promise<BookingSummaryRes> {
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException(
+        'User ID is missing from authorization context',
+      );
+    }
+    return this.orderService.getBookingSummary(userId, orderId);
+  }
+
+  @Post(':orderId/apply-promotion')
+  async applyPromotion(
+    @Req() req: AuthenticatedRequest,
+    @Param('orderId') orderId: string,
+    @Body() body: ApplyPromotionReq,
+  ): Promise<BookingSummaryRes> {
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException(
+        'User ID is missing from authorization context',
+      );
+    }
+    return this.orderService.applyPromotion(userId, orderId, body);
   }
 
   @Get(':orderId')

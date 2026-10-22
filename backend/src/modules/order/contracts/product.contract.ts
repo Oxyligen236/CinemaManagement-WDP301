@@ -8,5 +8,7 @@ export interface ProductSummaryDto {
 export const PRODUCT_CONTRACT = Symbol('PRODUCT_CONTRACT');
 
 export interface ProductContract {
-  getProductsByIds(productIds: string[]): Promise<Map<string, ProductSummaryDto>>;
+  getProductsByIds(
+    productIds: string[],
+  ): Promise<Map<string, ProductSummaryDto>>;
 }

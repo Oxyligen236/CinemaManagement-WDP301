@@ -1,15 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Promotion, PromotionDocument } from '../../promotion/domain/schemas/promotion.schema';
-import { PromotionContract, PromotionDetailDto } from './promotion.contract';
+import { PromotionPublicService } from '../../promotion/application/services/promotion-public.service';
+import {
+  PromotionContract,
+  PromotionDetailDto,
+  ValidatePromotionResultDto,
+} from './promotion.contract';
 
 @Injectable()
 export class PromotionContractImpl implements PromotionContract {
-  constructor(@InjectModel(Promotion.name) private readonly promotionModel: Model<PromotionDocument>) {}
+  constructor(
+    private readonly promotionPublicService: PromotionPublicService,
+  ) {}
 
-  async getPromotionById(promotionId: string): Promise<PromotionDetailDto | null> {
-    const promotion = await this.promotionModel.findOne({ promotionId }).exec();
+  async getPromotionById(
+    promotionId: string,
+  ): Promise<PromotionDetailDto | null> {
+    const promotion =
+      await this.promotionPublicService.getPromotionById(promotionId);
     if (!promotion) return null;
     return {
       promotionId: promotion.promotionId,
@@ -22,5 +29,13 @@ export class PromotionContractImpl implements PromotionContract {
       createdAt: promotion.createdAt,
       updatedAt: promotion.updatedAt,
     };
+  }
+
+  async validatePromotionCode(params: {
+    code: string;
+    orderAmount: number;
+    userId: string;
+  }): Promise<ValidatePromotionResultDto> {
+    return this.promotionPublicService.validatePromotionCode(params);
   }
 }

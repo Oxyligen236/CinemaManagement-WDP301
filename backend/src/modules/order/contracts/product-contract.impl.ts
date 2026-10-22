@@ -1,22 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Product, ProductDocument } from '../../product/domain/schemas/product.schema';
+import { ProductService } from '../../product/application/services/product.service';
 import { ProductContract, ProductSummaryDto } from './product.contract';
 
 @Injectable()
 export class ProductContractImpl implements ProductContract {
-  constructor(@InjectModel(Product.name) private readonly productModel: Model<ProductDocument>) {}
+  constructor(private readonly productService: ProductService) {}
 
-  async getProductsByIds(productIds: string[]): Promise<Map<string, ProductSummaryDto>> {
+  async getProductsByIds(
+    productIds: string[],
+  ): Promise<Map<string, ProductSummaryDto>> {
+    const productsMap = await this.productService.getProductsByIds(productIds);
     const result = new Map<string, ProductSummaryDto>();
-    if (!productIds.length) return result;
-    const products = await this.productModel.find({ productId: { $in: productIds } }).exec();
-    for (const product of products) {
-      result.set(product.productId, {
-        productId: product.productId,
-        productName: product.productName,
-        unitPrice: product.price,
+    for (const [id, prod] of productsMap.entries()) {
+      result.set(id, {
+        productId: prod.productId,
+        productName: prod.productName,
+        imageUrl: prod.imageUrl,
+        unitPrice: prod.unitPrice,
       });
     }
     return result;
