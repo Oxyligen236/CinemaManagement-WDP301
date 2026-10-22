@@ -1,6 +1,8 @@
 import { BranchStatus } from '../../../branch/domain/enums/branch-status.enum';
 import { MovieStatus } from '../../../movie/domain/enums/movie-status.enum';
+import { SeatType } from '../../../pricerule/domain/enums/seat-type.enum';
 import { RoomStatus } from '../../../room/domain/enums/room-status.enum';
+import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
 
 export class ManagerBranchDto {
   branchId!: string;
