@@ -30,5 +30,15 @@ export interface StorageService {
     options?: PresignedUrlOptions,
   ): Promise<PresignedUploadResponse>;
 
+  /**
+   * Trả về URL công khai (không ký) của object: `${STORAGE_PUBLIC_URL}/${key}`.
+   * Chỉ dùng cho bucket/prefix public (ví dụ poster, banner).
+   *
+   * @param key - Object key trong bucket
+   * @returns URL công khai, đã chuẩn hóa dấu '/' dư
+   * @throws InternalServerErrorException khi chưa cấu hình STORAGE_PUBLIC_URL
+   */
+  getPublicUrl(key: string): string;
+
   getUrlByStorageId(storageId: string): Promise<PresignedDowloadResponse>;
 }

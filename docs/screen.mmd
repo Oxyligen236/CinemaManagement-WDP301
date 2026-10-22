@@ -72,3 +72,21 @@ flowchart TD
         BMDashboard -->|Báo cáo| BranchReport
         ViewEmployee -->|Thêm Nhân viên| AddEmployee
     end
+    %% Admin Portal
+    AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
+    AdminMovies["/movies (Admin - Quản lý Phim)"]
+
+    Login -->|Đăng nhập thành công (Admin)| AdminPromotions
+    Login -->|Đăng nhập thành công (Admin)| AdminMovies
+    AdminPromotions <-->|Chuyển tab Sidebar| AdminMovies
+
+    %% Admin Films
+    AdminFilms["/admin/films (Admin - Quản lý Phim)"]
+    CreateFilmModal["Modal Tạo Phim (Chọn poster upload, nhập link trailer)"]
+    DeactivateFilmDialog["Dialog Xác nhận Vô hiệu hóa"]
+
+    Login -->|Đăng nhập thành công (Admin)| AdminFilms
+    AdminFilms -->|Click Tạo phim mới| CreateFilmModal
+    CreateFilmModal -->|Lưu thành công / Hủy| AdminFilms
+    AdminFilms -->|Click Vô hiệu hóa| DeactivateFilmDialog
+    DeactivateFilmDialog -->|Xác nhận / Hủy| AdminFilms

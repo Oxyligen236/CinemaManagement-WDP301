@@ -7,8 +7,14 @@ import {
   ProductOrderSchema,
 } from './domain/schemas/product-order.schema';
 import { Ticket, TicketSchema } from '../ticket/domain/schemas/ticket.schema';
-import { Product, ProductSchema } from '../product/domain/schemas/product.schema';
-import { Promotion, PromotionSchema } from '../promotion/domain/schemas/promotion.schema';
+import {
+  Product,
+  ProductSchema,
+} from '../product/domain/schemas/product.schema';
+import {
+  Promotion,
+  PromotionSchema,
+} from '../promotion/domain/schemas/promotion.schema';
 import { TicketModule } from '../ticket/ticket.module';
 import { ProductModule } from '../product/product.module';
 import { PromotionModule } from '../promotion/promotion.module';

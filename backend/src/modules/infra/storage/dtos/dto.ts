@@ -4,9 +4,9 @@ import 'multer';
 export class UploadRequest {
   key!: string;
   body!: Buffer | Uint8Array | Readable;
-  originalName?: string;
-  contentType?: string;
-  contentLength?: number;
+  originalName!: string;
+  contentType!: string;
+  contentLength!: number;
   cacheControl?: string;
   metadata?: Record<string, string>;
 

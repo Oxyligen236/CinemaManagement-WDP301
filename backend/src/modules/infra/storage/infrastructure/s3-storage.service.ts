@@ -2,7 +2,11 @@
 https://docs.nestjs.com/providers#services
 */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { StorageService } from '../application/interface/storage.interface';
 import {
   PresignedDowloadResponse,
@@ -19,29 +23,33 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { Repository } from 'typeorm';
-import { StorageEntity } from '../domain/entities/storage.entity';
 
 @Injectable()
 export class S3StorageService implements StorageService {
   constructor(
     private readonly client: S3Client,
     private readonly bucket: string,
-    private readonly storageRepo: Repository<StorageEntity>,
+    private readonly publicUrl: string = '',
   ) {}
+
+  getPublicUrl(key: string): string {
+    const base = this.publicUrl.trim().replace(/\/+$/, '');
+    if (!base) {
+      throw new InternalServerErrorException(
+        'STORAGE_PUBLIC_URL chưa được cấu hình, không thể tạo URL công khai',
+      );
+    }
+    return `${base}/${key.replace(/^\/+/, '')}`;
+  }
 
   async getUrlByStorageId(
     storageId: string,
   ): Promise<PresignedDowloadResponse> {
-    const storage = await this.storageRepo.findOne({
-      where: { storageKey: storageId },
-    });
-
-    if (!storage) {
+    if (!(await this.exists(storageId))) {
       throw new NotFoundException(`Storage with ID ${storageId} not found`);
     }
 
-    return this.getPresignedDowloadUrl(storage.storageKey);
+    return this.getPresignedDowloadUrl(storageId);
   }
 
   async upload(req: UploadRequest): Promise<UploadResponse> {
@@ -58,19 +66,9 @@ export class S3StorageService implements StorageService {
     const result = await this.client.send(command);
     const etag = (result.ETag ?? '').replace(/"/g, '');
 
-    const record = StorageEntity.create({
-      storageKey: req.key,
-      originName: req.originalName,
-      bucket: this.bucket,
-      contentType: req.contentType,
-      size: req.contentLength,
-      etag,
-    });
-    const entity = await this.storageRepo.save(record);
-
     return {
-      storageId: entity.storageKey,
-      key: entity.storageKey,
+      storageId: req.key,
+      key: req.key,
       etag,
       originalName: req.originalName,
     };
@@ -83,7 +81,6 @@ export class S3StorageService implements StorageService {
         Key: storageId,
       }),
     );
-    await this.storageRepo.delete({ storageKey: storageId });
   }
 
   async exists(storageId: string): Promise<boolean> {

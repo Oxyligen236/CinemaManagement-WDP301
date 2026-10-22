@@ -85,11 +85,7 @@ export class StorageInterceptor implements NestInterceptor {
     // 1. FileInterceptor: req.file
     const singleFile = req[FILE_PATH];
     if (singleFile?.buffer) {
-      console.log('Is FileInterceptor');
-
       const file = singleFile;
-
-      console.log('File:', file);
 
       const opt = options.find((o) => o.field === file.fieldname) || options[0];
       const path = this.resolvePath(opt.path, req);
