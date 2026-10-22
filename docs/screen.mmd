@@ -21,6 +21,17 @@ flowchart TD
 
         Home -->|Xem lịch sử mua vé| CustomerOrders
         CustomerOrders -->|Xem vé & QR| TicketQRModal
+
+        SelectShowtime["/ (Chọn Suất chiếu)"]
+        SelectSeats["/booking/[showtimeId] (Chọn ghế & Giữ chỗ)"]
+        BookingSummary["/booking/summary/[orderId] (Tóm tắt đặt vé & Đếm ngược giữ chỗ)"]
+
+        Home -->|Chọn suất chiếu| SelectShowtime
+        SelectShowtime -->|Chọn giờ chiếu| SelectSeats
+        SelectSeats -->|Đặt vé PENDING| BookingSummary
+        BookingSummary -->|Áp dụng mã giảm giá / Voucher| BookingSummary
+        BookingSummary -->|Hết hạn đếm ngược: Đặt vé lại| SelectSeats
+        BookingSummary -->|Quay về trang chủ| Home
     end
 
     %% Staff Operations Flow

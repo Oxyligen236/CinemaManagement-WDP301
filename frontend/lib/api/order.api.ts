@@ -8,6 +8,8 @@ import {
   ScanTicketDto,
   ScanTicketResult,
 } from '../types/order.types';
+import type { BookingSummary, CreateBookingReq } from '../types/booking.types';
+import { getFriendlyErrorMessage } from '../utils/error-handler';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -42,7 +44,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   try {
     const res = await fetch(url, { ...options, headers });
     if (!res.ok) {
-      let errorMessage = `Yêu cầu thất bại (${res.status})`;
+      let errorMessage = 'Yêu cầu không thành công';
       let errorData;
       try {
         errorData = await res.json();
@@ -54,7 +56,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       } catch {
         // Not JSON
       }
-      throw new ApiError(errorMessage, res.status, errorData);
+      const friendlyMessage = getFriendlyErrorMessage({ status: res.status, message: errorMessage });
+      throw new ApiError(friendlyMessage, res.status, errorData);
     }
     return (await res.json()) as T;
   } catch (err: unknown) {
@@ -80,6 +83,29 @@ export const orderApi = {
 
   async getOrderDetail(orderId: string): Promise<OrderDetail> {
     return request<OrderDetail>(`/orders/${orderId}`);
+  },
+
+  // Booking Flow
+  async createBooking(payload: CreateBookingReq): Promise<BookingSummary> {
+    return request<BookingSummary>('/orders/booking', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getBookingSummary(orderId: string): Promise<BookingSummary> {
+    return request<BookingSummary>(`/orders/${encodeURIComponent(orderId)}/summary`);
+  },
+
+  async applyPromotion(orderId: string, promotionCode: string): Promise<BookingSummary> {
+    return request<BookingSummary>(`/orders/${encodeURIComponent(orderId)}/apply-promotion`, {
+      method: 'POST',
+      body: JSON.stringify({ promotionCode }),
+    });
+  },
+
+  getShowtimeSeats(showtimeId: string) {
+    return request<import('../types/booking.types').SeatShowtime[]>(`/showtimes/${encodeURIComponent(showtimeId)}/seats`);
   },
 
   // Staff
