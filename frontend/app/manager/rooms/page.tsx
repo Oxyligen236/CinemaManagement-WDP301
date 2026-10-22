@@ -17,6 +17,7 @@ import {
   CheckSquare,
   RotateCcw,
 } from 'lucide-react';
+import { getFriendlyErrorMessage } from '@/lib/utils/error-handler';
 
 interface BranchInfo {
   branchId: string;
@@ -164,9 +165,7 @@ export default function ManageRoomSeatPage() {
       } catch (error) {
         showToast(
           'error',
-          error instanceof Error
-            ? error.message
-            : 'Lỗi khi tải chi tiết phòng chiếu.',
+          getFriendlyErrorMessage(error, 'Lỗi khi tải chi tiết phòng chiếu.'),
         );
       } finally {
         setLoadingSeatMap(false);
@@ -186,8 +185,10 @@ export default function ManageRoomSeatPage() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(
-            data?.message ??
-              `Không thể tải danh sách phòng chiếu (${res.status})`,
+            getFriendlyErrorMessage(
+              { status: res.status, message: data?.message },
+              'Không thể tải danh sách phòng chiếu.',
+            ),
           );
         }
 
@@ -207,9 +208,10 @@ export default function ManageRoomSeatPage() {
         }
       } catch (error) {
         setLoadError(
-          error instanceof Error
-            ? error.message
-            : 'Không thể kết nối tới máy chủ Backend.',
+          getFriendlyErrorMessage(
+            error,
+            'Không thể kết nối tới máy chủ Backend.',
+          ),
         );
       } finally {
         setLoadingRooms(false);
@@ -266,9 +268,10 @@ export default function ManageRoomSeatPage() {
     } catch (error) {
       showToast(
         'error',
-        error instanceof Error
-          ? error.message
-          : 'Lỗi khi cập nhật trạng thái phòng chiếu.',
+        getFriendlyErrorMessage(
+          error,
+          'Lỗi khi cập nhật trạng thái phòng chiếu.',
+        ),
       );
     } finally {
       setUpdatingRoom(false);
@@ -355,7 +358,7 @@ export default function ManageRoomSeatPage() {
     } catch (error) {
       showToast(
         'error',
-        error instanceof Error ? error.message : 'Lỗi khi cập nhật ghế ngồi.',
+        getFriendlyErrorMessage(error, 'Lỗi khi cập nhật ghế ngồi.'),
       );
     } finally {
       setUpdatingSeats(false);
@@ -386,7 +389,10 @@ export default function ManageRoomSeatPage() {
 
       if (!res.ok) {
         throw new Error(
-          data?.message ?? 'Không thể tạo phòng chiếu mới.',
+          getFriendlyErrorMessage(
+            { status: res.status, message: data?.message },
+            'Không thể tạo phòng chiếu mới.',
+          ),
         );
       }
 
@@ -399,7 +405,7 @@ export default function ManageRoomSeatPage() {
       await fetchRoomsList(data?.room?.roomId);
     } catch (error) {
       setCreateError(
-        error instanceof Error ? error.message : 'Lỗi khi tạo phòng chiếu.',
+        getFriendlyErrorMessage(error, 'Lỗi khi tạo phòng chiếu.'),
       );
     } finally {
       setCreatingRoom(false);

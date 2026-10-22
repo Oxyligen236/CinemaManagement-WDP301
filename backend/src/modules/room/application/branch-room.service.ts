@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {
   BadRequestException,
   ConflictException,
@@ -189,9 +188,7 @@ export class BranchRoomService {
       const cols = input.columnsPerRow ?? 10;
       await this.generateDefaultSeatsForRoom(created.roomId, rows, cols);
 
-      const [summary] = await this.buildRoomSummaries([
-        created.toObject() as Room,
-      ]);
+      const [summary] = await this.buildRoomSummaries([created.toObject()]);
 
       return {
         message: ROOM_MESSAGES.MSG04_ROOM_CREATED,

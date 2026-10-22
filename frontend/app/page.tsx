@@ -24,15 +24,17 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("cinema_user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser) as User);
-      } catch {
-        localStorage.removeItem("cinema_user");
-        localStorage.removeItem("cinema_access_token");
+    queueMicrotask(() => {
+      const storedUser = localStorage.getItem("cinema_user");
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser) as User);
+        } catch {
+          localStorage.removeItem("cinema_user");
+          localStorage.removeItem("cinema_access_token");
+        }
       }
-    }
+    });
   }, []);
 
   function logout() {

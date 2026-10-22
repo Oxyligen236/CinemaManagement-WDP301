@@ -1,6 +1,8 @@
 import { BranchStatus } from '../../../branch/domain/enums/branch-status.enum';
 import { MovieStatus } from '../../../movie/domain/enums/movie-status.enum';
+import { SeatType } from '../../../pricerule/domain/enums/seat-type.enum';
 import { RoomStatus } from '../../../room/domain/enums/room-status.enum';
+import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
 
 export class ManagerBranchDto {
   branchId!: string;
@@ -74,4 +76,27 @@ export class BranchShowtimeMutationResponseDto {
 export class BranchShowtimeDeleteResponseDto {
   message!: string;
   showtimeId!: string;
+}
+
+export class ShowtimeResDto {
+  showtimeId!: string;
+  movieId!: string;
+  roomId!: string;
+  startTime!: Date;
+  endTime!: Date;
+  basePrice!: number;
+  dayPriceRuleId?: string;
+  seatPriceRuleId?: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+}
+
+export class SeatShowtimeResDto {
+  seatShowtimeId!: string;
+  showtimeId!: string;
+  seatId!: string;
+  seatStatus!: SeatShowtimeStatus;
+  rowPosition!: string;
+  columnPosition!: number;
+  seatType!: SeatType;
 }

@@ -11,6 +11,11 @@ import {
 } from './domain/schemas/seat-showtime.schema';
 import { BranchShowtimeController } from './infra/branch-showtime.controller';
 import { BranchShowtimeService } from './application/branch-showtime.service';
+import { SeatShowtimeQueryService } from './application/services/seat-showtime-query.service';
+import { ShowtimeQueryService } from './application/services/showtime-query.service';
+import { ShowtimeController } from './infra/showtime.controller';
+import { ShowtimeBookingService } from './application/services/showtime-booking.service';
+export type { SeatBookingDetail } from './contract/seat-booking-detail';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -22,14 +27,19 @@ import { BranchShowtimeService } from './application/branch-showtime.service';
     AuthModule,
     BranchModule,
     forwardRef(() => RoomModule),
-    MovieModule,
+    forwardRef(() => MovieModule),
     MongooseModule.forFeature([
       { name: Showtime.name, schema: ShowtimeSchema },
       { name: SeatShowtime.name, schema: SeatShowtimeSchema },
     ]),
   ],
-  controllers: [BranchShowtimeController],
-  providers: [BranchShowtimeService],
-  exports: [MongooseModule],
+  controllers: [BranchShowtimeController, ShowtimeController],
+  providers: [
+    BranchShowtimeService,
+    ShowtimeQueryService,
+    SeatShowtimeQueryService,
+    ShowtimeBookingService,
+  ],
+  exports: [MongooseModule, ShowtimeQueryService, ShowtimeBookingService],
 })
 export class ShowtimeModule {}

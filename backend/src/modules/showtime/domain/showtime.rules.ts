@@ -18,8 +18,7 @@ export const SHOWTIME_MESSAGES = {
   /** AF-3 / BR-BRM-03: Không cho phép cập nhật/xóa suất chiếu đã có vé bán. */
   MSG04_UPDATE_LOCKED:
     'Không thể cập nhật suất chiếu đã có khách đặt hoặc mua vé.',
-  MSG05_DELETE_LOCKED:
-    'Không thể xóa suất chiếu đã có khách đặt hoặc mua vé.',
+  MSG05_DELETE_LOCKED: 'Không thể xóa suất chiếu đã có khách đặt hoặc mua vé.',
   /** Chặn thao tác với suất chiếu trong quá khứ hoặc đã bắt đầu chiếu. */
   PAST_START_TIME:
     'Thời gian bắt đầu suất chiếu phải lớn hơn thời điểm hiện tại.',
@@ -36,8 +35,7 @@ export const SHOWTIME_MESSAGES = {
   NO_BRANCH: 'Tài khoản Quản lý của bạn chưa được phân công chi nhánh.',
   BRANCH_NOT_ACTIVE:
     'Chi nhánh hiện không hoạt động, không thể thay đổi lịch chiếu.',
-  SERVICE_UNAVAILABLE:
-    'Dịch vụ tạm thời gián đoạn. Vui lòng thử lại sau.',
+  SERVICE_UNAVAILABLE: 'Dịch vụ tạm thời gián đoạn. Vui lòng thử lại sau.',
 } as const;
 
 /**

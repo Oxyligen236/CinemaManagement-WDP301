@@ -2,11 +2,14 @@
 
 import { AlertTriangle, CheckCircle2, Lock } from "lucide-react";
 import { ApiError, Branch, LABEL_CLASS } from "./staff-api";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 export function ErrorBanner({ error }: { error: unknown }) {
   if (!error) return null;
-  const message =
-    error instanceof Error ? error.message : "Không thể hoàn tất thao tác.";
+  const message = getFriendlyErrorMessage(
+    error,
+    "Không thể hoàn tất thao tác.",
+  );
   const details = error instanceof ApiError ? error.details : [];
   return (
     <div

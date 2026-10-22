@@ -29,6 +29,25 @@ export class Order {
   promotionId?: string;
 
   @Prop({
+    trim: true,
+    uppercase: true,
+  })
+  promotionCode?: string;
+
+  @Prop({
+    required: false,
+    default: 0,
+    min: 0,
+  })
+  discountAmount?: number;
+
+  @Prop({
+    required: false,
+    min: 0,
+  })
+  finalAmount?: number;
+
+  @Prop({
     required: true,
     default: 0,
     min: 0,

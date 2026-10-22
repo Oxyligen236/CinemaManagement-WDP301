@@ -11,6 +11,7 @@ import {
   AUTH_LABEL_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
 } from "@/components/auth/auth-shell";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 function LoginForm() {
   const router = useRouter();
@@ -35,7 +36,12 @@ function LoginForm() {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(result.message ?? `Lỗi máy chủ (${response.status})`);
+        throw new Error(
+          getFriendlyErrorMessage(
+            { status: response.status, message: result.message },
+            "Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.",
+          ),
+        );
       }
 
       localStorage.setItem("cinema_access_token", result.accessToken);
@@ -49,9 +55,10 @@ function LoginForm() {
       );
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Không thể đăng nhập. Vui lòng thử lại.",
+        getFriendlyErrorMessage(
+          submitError,
+          "Không thể đăng nhập. Vui lòng thử lại sau.",
+        ),
       );
     } finally {
       setIsSubmitting(false);

@@ -20,6 +20,7 @@ import {
   Ticket,
   RotateCcw,
 } from 'lucide-react';
+import { getFriendlyErrorMessage } from '@/lib/utils/error-handler';
 
 interface BranchInfo {
   branchId: string;
@@ -230,14 +231,19 @@ export default function ManageShowtimePage() {
       if (!optionsRes.ok) {
         const err = await optionsRes.json().catch(() => ({}));
         throw new Error(
-          err.message ??
-            `Không thể tải danh mục phim và phòng chiếu (${optionsRes.status})`,
+          getFriendlyErrorMessage(
+            { status: optionsRes.status, message: err?.message },
+            'Không thể tải danh mục phim và phòng chiếu.',
+          ),
         );
       }
       if (!listRes.ok) {
         const err = await listRes.json().catch(() => ({}));
         throw new Error(
-          err.message ?? `Không thể tải danh sách suất chiếu (${listRes.status})`,
+          getFriendlyErrorMessage(
+            { status: listRes.status, message: err?.message },
+            'Không thể tải danh sách suất chiếu.',
+          ),
         );
       }
 
@@ -258,9 +264,10 @@ export default function ManageShowtimePage() {
       setShowtimes(rawShowtimes);
     } catch (error) {
       setLoadError(
-        error instanceof Error
-          ? error.message
-          : 'Không thể kết nối tới máy chủ Backend. Vui lòng kiểm tra server Backend đang chạy ở cổng 8010.',
+        getFriendlyErrorMessage(
+          error,
+          'Không thể kết nối tới máy chủ Backend. Vui lòng thử lại sau.',
+        ),
       );
     } finally {
       setLoading(false);
@@ -467,7 +474,10 @@ export default function ManageShowtimePage() {
           setConflictInfo(data.conflict);
         }
         throw new Error(
-          data?.message ?? 'Không thể lưu suất chiếu. Vui lòng kiểm tra lại.',
+          getFriendlyErrorMessage(
+            { status: response.status, message: data?.message },
+            'Không thể lưu suất chiếu. Vui lòng kiểm tra lại.',
+          ),
         );
       }
 
@@ -482,7 +492,10 @@ export default function ManageShowtimePage() {
       await fetchAllData();
     } catch (error) {
       setModalError(
-        error instanceof Error ? error.message : 'Đã xảy ra lỗi khi lưu suất chiếu.',
+        getFriendlyErrorMessage(
+          error,
+          'Đã xảy ra lỗi khi lưu suất chiếu. Vui lòng kiểm tra lại.',
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -504,7 +517,10 @@ export default function ManageShowtimePage() {
 
       if (!response.ok) {
         throw new Error(
-          data?.message ?? 'Không thể xóa suất chiếu này.',
+          getFriendlyErrorMessage(
+            { status: response.status, message: data?.message },
+            'Không thể xóa suất chiếu này.',
+          ),
         );
       }
 
@@ -514,7 +530,7 @@ export default function ManageShowtimePage() {
     } catch (error) {
       showToast(
         'error',
-        error instanceof Error ? error.message : 'Lỗi khi xóa suất chiếu.',
+        getFriendlyErrorMessage(error, 'Lỗi khi xóa suất chiếu.'),
       );
       setDeletingShowtime(null);
     } finally {

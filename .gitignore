@@ -1,10 +1,6 @@
 /docs/plans
+.playwright-mcp
+.claude/worktrees/
 
-# Ignore static site images & media assets
-frontend/public/sites/
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.webp
-*.avif
+package-lock.json
+
