@@ -44,6 +44,6 @@ import { RoleGuard } from './infra/guards/role.guard';
     }),
   ],
   providers: [JwtGuard, RoleGuard],
-  exports: [JwtModule, JwtGuard, RoleGuard],
+  exports: [JwtModule, JwtGuard, RoleGuard, MongooseModule],
 })
 export class AuthModule {}
