@@ -5,44 +5,49 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { MSG_UNAUTHORIZED } from '../../domain/constants/auth-message.constants';
-import { AuthenticatedUser } from '../../domain/types/authenticated-user.type';
-import { Role } from '../decorators/role.decorator';
-
-type JwtPayload = { sub: string; email: string; role: Role };
-type AuthRequest = {
-  headers: Record<string, string | string[] | undefined>;
-  user?: AuthenticatedUser;
-};
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { AuthenticatedRequest, AuthUser } from '../../domain/auth-user';
+import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
 
 @Injectable()
 export class JwtGuard implements CanActivate {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthRequest>();
-    const token = this.extractBearerToken(request);
-    if (!token) {
-      throw new UnauthorizedException(MSG_UNAUTHORIZED);
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+
+    if (type !== 'Bearer' || !token) {
+      throw new UnauthorizedException('Missing access token');
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
-      request.user = {
-        userId: payload.sub,
-        email: payload.email,
-        role: payload.role,
-      };
-    } catch {
-      throw new UnauthorizedException(MSG_UNAUTHORIZED);
-    }
-    return true;
-  }
+      const user = await this.jwtService.verifyAsync<AuthUser>(token);
+      const account = await this.userModel
+        .findOne({ userId: user.sub })
+        .select('isActive role tokenVersion')
+        .lean()
+        .exec();
 
-  private extractBearerToken(request: AuthRequest): string | undefined {
-    const header = request.headers['authorization'];
-    if (typeof header !== 'string') return undefined;
-    const [scheme, token] = header.split(' ');
-    return scheme === 'Bearer' && token ? token : undefined;
+      if (
+        !account ||
+        !account.isActive ||
+        account.role !== user.role ||
+        (account.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)
+      ) {
+        throw new UnauthorizedException('Account access has been revoked');
+      }
+      request.user = user;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException('Invalid or expired access token');
+    }
+
+    return true;
   }
 }

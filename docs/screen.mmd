@@ -4,15 +4,85 @@ flowchart TD
     Login["/login (Đăng nhập)"]
     Register["/register (Đăng ký)"]
     VerifyEmail["/verify-email (Xác thực Email)"]
+    ForgotPassword["/forgot-password (Quên mật khẩu)"]
 
-    Home -->|Click Đăng nhập| Login
-    Home -->|Click Đăng ký| Register
-    Login -->|Click Đăng ký| Register
-    Login -->|Đăng nhập thành công (User)| Home
+    Home -->|Đăng nhập| Login
+    Home -->|Đăng ký| Register
+    Login -->|"Đăng nhập thành công (User)"| Home
+    Login -->|Quên mật khẩu| ForgotPassword
     Register -->|Đăng ký thành công| VerifyEmail
-    Register -->|Click Đăng nhập| Login
     VerifyEmail -->|Xác thực thành công| Login
+    ForgotPassword -->|Đặt lại mật khẩu thành công| Login
 
+    %% Customer Experience Flow
+    subgraph CustomerFlow [Customer Experience]
+        CustomerOrders["/profile/orders (Lịch sử đặt vé cá nhân)"]
+        TicketQRModal["[Modal] Chi tiết vé & Mã QR"]
+
+        Home -->|Xem lịch sử mua vé| CustomerOrders
+        CustomerOrders -->|Xem vé & QR| TicketQRModal
+
+        SelectShowtime["/ (Chọn Suất chiếu)"]
+        SelectSeats["/booking/[showtimeId] (Chọn ghế & Giữ chỗ)"]
+        BookingSummary["/booking/summary/[orderId] (Tóm tắt đặt vé & Đếm ngược giữ chỗ)"]
+
+        Home -->|Chọn suất chiếu| SelectShowtime
+        SelectShowtime -->|Chọn giờ chiếu| SelectSeats
+        SelectSeats -->|Đặt vé PENDING| BookingSummary
+        BookingSummary -->|Áp dụng mã giảm giá / Voucher| BookingSummary
+        BookingSummary -->|Hết hạn đếm ngược: Đặt vé lại| SelectSeats
+        BookingSummary -->|Quay về trang chủ| Home
+    end
+
+    %% Staff Operations Flow
+    subgraph StaffFlow [Staff Operations]
+        StaffOrders["/(staff)/orders (Lịch sử đơn hàng quầy)"]
+        StaffScan["/(staff)/tickets/scan (Soát vé QR / Barcode)"]
+        StaffOrderDetail["[Modal] Chi tiết F&B + Vé quầy"]
+        ScanResultBanner["[Banner] Kết quả soát vé"]
+
+        Login -->|"Đăng nhập thành công (Staff)"| StaffOrders
+        StaffOrders -->|Soát vé| StaffScan
+        StaffOrders -->|Xem chi tiết đơn| StaffOrderDetail
+        StaffScan -->|Quét mã| ScanResultBanner
+    end
+
+    %% Admin Management Flow
+    subgraph AdminFlow [Admin Management]
+        AdminDashboard["/admin/dashboard (Tổng quan Hệ thống)"]
+        AdminUsers["/admin/users (Quản lý Người dùng)"]
+        AdminPromotions["/promotions (Quản lý Khuyến mãi)"]
+        AdminOrders["/orders (Quản lý toàn bộ đơn hàng)"]
+        AdminOrderDetail["[Modal] Chi tiết đơn hàng"]
+
+        Login -->|"Đăng nhập thành công (Admin)"| AdminDashboard
+        AdminDashboard -->|Quản lý Người dùng| AdminUsers
+        AdminDashboard -->|Quản lý Khuyến mãi| AdminPromotions
+        AdminDashboard -->|Quản lý Đơn hàng| AdminOrders
+        AdminOrders -->|Xem chi tiết| AdminOrderDetail
+    end
+
+    %% Branch Manager Portal Flow
+    subgraph ManagerFlow [Branch Manager Portal]
+        BMDashboard["/manager (Branch Manager Dashboard)"]
+        ManageShowtime["/manager/showtimes (Quản lý Suất chiếu)"]
+        ManageRoom["/manager/rooms (Quản lý Phòng chiếu)"]
+        ConfigPricing["/manager/pricing (Cấu hình Giá vé)"]
+        ViewWorkSchedule["/manager/work-schedules (Lịch làm việc)"]
+        ViewEmployee["/manager/staff (Nhân viên Chi nhánh)"]
+        AddEmployee["/manager/staff/add (Thêm Nhân viên)"]
+        BranchReport["/manager/statistics (Báo cáo Thống kê)"]
+
+        Login -->|"Đăng nhập thành công (Manager)"| BMDashboard
+        Home -->|Branch Manager Portal| BMDashboard
+        BMDashboard -->|Suất chiếu| ManageShowtime
+        BMDashboard -->|Phòng chiếu| ManageRoom
+        BMDashboard -->|Giá vé| ConfigPricing
+        BMDashboard -->|Lịch làm việc| ViewWorkSchedule
+        BMDashboard -->|Nhân viên| ViewEmployee
+        BMDashboard -->|Báo cáo| BranchReport
+        ViewEmployee -->|Thêm Nhân viên| AddEmployee
+    end
     %% Admin Portal
     AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
     AdminMovies["/movies (Admin - Quản lý Phim)"]

@@ -13,6 +13,7 @@ import CreateFilmModal from "./components/CreateFilmModal";
 import DeactivateFilmDialog from "./components/DeactivateFilmDialog";
 import FilmFilterBar, { FilmFilters } from "./components/FilmFilterBar";
 import FilmTable from "./components/FilmTable";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 const PAGE_SIZE = 10;
 const EMPTY_FILTERS: FilmFilters = { keyword: "", genreId: "", status: "" };
@@ -47,7 +48,7 @@ export default function AdminFilmsPage() {
         if (cancelled) return;
         setData(null);
         setError(
-          err instanceof ApiError ? err.message : "Unable to load films.",
+          getFriendlyErrorMessage(err, "Không thể tải danh sách phim."),
         );
       })
       .finally(() => {

@@ -2,6 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { Role } from '../enums/role.enum';
+import { JobPosition } from '../enums/job-position.enum';
+import { EmploymentStatus } from '../enums/employment-status.enum';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -45,6 +47,12 @@ export class User {
 
   @Prop({
     required: true,
+    default: 0,
+  })
+  tokenVersion!: number;
+
+  @Prop({
+    required: true,
     trim: true,
     maxlength: 100,
   })
@@ -74,6 +82,26 @@ export class User {
     trim: true,
   })
   branchId?: string;
+
+  /**
+   * Vị trí công việc - chỉ áp dụng cho tài khoản STAFF (UC19 / BR-BRM-14).
+   */
+  @Prop({
+    type: String,
+    enum: JobPosition,
+  })
+  jobPosition?: JobPosition;
+
+  /**
+   * Trạng thái làm việc - chỉ áp dụng cho tài khoản STAFF (UC19 / BR-BRM-15).
+   * isActive vẫn là nguồn quyết định quyền đăng nhập; trường này phân biệt
+   * "tạm ngưng" (INACTIVE) với "đã nghỉ việc" (RESIGNED).
+   */
+  @Prop({
+    type: String,
+    enum: EmploymentStatus,
+  })
+  employmentStatus?: EmploymentStatus;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
@@ -81,3 +109,4 @@ export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ branchId: 1 });
 UserSchema.index({ role: 1, isActive: 1 });
+UserSchema.index({ branchId: 1, role: 1, isActive: 1 });

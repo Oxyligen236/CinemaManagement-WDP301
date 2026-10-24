@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2, LogIn } from "lucide-react";
+import {
+  AuthShell,
+  AuthErrorBanner,
+  AUTH_INPUT_CLASS,
+  AUTH_LABEL_CLASS,
+  AUTH_PRIMARY_BUTTON_CLASS,
+} from "@/components/auth/auth-shell";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 function LoginForm() {
   const router = useRouter();
@@ -18,26 +27,38 @@ function LoginForm() {
     setIsSubmitting(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(result.message ?? "Unable to sign in.");
+        throw new Error(
+          getFriendlyErrorMessage(
+            { status: response.status, message: result.message },
+            "Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.",
+          ),
+        );
       }
 
       localStorage.setItem("cinema_access_token", result.accessToken);
       localStorage.setItem("cinema_user", JSON.stringify(result.user));
-      router.push("/");
+      router.push(
+        result.user?.role === "ADMIN"
+          ? "/admin/dashboard"
+          : result.user?.role === "BRANCHMANAGER"
+            ? "/manager"
+            : "/",
+      );
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Unable to sign in. Please try again.",
+        getFriendlyErrorMessage(
+          submitError,
+          "Không thể đăng nhập. Vui lòng thử lại sau.",
+        ),
       );
     } finally {
       setIsSubmitting(false);
@@ -45,61 +66,78 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl shadow-slate-200 sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-          Cinema Management
-        </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">Welcome back</h1>
-        <p className="mt-2 text-slate-500">
-          Your account is verified. Sign in to continue.
-        </p>
-
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
-            <input
-              required
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-
-          {error && (
-            <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
+    <AuthShell
+      eyebrow="ĐĂNG NHẬP HỆ THỐNG"
+      title="Chào mừng trở lại"
+      panelTitle="Thông tin Đăng nhập"
+      panelAside="Bắt buộc"
+      icon={LogIn}
+      footerSlot={
+        <p className="text-center text-[13px] text-[#666]">
+          Chưa có tài khoản?{" "}
+          <Link
+            href="/register"
+            className="font-bold text-[#da291c] hover:underline"
           >
-            {isSubmitting ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Need an account?{" "}
-          <Link href="/register" className="font-semibold text-indigo-600 hover:text-indigo-700">
-            Create one
+            Đăng ký ngay
           </Link>
         </p>
-      </section>
-    </main>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="login-email" className={AUTH_LABEL_CLASS}>
+            Email
+          </label>
+          <input
+            id="login-email"
+            required
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            placeholder="you@example.com"
+            className={AUTH_INPUT_CLASS}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="login-password" className={AUTH_LABEL_CLASS}>
+              Mật khẩu
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-[12px] font-bold text-[#da291c] hover:underline"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
+          <input
+            id="login-password"
+            required
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            className={AUTH_INPUT_CLASS}
+          />
+        </div>
+
+        {error && <AuthErrorBanner message={error} />}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={AUTH_PRIMARY_BUTTON_CLASS}
+        >
+          {isSubmitting && (
+            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+          )}
+          {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 

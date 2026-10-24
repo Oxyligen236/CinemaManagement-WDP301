@@ -8,7 +8,9 @@ import { Reflector } from '@nestjs/core';
 import { MSG_FORBIDDEN } from '../../domain/constants/auth-message.constants';
 import { AuthenticatedUser } from '../../domain/types/authenticated-user.type';
 import { Role, ROLES_KEY } from '../decorators/role.decorator';
+import { AuthenticatedRequest } from '../../domain/auth-user';
 
+/** Dùng sau JwtGuard: @UseGuards(JwtGuard, RoleGuard) + @Roles(Role.ADMIN) */
 @Injectable()
 export class RoleGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -18,15 +20,19 @@ export class RoleGuard implements CanActivate {
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (!requiredRoles || requiredRoles.length === 0) return true;
 
-    const request = context
-      .switchToHttp()
-      .getRequest<{ user?: AuthenticatedUser }>();
-    const role = request.user?.role;
-    if (!role || !requiredRoles.includes(role)) {
-      throw new ForbiddenException(MSG_FORBIDDEN);
+    if (!requiredRoles?.length) {
+      return true;
     }
+
+    const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
+
+    if (!user || !requiredRoles.includes(user.role)) {
+      throw new ForbiddenException(
+        'You do not have permission to access this resource',
+      );
+    }
+
     return true;
   }
 }

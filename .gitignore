@@ -1,2 +1,6 @@
 /docs/plans
-.playwright-mcp/
+.playwright-mcp
+.claude/worktrees/
+
+package-lock.json
+

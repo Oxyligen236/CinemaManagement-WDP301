@@ -1,3 +1,5 @@
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+
 export type MovieStatus = "COMING_SOON" | "NOW_SHOWING" | "ENDED";
 
 export interface Movie {
@@ -88,9 +90,13 @@ async function send<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, init);
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = Array.isArray(body?.message)
+    const rawMessage = Array.isArray(body?.message)
       ? body.message.join(", ")
-      : (body?.message ?? "Request failed.");
+      : body?.message;
+    const message = getFriendlyErrorMessage(
+      { status: response.status, message: rawMessage },
+      "Yêu cầu không thành công.",
+    );
     throw new ApiError(message, response.status);
   }
   return body as T;
