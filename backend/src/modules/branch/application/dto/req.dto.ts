@@ -87,27 +87,3 @@ export class UpdateBranchDto {
   @IsEnum(BranchStatus)
   branchStatus?: BranchStatus;
 }
-
-export class CreateAdminBranchRoomDto {
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @IsNotEmpty({ message: 'Tên phòng chiếu là bắt buộc.' })
-  @MaxLength(100)
-  roomName!: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(3)
-  @Max(15)
-  rowCount?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(4)
-  @Max(20)
-  columnsPerRow?: number;
-}

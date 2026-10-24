@@ -62,9 +62,3 @@ export class AdminBranchMutationResponseDto {
   message!: string;
   branch!: AdminBranchItemDto;
 }
-
-export class AdminBranchRoomCreatedResponseDto {
-  message!: string;
-  branch!: AdminBranchItemDto;
-  room!: AdminBranchRoomItemDto;
-}
