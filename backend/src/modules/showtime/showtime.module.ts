@@ -25,7 +25,7 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
 @Module({
   imports: [
     AuthModule,
-    BranchModule,
+    forwardRef(() => BranchModule),
     forwardRef(() => RoomModule),
     forwardRef(() => MovieModule),
     MongooseModule.forFeature([
