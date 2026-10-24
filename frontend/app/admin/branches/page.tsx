@@ -147,11 +147,6 @@ export default function AdminManageBranchesPage() {
     useState<AdminBranchItem | null>(null);
   const [branchRooms, setBranchRooms] = useState<AdminBranchRoomItem[]>([]);
   const [loadingRooms, setLoadingRooms] = useState<boolean>(false);
-  const [newRoomName, setNewRoomName] = useState<string>('');
-  const [newRoomRows, setNewRoomRows] = useState<number>(6);
-  const [newRoomCols, setNewRoomCols] = useState<number>(10);
-  const [roomCreateError, setRoomCreateError] = useState<string>('');
-  const [creatingRoom, setCreatingRoom] = useState<boolean>(false);
 
   const getAuthHeaders = useCallback((): HeadersInit => {
     const token =
@@ -422,10 +417,6 @@ export default function AdminManageBranchesPage() {
   const openInspectRoomsModal = async (branch: AdminBranchItem) => {
     setInspectingBranch(branch);
     setBranchRooms([]);
-    setNewRoomName(`Cinema ${branch.totalRooms + 1}`);
-    setNewRoomRows(6);
-    setNewRoomCols(10);
-    setRoomCreateError('');
     setLoadingRooms(true);
     try {
       const res = await fetch(
@@ -445,50 +436,6 @@ export default function AdminManageBranchesPage() {
       // ignore
     } finally {
       setLoadingRooms(false);
-    }
-  };
-
-  const handleCreateBranchRoom = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inspectingBranch) return;
-    setRoomCreateError('');
-    if (!newRoomName.trim()) {
-      setRoomCreateError('Vui lòng nhập tên phòng chiếu.');
-      return;
-    }
-
-    setCreatingRoom(true);
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/branches/admin/${inspectingBranch.branchId}/rooms`,
-        {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            roomName: newRoomName.trim(),
-            rowCount: newRoomRows,
-            columnsPerRow: newRoomCols,
-          }),
-        },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setRoomCreateError(
-          data?.message ?? 'Không thể tạo phòng chiếu mới.',
-        );
-        return;
-      }
-
-      showToast(
-        'success',
-        data?.message ?? 'Đã tạo phòng chiếu và sinh sơ đồ ghế thành công.',
-      );
-      await openInspectRoomsModal(inspectingBranch);
-      await fetchBranches();
-    } catch {
-      setRoomCreateError('Lỗi kết nối máy chủ khi tạo phòng chiếu.');
-    } finally {
-      setCreatingRoom(false);
     }
   };
 
@@ -1256,74 +1203,6 @@ export default function AdminManageBranchesPage() {
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              {/* Quick Create Room + Auto Seat Grid Generator */}
-              <form
-                onSubmit={handleCreateBranchRoom}
-                className="bg-[#efebdb] border border-[#dad2b4] p-4 space-y-3"
-              >
-                <p className="text-[12px] font-bold uppercase text-[#231f20]">
-                  + Thêm Phòng chiếu mới & Tự động sinh lưới ghế cho{' '}
-                  {inspectingBranch.branchName}
-                </p>
-                {roomCreateError && (
-                  <p className="text-[12px] font-bold text-[#da291c]">
-                    {roomCreateError}
-                  </p>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-bold text-[#6f6247] mb-1">
-                      Tên phòng chiếu *
-                    </label>
-                    <input
-                      type="text"
-                      value={newRoomName}
-                      onChange={(e) => setNewRoomName(e.target.value)}
-                      placeholder="VD: Cinema 4"
-                      className="w-full px-3 py-2 text-[13px] bg-white border border-[#dad2b4]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#6f6247] mb-1">
-                      Số hàng × Số cột
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min={3}
-                        max={15}
-                        value={newRoomRows}
-                        onChange={(e) =>
-                          setNewRoomRows(Number(e.target.value) || 6)
-                        }
-                        className="w-full px-2.5 py-2 text-[13px] bg-white border border-[#dad2b4] text-center"
-                      />
-                      <span className="font-bold">×</span>
-                      <input
-                        type="number"
-                        min={4}
-                        max={20}
-                        value={newRoomCols}
-                        onChange={(e) =>
-                          setNewRoomCols(Number(e.target.value) || 10)
-                        }
-                        className="w-full px-2.5 py-2 text-[13px] bg-white border border-[#dad2b4] text-center"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={creatingRoom}
-                    className="px-4 py-2 text-[12px] font-bold uppercase cursor-pointer h-[38px]"
-                    style={{ backgroundColor: '#da291c', color: '#ffffff' }}
-                  >
-                    {creatingRoom
-                      ? 'Đang tạo...'
-                      : `Tạo (${newRoomRows * newRoomCols} ghế)`}
-                  </button>
-                </div>
-              </form>
-
               {/* Rooms List inside Branch */}
               {loadingRooms ? (
                 <div className="py-8 text-center text-[13px] font-bold text-[#6f6247]">
@@ -1331,7 +1210,7 @@ export default function AdminManageBranchesPage() {
                 </div>
               ) : branchRooms.length === 0 ? (
                 <div className="py-8 text-center text-[13px] text-[#666] border border-dashed border-[#dad2b4]">
-                  Chi nhánh này chưa có phòng chiếu nào. Hãy tạo phòng chiếu ở khung phía trên.
+                  Chi nhánh này hiện chưa có phòng chiếu nào.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -1393,12 +1272,9 @@ export default function AdminManageBranchesPage() {
             </div>
 
             <div className="px-6 py-3.5 bg-[#efebdb] border-t border-[#dad2b4] flex items-center justify-between">
-              <Link
-                href="/manager/rooms"
-                className="text-[12px] font-bold text-[#da291c] hover:underline"
-              >
-                Mở Trình cấu hình Sơ đồ ghế chi tiết →
-              </Link>
+              <span className="text-[12px] font-semibold text-[#6f6247]">
+                Tổng cộng: {branchRooms.length} phòng chiếu thuộc chi nhánh
+              </span>
               <button
                 type="button"
                 onClick={() => setInspectingBranch(null)}

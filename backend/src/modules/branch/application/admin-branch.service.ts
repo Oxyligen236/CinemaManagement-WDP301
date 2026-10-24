@@ -22,7 +22,6 @@ import { BranchStatus } from '../domain/enums/branch-status.enum';
 import { BRANCH_MESSAGES, canDeactivateBranch } from '../domain/branch.rules';
 import {
   AdminBranchQueryDto,
-  CreateAdminBranchRoomDto,
   CreateBranchDto,
   UpdateBranchDto,
 } from './dto/req.dto';
@@ -31,7 +30,6 @@ import {
   AdminBranchItemDto,
   AdminBranchListResponseDto,
   AdminBranchMutationResponseDto,
-  AdminBranchRoomCreatedResponseDto,
   AdminBranchRoomItemDto,
 } from './dto/res.dto';
 
@@ -316,66 +314,6 @@ export class AdminBranchService {
       return {
         message: BRANCH_MESSAGES.MSG03_UPDATED,
         branch: enriched,
-      };
-    });
-  }
-
-  /**
-   * Tạo phòng chiếu mới trực tiếp cho chi nhánh được chọn và tự động sinh lưới ghế (Seat Grid Generator)
-   */
-  async createRoomForBranch(
-    branchId: string,
-    input: CreateAdminBranchRoomDto,
-  ): Promise<AdminBranchRoomCreatedResponseDto> {
-    return this.guard(async () => {
-      const branch = await this.branchModel
-        .findOne({ branchId })
-        .lean<Branch & { createdAt?: Date; updatedAt?: Date }>()
-        .exec();
-
-      if (!branch) {
-        throw new NotFoundException(BRANCH_MESSAGES.BRANCH_NOT_FOUND);
-      }
-
-      const escapedRoomName = input.roomName.replace(
-        /[.*+?^${}()|[\]\\]/g,
-        '\\$&',
-      );
-      const duplicate = await this.roomModel
-        .exists({
-          branchId,
-          roomName: new RegExp(`^${escapedRoomName}$`, 'i'),
-        })
-        .exec();
-
-      if (duplicate) {
-        throw new ConflictException({
-          statusCode: 409,
-          error: 'Conflict',
-          message: BRANCH_MESSAGES.ROOM_NAME_EXISTS,
-          fields: ['roomName'],
-        });
-      }
-
-      const createdRoom = await this.roomModel.create({
-        roomName: input.roomName.trim(),
-        roomStatus: RoomStatus.AVAILABLE,
-        branchId,
-      });
-
-      const rows = input.rowCount ?? 6;
-      const cols = input.columnsPerRow ?? 10;
-      await this.generateDefaultSeatsForRoom(createdRoom.roomId, rows, cols);
-
-      const [[enrichedBranch], [enrichedRoom]] = await Promise.all([
-        this.enrichBranches([branch]),
-        this.enrichRooms([createdRoom.toObject()]),
-      ]);
-
-      return {
-        message: BRANCH_MESSAGES.ROOM_CREATED,
-        branch: enrichedBranch,
-        room: enrichedRoom,
       };
     });
   }
@@ -682,45 +620,6 @@ export class AdminBranchService {
         upcomingShowtimesCount: showtimeMap.get(room.roomId) ?? 0,
       };
     });
-  }
-
-  private async generateDefaultSeatsForRoom(
-    roomId: string,
-    rowCount: number,
-    columnsPerRow: number,
-  ): Promise<void> {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const seatDocs: {
-      roomId: string;
-      rowPosition: string;
-      columnPosition: number;
-      seatType: SeatType;
-      status: SeatStatus;
-    }[] = [];
-
-    for (let r = 0; r < rowCount; r++) {
-      const rowLabel = alphabet[r] ?? `R${r + 1}`;
-      const isLastRow = r === rowCount - 1 && rowCount >= 5;
-      const isVipRow = r >= Math.floor(rowCount / 2) && !isLastRow;
-
-      for (let col = 1; col <= columnsPerRow; col++) {
-        seatDocs.push({
-          roomId,
-          rowPosition: rowLabel,
-          columnPosition: col,
-          seatType: isLastRow
-            ? SeatType.COUPLE
-            : isVipRow
-              ? SeatType.VIP
-              : SeatType.STANDARD,
-          status: SeatStatus.AVAILABLE,
-        });
-      }
-    }
-
-    if (seatDocs.length > 0) {
-      await this.seatModel.insertMany(seatDocs, { ordered: false });
-    }
   }
 
   private async guard<T>(operation: () => Promise<T>): Promise<T> {
