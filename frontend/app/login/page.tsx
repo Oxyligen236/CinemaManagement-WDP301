@@ -102,17 +102,9 @@ function LoginForm() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="login-password" className={AUTH_LABEL_CLASS}>
-              Mật khẩu
-            </label>
-            <Link
-              href="/forgot-password"
-              className="text-[12px] font-bold text-[#da291c] hover:underline"
-            >
-              Quên mật khẩu?
-            </Link>
-          </div>
+          <label htmlFor="login-password" className={AUTH_LABEL_CLASS}>
+            Mật khẩu
+          </label>
           <input
             id="login-password"
             required
@@ -122,6 +114,14 @@ function LoginForm() {
             autoComplete="current-password"
             className={AUTH_INPUT_CLASS}
           />
+          <div className="mt-2 flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-[12px] font-bold text-[#da291c] hover:underline"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
         </div>
 
         {error && <AuthErrorBanner message={error} />}
