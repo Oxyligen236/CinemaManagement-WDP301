@@ -1,6 +1,5 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsNumber,
@@ -10,54 +9,6 @@ import {
   Min,
 } from 'class-validator';
 import { PageRequest } from '../../../../common/dto/page.dto';
-
-export class PublicShowtimeQueryDto extends PageRequest {
-  /** Lọc theo ngày chiếu định dạng YYYY-MM-DD */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MaxLength(20)
-  date?: string;
-
-  /** Lọc theo bộ phim */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MaxLength(100)
-  movieId?: string;
-
-  /** Lọc theo chi nhánh rạp */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MaxLength(100)
-  branchId?: string;
-
-  /** Lọc theo phòng chiếu */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MaxLength(100)
-  roomId?: string;
-
-  /** Có bao gồm suất chiếu đã qua hay không (mặc định false cho khách hàng) */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) => {
-    if (value === 'true' || value === true) return true;
-    if (value === 'false' || value === false) return false;
-    return undefined;
-  })
-  @IsBoolean()
-  includePast?: boolean;
-}
 
 export class BranchShowtimeQueryDto extends PageRequest {
   /** Lọc theo ngày chiếu định dạng YYYY-MM-DD */

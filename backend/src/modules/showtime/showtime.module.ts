@@ -4,14 +4,12 @@ import { AuthModule } from '../auth/auth.module';
 import { BranchModule } from '../branch/branch.module';
 import { RoomModule } from '../room/room.module';
 import { MovieModule } from '../movie/movie.module';
-import { PriceRuleModule } from '../pricerule/pricerule.module';
 import { Showtime, ShowtimeSchema } from './domain/schemas/showtime.schema';
 import {
   SeatShowtime,
   SeatShowtimeSchema,
 } from './domain/schemas/seat-showtime.schema';
 import { BranchShowtimeController } from './infra/branch-showtime.controller';
-import { PublicShowtimeController } from './infra/public-showtime.controller';
 import { BranchShowtimeService } from './application/branch-showtime.service';
 import { SeatShowtimeQueryService } from './application/services/seat-showtime-query.service';
 import { ShowtimeQueryService } from './application/services/showtime-query.service';
@@ -27,7 +25,7 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
 @Module({
   imports: [
     AuthModule,
-    BranchModule,
+    forwardRef(() => BranchModule),
     forwardRef(() => RoomModule),
     forwardRef(() => MovieModule),
     MongooseModule.forFeature([

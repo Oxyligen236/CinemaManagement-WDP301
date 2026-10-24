@@ -31,6 +31,13 @@ export class Branch {
   address!: string;
 
   @Prop({
+    trim: true,
+    maxlength: 30,
+    default: '1900 2224',
+  })
+  hotline?: string;
+
+  @Prop({
     type: String,
     enum: BranchStatus,
     default: BranchStatus.ACTIVE,
