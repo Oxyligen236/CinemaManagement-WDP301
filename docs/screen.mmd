@@ -31,3 +31,28 @@ flowchart TD
     CreateFilmModal -->|Lưu thành công / Hủy| AdminFilms
     AdminFilms -->|Click Vô hiệu hóa| DeactivateFilmDialog
     DeactivateFilmDialog -->|Xác nhận / Hủy| AdminFilms
+
+    %% Admin Price Multipliers
+    AdminPriceMultipliers["/admin/price-multipliers (Admin - Cấu hình danh sách hệ số giá vé)"]
+    DeletePriceValueDialog["Dialog xác nhận xóa giá trị hệ số"]
+
+    Login -->|Đăng nhập thành công (Admin)| AdminPriceMultipliers
+    AdminPriceMultipliers -->|Thêm / Sửa inline thành công, làm mới tại chỗ| AdminPriceMultipliers
+    AdminPriceMultipliers -->|Click Xóa giá trị| DeletePriceValueDialog
+    DeletePriceValueDialog -->|Xác nhận / Hủy| AdminPriceMultipliers
+    AdminPriceMultipliers -->|Chưa đăng nhập / 401| Login
+
+    %% Manager Showtimes
+    ManagerShowtimes["/manager/showtimes (Manager - Quản lý Suất chiếu)"]
+    ShowtimeFormModal["Modal Tạo/Sửa suất chiếu (Phim, Ngày, Giờ, Phòng, Hệ số giá)"]
+    ShowtimeConflictDialog["Popup lỗi MSG03 - Phòng trùng lịch"]
+    DeleteShowtimeDialog["Dialog Xác nhận Xóa suất chiếu"]
+
+    Login -->|Đăng nhập thành công (Manager)| ManagerShowtimes
+    ManagerShowtimes -->|Click Tạo suất chiếu / Sửa| ShowtimeFormModal
+    ShowtimeFormModal -->|Lưu thành công MSG02 / Hủy| ManagerShowtimes
+    ShowtimeFormModal -->|Phòng trùng lịch| ShowtimeConflictDialog
+    ShowtimeConflictDialog -->|Chọn phòng/khung giờ khác| ShowtimeFormModal
+    ManagerShowtimes -->|Click Xóa| DeleteShowtimeDialog
+    DeleteShowtimeDialog -->|Xác nhận / Hủy| ManagerShowtimes
+    ManagerShowtimes -->|Chưa đăng nhập / 401| Login

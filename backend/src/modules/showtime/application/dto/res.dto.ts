@@ -1,6 +1,18 @@
 import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
 import { SeatType } from '../../../room/domain/enums/seat-type.enum';
 
+export class ShowtimeSeatPriceSelectionResDto {
+  seatType!: string;
+  ruleId!: string | null;
+  multiplier!: number;
+}
+
+export class ShowtimeDayPriceSelectionResDto {
+  dayType!: string;
+  ruleId!: string | null;
+  multiplier!: number;
+}
+
 export class ShowtimeResDto {
   showtimeId!: string;
   movieId!: string;
@@ -10,6 +22,8 @@ export class ShowtimeResDto {
   basePrice!: number;
   dayPriceRuleId?: string;
   seatPriceRuleId?: string;
+  seatPriceSelections?: ShowtimeSeatPriceSelectionResDto[];
+  dayPriceSelections?: ShowtimeDayPriceSelectionResDto[];
   createdAt!: Date;
   updatedAt!: Date;
 }

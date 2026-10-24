@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Room, RoomSchema } from './domain/schemas/room.schema';
 import { Seat, SeatSchema } from './domain/schemas/seat.schema';
+import { RoomOptionQueryService } from './application/services/room-option-query.service';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -31,7 +32,7 @@ import { Seat, SeatSchema } from './domain/schemas/seat.schema';
     ]),
   ],
   controllers: [],
-  providers: [],
-  exports: [MongooseModule],
+  providers: [RoomOptionQueryService],
+  exports: [MongooseModule, RoomOptionQueryService],
 })
 export class RoomModule {}

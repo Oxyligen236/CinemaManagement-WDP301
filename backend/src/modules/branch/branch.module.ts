@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Branch, BranchSchema } from './domain/schemas/branch.schema';
+import { BranchQueryService } from './application/services/branch-query.service';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -27,7 +28,7 @@ import { Branch, BranchSchema } from './domain/schemas/branch.schema';
     MongooseModule.forFeature([{ name: Branch.name, schema: BranchSchema }]),
   ],
   controllers: [],
-  providers: [],
-  exports: [MongooseModule],
+  providers: [BranchQueryService],
+  exports: [MongooseModule, BranchQueryService],
 })
 export class BranchModule {}

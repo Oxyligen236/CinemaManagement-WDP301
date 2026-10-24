@@ -19,6 +19,8 @@ import { MovieModule } from './modules/movie/movie.module';
 import { ShowtimeModule } from './modules/showtime/showtime.module';
 import { PriceRuleModule } from './modules/pricerule/pricerule.module';
 import { WorkModule } from './modules/work/work.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { ShowtimeManagementModule } from './modules/showtime-management/showtime-management.module';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -48,6 +50,7 @@ import { WorkModule } from './modules/work/work.module';
     DatabaseModule,
     EventModule,
     MailModule,
+    AuthModule,
     UserModule,
     TempModule,
     PaymentModule,
@@ -61,6 +64,7 @@ import { WorkModule } from './modules/work/work.module';
     ShowtimeModule,
     PriceRuleModule,
     WorkModule,
+    ShowtimeManagementModule,
   ],
   controllers: [AppController],
   providers: [AppService],

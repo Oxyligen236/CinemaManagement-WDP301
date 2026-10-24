@@ -8,6 +8,7 @@ import {
 import { RoomModule } from '../room/room.module';
 import { SeatShowtimeQueryService } from './application/services/seat-showtime-query.service';
 import { ShowtimeQueryService } from './application/services/showtime-query.service';
+import { ShowtimeScheduleService } from './application/services/showtime-schedule.service';
 import { ShowtimeController } from './infra/showtime.controller';
 
 // Module chỉ được import Module cấm import thứ khác
@@ -39,7 +40,11 @@ import { ShowtimeController } from './infra/showtime.controller';
     ]),
   ],
   controllers: [ShowtimeController],
-  providers: [ShowtimeQueryService, SeatShowtimeQueryService],
-  exports: [MongooseModule, ShowtimeQueryService],
+  providers: [
+    ShowtimeQueryService,
+    SeatShowtimeQueryService,
+    ShowtimeScheduleService,
+  ],
+  exports: [MongooseModule, ShowtimeQueryService, ShowtimeScheduleService],
 })
 export class ShowtimeModule {}

@@ -13,6 +13,7 @@ import { UserController } from './infra/user.controller';
 import { PendingRegistrationService } from './application/services/pending-registration.service';
 import { UserRegistrationService } from './application/services/user-registration.service';
 import { UserAuthenticationService } from './application/services/user-authentication.service';
+import { UserBranchQueryService } from './application/services/user-branch-query.service';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -59,6 +60,8 @@ import { UserAuthenticationService } from './application/services/user-authentic
     PendingRegistrationService,
     UserRegistrationService,
     UserAuthenticationService,
+    UserBranchQueryService,
   ],
+  exports: [UserBranchQueryService],
 })
 export class UserModule {}

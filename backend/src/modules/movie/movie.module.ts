@@ -6,6 +6,7 @@ import { ShowtimeModule } from '../showtime/showtime.module';
 import { StorageModule } from '../infra/storage/storage.module';
 import { MovieController } from './infra/movie.controller';
 import { MovieService } from './application/services/movie.service';
+import { MovieOptionQueryService } from './application/services/movie-option-query.service';
 
 // Module chỉ được import Module cấm import thứ khác
 @Module({
@@ -18,7 +19,7 @@ import { MovieService } from './application/services/movie.service';
     StorageModule,
   ],
   controllers: [MovieController],
-  providers: [MovieService],
-  exports: [MovieService, MongooseModule],
+  providers: [MovieService, MovieOptionQueryService],
+  exports: [MovieService, MovieOptionQueryService, MongooseModule],
 })
 export class MovieModule {}
