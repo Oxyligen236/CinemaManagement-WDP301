@@ -38,12 +38,12 @@ import { RoleGuard } from './infra/guards/role.guard';
           'change-this-development-secret',
         ),
         signOptions: {
-          expiresIn: config.get<number>('JWT_EXPIRES_IN_SECONDS', 86400),
+          expiresIn: Number(config.get('JWT_EXPIRES_IN_SECONDS', 86400)),
         },
       }),
     }),
   ],
   providers: [JwtGuard, RoleGuard],
-  exports: [JwtModule, JwtGuard, RoleGuard],
+  exports: [JwtModule, JwtGuard, RoleGuard, MongooseModule],
 })
 export class AuthModule {}

@@ -12,6 +12,7 @@ import {
   AuthErrorBanner,
   AuthShell,
 } from "@/components/auth/auth-shell";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
@@ -42,18 +43,20 @@ function VerifyEmailForm() {
 
       if (!response.ok) {
         throw new Error(
-          typeof data.message === "string"
-            ? data.message
-            : "Mã xác thực không hợp lệ hoặc đã hết hạn.",
+          getFriendlyErrorMessage(
+            { status: response.status, message: data.message },
+            "Mã xác thực không hợp lệ hoặc đã hết hạn.",
+          ),
         );
       }
 
       router.push(`/login?email=${encodeURIComponent(email)}`);
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Không thể kết nối đến máy chủ.",
+        getFriendlyErrorMessage(
+          submitError,
+          "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
+        ),
       );
     } finally {
       setSubmitting(false);

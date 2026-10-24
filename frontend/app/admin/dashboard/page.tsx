@@ -13,6 +13,7 @@ import {
   ArrowRight,
   LogOut,
 } from "lucide-react";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 const TOKEN_KEY = "cinema_access_token";
 const USER_KEY = "cinema_user";
@@ -93,16 +94,22 @@ export default function AdminDashboardPage() {
         }
         const result = await response.json();
         if (!response.ok) {
-          throw new Error(result.message ?? "Không thể tải dữ liệu tổng quan.");
+          throw new Error(
+            getFriendlyErrorMessage(
+              { status: response.status, message: result?.message },
+              "Không thể tải dữ liệu tổng quan.",
+            ),
+          );
         }
         setData(result as DashboardData);
         setStatus("ready");
       })
       .catch((fetchError) => {
         setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "Không thể tải dữ liệu tổng quan.",
+          getFriendlyErrorMessage(
+            fetchError,
+            "Không thể tải dữ liệu tổng quan.",
+          ),
         );
         setStatus("error");
       });

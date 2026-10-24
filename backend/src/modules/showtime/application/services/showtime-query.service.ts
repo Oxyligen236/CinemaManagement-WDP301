@@ -1,0 +1,127 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, QueryFilter } from 'mongoose';
+import { Room, RoomDocument } from '../../../room/domain/schemas/room.schema';
+import { Page } from '../../../../common/dto/page.dto';
+import {
+  Showtime,
+  ShowtimeDocument,
+} from '../../domain/schemas/showtime.schema';
+import { SearchShowtimeReqDto } from '../dto/req.dto';
+import { ShowtimeResDto } from '../dto/res.dto';
+import { GetShowtimeDetailUsecase } from '../usecase/get-showtime-detail.usecase';
+import { SearchShowtimesUsecase } from '../usecase/search-showtimes.usecase';
+
+@Injectable()
+export class ShowtimeQueryService
+  implements SearchShowtimesUsecase, GetShowtimeDetailUsecase
+{
+  constructor(
+    @InjectModel(Showtime.name)
+    private readonly showtimeModel: Model<ShowtimeDocument>,
+    @InjectModel(Room.name)
+    private readonly roomModel: Model<RoomDocument>,
+  ) {}
+
+  /**
+   * Kiểm tra xem phim có suất chiếu đang lên lịch hoặc đang diễn ra không.
+   *
+   * @param movieId - Mã định danh phim (string, khớp schema Showtime.movieId)
+   * @returns true nếu có ít nhất 1 suất chiếu có endTime >= now
+   */
+  async hasActiveShowtimes(movieId: string): Promise<boolean> {
+    const found = await this.showtimeModel.exists({
+      movieId,
+      endTime: { $gte: new Date() },
+    });
+    return found !== null;
+  }
+
+  async searchShowtimes(
+    query: SearchShowtimeReqDto,
+  ): Promise<Page<ShowtimeResDto>> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const filter: QueryFilter<ShowtimeDocument> = {};
+
+    if (query.movieId) {
+      filter.movieId = query.movieId;
+    }
+    if (query.branchId) {
+      const rooms = await this.roomModel
+        .find({ branchId: query.branchId })
+        .select('roomId')
+        .lean()
+        .exec();
+      let roomIds = rooms.map((room) => room.roomId);
+      if (query.roomId) {
+        roomIds = roomIds.filter((id) => id === query.roomId);
+      }
+      filter.roomId = { $in: roomIds };
+    } else if (query.roomId) {
+      filter.roomId = query.roomId;
+    }
+
+    const startTime: { $gte?: Date; $lt?: Date; $lte?: Date } = {};
+    if (query.date) {
+      const start = new Date(query.date);
+      start.setUTCHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 1);
+      startTime.$gte = start;
+      startTime.$lt = end;
+    }
+    if (query.from) {
+      const from = new Date(query.from);
+      if (!startTime.$gte || from > startTime.$gte) startTime.$gte = from;
+    }
+    if (query.to) {
+      const to = new Date(query.to);
+      delete startTime.$lt;
+      startTime.$lte = to;
+    }
+    if (Object.keys(startTime).length > 0) {
+      filter.startTime = startTime;
+    }
+
+    const [docs, total] = await Promise.all([
+      this.showtimeModel
+        .find(filter)
+        .sort({ startTime: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .exec(),
+      this.showtimeModel.countDocuments(filter).exec(),
+    ]);
+
+    return Page.from(
+      docs.map((doc) => this.toShowtimeResDto(doc)),
+      total,
+      page,
+      limit,
+    );
+  }
+
+  async getShowtimeDetail(showtimeId: string): Promise<ShowtimeResDto> {
+    const doc = await this.showtimeModel.findOne({ showtimeId }).exec();
+    if (!doc) {
+      throw new NotFoundException('Showtime not found');
+    }
+    return this.toShowtimeResDto(doc);
+  }
+
+  private toShowtimeResDto(doc: ShowtimeDocument): ShowtimeResDto {
+    const dto = new ShowtimeResDto();
+    dto.showtimeId = doc.showtimeId;
+    dto.movieId = doc.movieId;
+    dto.roomId = doc.roomId;
+    dto.startTime = doc.startTime;
+    dto.endTime = doc.endTime;
+    dto.basePrice = doc.basePrice;
+    dto.dayPriceRuleId = doc.dayPriceRuleId;
+    dto.seatPriceRuleId = doc.seatPriceRuleId;
+    dto.createdAt = (doc as unknown as { createdAt: Date }).createdAt;
+    dto.updatedAt = (doc as unknown as { updatedAt: Date }).updatedAt;
+    return dto;
+  }
+}

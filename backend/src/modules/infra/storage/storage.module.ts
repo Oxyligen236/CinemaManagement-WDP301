@@ -1,13 +1,9 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthModule } from '../../auth/auth.module';
 // import { StorageController } from './infrastructure/controllers/storage.controller';
 import { S3Client } from '@aws-sdk/client-s3';
 import { STORAGE_SERVICE } from './application/interface/storage.interface';
 import { S3StorageService } from './infrastructure/s3-storage.service';
-import { getRepositoryToken, TypeOrmModule } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { StorageEntity } from './domain/entities/storage.entity';
 import { StorageInterceptor } from './infrastructure/interceptors/storage.interceptor';
 import { StorageListener } from './infrastructure/listeners/storage.listener';
 import { DeleteStorageHandler } from './application/handlers/delete-storage.handler';
@@ -34,42 +30,48 @@ import { DeleteStorageHandler } from './application/handlers/delete-storage.hand
 // Module chỉ được import Module cấm import thứ khác
 @Global()
 @Module({
-  imports: [
-    AuthModule,
-    ConfigModule,
-    TypeOrmModule.forFeature([StorageEntity]),
-  ],
+  imports: [ConfigModule],
   // controllers: [StorageController],
   providers: [
     {
       provide: S3Client,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
-        new S3Client({
+      useFactory: (config: ConfigService) => {
+        // Không ném lỗi khi thiếu credential để app vẫn boot; S3 sẽ lỗi khi gọi thật.
+        const missing = [
+          'STORAGE_ENDPOINT',
+          'STORAGE_ACCESS_KEY_ID',
+          'STORAGE_SECRET_ACCESS_KEY',
+          'STORAGE_BUCKET',
+        ].filter((name) => !config.get<string>(name));
+        if (missing.length) {
+          new Logger('StorageModule').warn(
+            `Thiếu cấu hình storage: ${missing.join(', ')}. Upload/Delete S3 sẽ thất bại.`,
+          );
+        }
+        return new S3Client({
           endpoint: config.get<string>('STORAGE_ENDPOINT'),
           region: config.get<string>('STORAGE_REGION', 'auto'),
           forcePathStyle:
             config.get<string>('STORAGE_FORCE_PATH_STYLE') === 'true',
           credentials: {
-            accessKeyId: config.getOrThrow<string>('STORAGE_ACCESS_KEY_ID'),
-            secretAccessKey: config.getOrThrow<string>(
+            accessKeyId: config.get<string>('STORAGE_ACCESS_KEY_ID', ''),
+            secretAccessKey: config.get<string>(
               'STORAGE_SECRET_ACCESS_KEY',
+              '',
             ),
           },
-        }),
+        });
+      },
     },
     {
       provide: STORAGE_SERVICE,
-      inject: [S3Client, ConfigService, getRepositoryToken(StorageEntity)],
-      useFactory: (
-        client: S3Client,
-        config: ConfigService,
-        storageRepo: Repository<StorageEntity>,
-      ) =>
+      inject: [S3Client, ConfigService],
+      useFactory: (client: S3Client, config: ConfigService) =>
         new S3StorageService(
           client,
-          config.getOrThrow<string>('STORAGE_BUCKET'),
-          storageRepo,
+          config.get<string>('STORAGE_BUCKET', ''),
+          config.get<string>('STORAGE_PUBLIC_URL', ''),
         ),
     },
     {
