@@ -3,7 +3,7 @@ import { Handler } from '../../../../common/application/handler';
 export const QUEUE_SERVICE = Symbol('QUEUE_SERVICE');
 
 export interface QueueJobOptions {
-  depley?: boolean;
+  delayTime?: number;
   attempts?: number;
 }
 

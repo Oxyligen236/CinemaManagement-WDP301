@@ -26,8 +26,7 @@ export const ROOM_MESSAGES = {
   NO_BRANCH: 'Tài khoản Quản lý của bạn chưa được phân công chi nhánh.',
   BRANCH_NOT_ACTIVE:
     'Chi nhánh hiện không hoạt động, không thể thay đổi cấu hình phòng chiếu.',
-  SERVICE_UNAVAILABLE:
-    'Dịch vụ tạm thời gián đoạn. Vui lòng thử lại sau.',
+  SERVICE_UNAVAILABLE: 'Dịch vụ tạm thời gián đoạn. Vui lòng thử lại sau.',
 } as const;
 
 export const ASSIGNABLE_ROOM_STATUSES: readonly RoomStatus[] = [

@@ -163,7 +163,7 @@ export class BranchStaffService {
 
         return {
           message: STAFF_MESSAGES.MSG26,
-          staff: this.toView(created.toObject() as StaffRecord),
+          staff: this.toView(created.toObject()),
         };
       } catch (error: unknown) {
         if (this.isDuplicateKey(error)) {

@@ -39,13 +39,28 @@ export class Movie {
 
   @Prop({
     trim: true,
+    default: '',
+  })
+  description?: string;
+
+  @Prop({ type: Date })
+  releaseDate?: Date;
+
+  @Prop({
+    trim: true,
   })
   posterKey?: string;
 
   @Prop({
     trim: true,
   })
-  trailerKey?: string;
+  posterUrl?: string;
+
+  @Prop({
+    trim: true,
+    maxlength: 2048,
+  })
+  trailerUrl?: string;
 
   @Prop({
     required: true,

@@ -297,7 +297,7 @@ export class BranchShowtimeService {
       await this.initializeSeatShowtimes(created.showtimeId, room.roomId);
 
       const [view] = await this.enrichShowtimes(
-        [created.toObject() as Showtime],
+        [created.toObject()],
         [room],
       );
 

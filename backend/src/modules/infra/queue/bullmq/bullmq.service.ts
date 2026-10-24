@@ -47,6 +47,7 @@ export class BullmqService implements QueueService, OnModuleDestroy {
     const queue = this.getQueue(queueName);
     await queue.add('default', data, {
       attempts: options?.attempts,
+      delay: options?.delayTime,
     });
   }
 

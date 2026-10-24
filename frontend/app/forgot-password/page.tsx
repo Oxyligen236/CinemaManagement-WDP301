@@ -13,6 +13,7 @@ import {
   AUTH_PRIMARY_BUTTON_CLASS,
   AUTH_SECONDARY_BUTTON_CLASS,
 } from "@/components/auth/auth-shell";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
@@ -53,9 +54,10 @@ export default function ForgotPasswordPage() {
 
       if (!response.ok) {
         throw new Error(
-          typeof data.message === "string"
-            ? data.message
-            : "Không thể yêu cầu mã đặt lại.",
+          getFriendlyErrorMessage(
+            { status: response.status, message: data.message },
+            "Không thể yêu cầu mã đặt lại.",
+          ),
         );
       }
 
@@ -65,9 +67,10 @@ export default function ForgotPasswordPage() {
       setStep("reset");
     } catch (requestError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Không thể kết nối đến máy chủ.",
+        getFriendlyErrorMessage(
+          requestError,
+          "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -114,18 +117,20 @@ export default function ForgotPasswordPage() {
 
       if (!response.ok) {
         throw new Error(
-          typeof data.message === "string"
-            ? data.message
-            : "Mã đặt lại không hợp lệ hoặc đã hết hạn.",
+          getFriendlyErrorMessage(
+            { status: response.status, message: data.message },
+            "Mã đặt lại không hợp lệ hoặc đã hết hạn.",
+          ),
         );
       }
 
       router.push(`/login?email=${encodeURIComponent(email)}`);
     } catch (resetError) {
       setError(
-        resetError instanceof Error
-          ? resetError.message
-          : "Không thể đặt lại mật khẩu của bạn.",
+        getFriendlyErrorMessage(
+          resetError,
+          "Không thể đặt lại mật khẩu của bạn. Vui lòng thử lại sau.",
+        ),
       );
     } finally {
       setSubmitting(false);
