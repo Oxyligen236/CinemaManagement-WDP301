@@ -140,8 +140,6 @@ export class AdminService {
     input: AssignBranchDto,
     adminUserId: string,
   ) {
-      // Admin không được tự gán chi nhánh cho chính mình: tài khoản quản trị
-      // là cấp toàn hệ thống, không thuộc về bất kỳ chi nhánh nào.
       if (userId === adminUserId) {
         throw new ForbiddenException(
           'You cannot assign a branch to your own account',
@@ -267,8 +265,6 @@ export class AdminService {
       throw new BadRequestException('At least one field is required');
     }
 
-    // Tự bảo vệ tài khoản quản trị đang đăng nhập: không được tự đổi vai trò
-    // (tránh tự khóa quyền quản trị) và không được tự vô hiệu hóa.
     if (userId === adminUserId) {
       const self = await this.userModel
         .findOne({ userId })

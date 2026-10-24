@@ -1,9 +1,10 @@
-'use client';
+/* eslint-disable react-hooks/set-state-in-effect */
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import { SafeImage as Image } from '@/components/ui/safe-image';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from "react";
+import { SafeImage as Image } from "@/components/ui/safe-image";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -13,10 +14,10 @@ import {
   LogOut,
   Home,
   ChevronRight,
-} from 'lucide-react';
+} from "lucide-react";
 
-const TOKEN_KEY = 'cinema_access_token';
-const USER_KEY = 'cinema_user';
+const TOKEN_KEY = "cinema_access_token";
+const USER_KEY = "cinema_user";
 
 interface NavItem {
   label: string;
@@ -26,13 +27,13 @@ interface NavItem {
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   {
-    label: 'Tổng quan Hệ thống',
-    href: '/admin/dashboard',
+    label: "Tổng quan Hệ thống",
+    href: "/admin/dashboard",
     icon: LayoutDashboard,
   },
   {
-    label: 'Quản lý Người dùng',
-    href: '/admin/users',
+    label: "Quản lý Người dùng",
+    href: "/admin/users",
     icon: Users,
   },
 ];
@@ -45,24 +46,23 @@ export default function SystemAdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('');
+  const [adminEmail, setAdminEmail] = useState("");
 
   useEffect(() => {
     const rawUser = localStorage.getItem(USER_KEY);
     if (!rawUser) return;
-    let email = '';
     try {
-      email = (JSON.parse(rawUser) as { email?: string }).email ?? '';
+      const user = JSON.parse(rawUser) as { email?: string };
+      setAdminEmail(user.email ?? "");
     } catch {
-      email = '';
+      setAdminEmail("");
     }
-    queueMicrotask(() => setAdminEmail(email));
   }, []);
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    router.replace('/login');
+    router.replace("/login");
   }
 
   const isActiveRoute = (href: string) =>
@@ -159,7 +159,7 @@ export default function SystemAdminLayout({
             >
               Quản trị Hệ thống
             </Link>
-            {activeNav && activeNav.href !== '/admin/dashboard' && (
+            {activeNav && activeNav.href !== "/admin/dashboard" && (
               <>
                 <ChevronRight className="h-3.5 w-3.5 text-[#9d9580]" />
                 <span className="font-bold text-[#231f20]">
@@ -184,8 +184,8 @@ export default function SystemAdminLayout({
         className="flex-1 flex relative"
         style={{
           backgroundImage: "url('/sites/lottecinemavn/ui/bg_pattern.png')",
-          backgroundRepeat: 'repeat',
-          backgroundColor: '#fcfbfa',
+          backgroundRepeat: "repeat",
+          backgroundColor: "#fcfbfa",
         }}
       >
         {/* Mobile Sidebar Backdrop */}
@@ -199,7 +199,7 @@ export default function SystemAdminLayout({
         {/* Left Navigation Sidebar */}
         <aside
           className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white border-r border-[#e3e1d6] transition-transform duration-200 lg:static lg:translate-x-0 select-none ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           {/* Sidebar Title Box */}
@@ -235,25 +235,25 @@ export default function SystemAdminLayout({
                 <Link
                   key={item.href}
                   href={item.href}
-                  aria-current={active ? 'page' : undefined}
+                  aria-current={active ? "page" : undefined}
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center justify-between px-5 py-3.5 text-[13px] transition-colors ${
                     active
-                      ? 'bg-[#efebdb] text-[#da291c] font-bold border-l-4 border-[#da291c]'
-                      : 'text-[#555] hover:bg-[#fcfbfa] hover:text-[#231f20] font-semibold'
+                      ? "bg-[#efebdb] text-[#da291c] font-bold border-l-4 border-[#da291c]"
+                      : "text-[#555] hover:bg-[#fcfbfa] hover:text-[#231f20] font-semibold"
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon
                       className={`h-4 w-4 shrink-0 ${
-                        active ? 'text-[#da291c]' : 'text-[#6f6247]'
+                        active ? "text-[#da291c]" : "text-[#6f6247]"
                       }`}
                     />
                     <span>{item.label}</span>
                   </div>
                   <ChevronRight
                     className={`h-3.5 w-3.5 ${
-                      active ? 'text-[#da291c]' : 'text-[#dad2b4]'
+                      active ? "text-[#da291c]" : "text-[#dad2b4]"
                     }`}
                   />
                 </Link>
@@ -268,14 +268,16 @@ export default function SystemAdminLayout({
                 Tài khoản quản trị
               </p>
               <p className="mt-1 text-[13px] font-bold text-[#231f20] break-words">
-                {adminEmail || 'Quản trị viên Hệ thống'}
+                {adminEmail || "Quản trị viên Hệ thống"}
               </p>
               <p className="mt-0.5 text-[11px] text-[#666]">
                 Toàn quyền trên hệ thống Lotte Cinema
               </p>
               <div className="mt-2.5 pt-2 border-t border-[#efebdb] flex items-center justify-between text-[11px]">
                 <span className="text-[#6f6247]">Trạng thái:</span>
-                <span className="font-bold text-[#15803d]">● Đang hoạt động</span>
+                <span className="font-bold text-[#15803d]">
+                  ● Đang hoạt động
+                </span>
               </div>
             </div>
           </div>
