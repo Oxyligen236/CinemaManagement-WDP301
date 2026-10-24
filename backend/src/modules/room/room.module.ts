@@ -18,8 +18,8 @@ import { BranchRoomService } from './application/branch-room.service';
 @Module({
   imports: [
     AuthModule,
-    BranchModule,
-    MovieModule,
+    forwardRef(() => BranchModule),
+    forwardRef(() => MovieModule),
     forwardRef(() => ShowtimeModule),
     MongooseModule.forFeature([
       { name: Room.name, schema: RoomSchema },

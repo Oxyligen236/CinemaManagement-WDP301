@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
+  Building2,
   ShieldCheck,
   Menu,
   X,
@@ -30,6 +31,11 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "Tổng quan Hệ thống",
     href: "/admin/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    label: "Quản lý Chi nhánh",
+    href: "/admin/branches",
+    icon: Building2,
   },
   {
     label: "Quản lý Người dùng",
