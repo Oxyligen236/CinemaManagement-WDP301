@@ -1,19 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, KeyRound, RotateCcw } from "lucide-react";
 import {
   AuthShell,
   AuthErrorBanner,
   AuthSuccessBanner,
-  AUTH_INPUT_CLASS,
-  AUTH_LABEL_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
   AUTH_SECONDARY_BUTTON_CLASS,
 } from "@/components/auth/auth-shell";
+import { AuthField } from "@/components/auth/auth-field";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+import { useFormErrors, type FieldErrors } from "@/lib/utils/use-form-errors";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  VERIFICATION_CODE_LENGTH,
+  validateConfirmPassword,
+  validateEmail,
+  validatePassword,
+  validateVerificationCode,
+} from "@/lib/utils/auth-validation";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
@@ -21,24 +30,89 @@ type ApiResponse = {
   message?: string;
 };
 
+type RequestForm = {
+  email: string;
+};
+
+type ResetForm = {
+  email: string;
+  code: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
+/** Khớp với ràng buộc `ForgotPasswordDto` của backend. */
+function validateRequestForm(form: RequestForm): FieldErrors<RequestForm> {
+  const errors: FieldErrors<RequestForm> = {};
+
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  return errors;
+}
+
+/** Khớp với ràng buộc `ResetPasswordDto` của backend. */
+function validateResetForm(form: ResetForm): FieldErrors<ResetForm> {
+  const errors: FieldErrors<ResetForm> = {};
+
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  const code = validateVerificationCode(form.code);
+  if (code) errors.code = code;
+
+  const newPassword = validatePassword(form.newPassword, {
+    label: "Mật khẩu mới",
+  });
+  if (newPassword) errors.newPassword = newPassword;
+
+  const confirmPassword = validateConfirmPassword(
+    form.confirmPassword,
+    form.newPassword,
+  );
+  if (confirmPassword) errors.confirmPassword = confirmPassword;
+
+  return errors;
+}
+
 export default function ForgotPasswordPage() {
   const router = useRouter();
 
   const [step, setStep] = useState<"request" | "reset">("request");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [form, setForm] = useState<ResetForm>({
+    email: "",
+    code: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const requestErrors = useFormErrors<RequestForm>(
+    useCallback((values: RequestForm) => validateRequestForm(values), []),
+  );
+  const resetErrors = useFormErrors<ResetForm>(
+    useCallback((values: ResetForm) => validateResetForm(values), []),
+  );
+
+  function updateField(field: keyof ResetForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    resetErrors.clearFieldError(field);
+    if (field === "email") requestErrors.clearFieldError("email");
+    // Sửa mật khẩu mới thì lỗi "không khớp" của ô xác nhận không còn đúng nữa.
+    if (field === "newPassword") resetErrors.clearFieldError("confirmPassword");
+  }
 
   async function requestResetCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setError("");
     setMessage("");
+
+    if (!requestErrors.validateAll({ email: form.email })) return;
+
     setSubmitting(true);
 
     try {
@@ -47,7 +121,7 @@ export default function ForgotPasswordPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: form.email.trim() }),
       });
 
       const data = (await response.json().catch(() => ({}))) as ApiResponse;
@@ -83,20 +157,7 @@ export default function ForgotPasswordPage() {
     setError("");
     setMessage("");
 
-    if (code.length !== 6) {
-      setError("Mã xác thực phải gồm đúng 6 chữ số.");
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setError("Mật khẩu mới phải có tối thiểu 8 ký tự.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setError("Mật khẩu xác nhận không khớp.");
-      return;
-    }
+    if (!resetErrors.validateAll(form)) return;
 
     setSubmitting(true);
 
@@ -107,9 +168,9 @@ export default function ForgotPasswordPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email,
-          code,
-          newPassword,
+          email: form.email.trim(),
+          code: form.code.trim(),
+          newPassword: form.newPassword,
         }),
       });
 
@@ -124,7 +185,7 @@ export default function ForgotPasswordPage() {
         );
       }
 
-      router.push(`/login?email=${encodeURIComponent(email)}`);
+      router.push(`/login?email=${encodeURIComponent(form.email.trim())}`);
     } catch (resetError) {
       setError(
         getFriendlyErrorMessage(
@@ -146,7 +207,7 @@ export default function ForgotPasswordPage() {
       description={
         isRequestStep
           ? "Nhập email của bạn, chúng tôi sẽ gửi mã đặt lại mật khẩu."
-          : "Nhập mã 6 chữ số đã được gửi đến email của bạn. Mã có hiệu lực trong 5 phút."
+          : `Nhập mã ${VERIFICATION_CODE_LENGTH} chữ số đã được gửi đến email của bạn. Mã có hiệu lực trong 5 phút.`
       }
       panelTitle={isRequestStep ? "Yêu cầu Mã Đặt lại" : "Đặt lại Mật khẩu Mới"}
       panelAside={isRequestStep ? "Bước 1 / 2" : "Bước 2 / 2"}
@@ -155,32 +216,39 @@ export default function ForgotPasswordPage() {
       footerSlot={
         <p className="text-center text-[13px] text-[#666]">
           Đã nhớ mật khẩu?{" "}
-          <Link href="/login" className="font-bold text-[#da291c] hover:underline">
+          <Link
+            href="/login"
+            className="font-bold text-[#da291c] hover:underline"
+          >
             Quay lại Đăng nhập
           </Link>
         </p>
       }
     >
       {isRequestStep ? (
-        <form className="space-y-4" onSubmit={requestResetCode}>
-          <div>
-            <label htmlFor="forgot-email" className={AUTH_LABEL_CLASS}>
-              Email
-            </label>
-            <input
-              id="forgot-email"
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-              className={AUTH_INPUT_CLASS}
-            />
-          </div>
+        <form className="space-y-4" onSubmit={requestResetCode} noValidate>
+          <AuthField
+            id="forgot-email"
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={(value) => updateField("email", value)}
+            onBlur={() => requestErrors.validateField({ email: form.email }, "email")}
+            placeholder="you@example.com"
+            autoComplete="email"
+            error={requestErrors.fieldErrors.email}
+          />
+
           {error && <AuthErrorBanner message={error} />}
-          <button type="submit" disabled={submitting} className={AUTH_PRIMARY_BUTTON_CLASS}>
-            {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className={AUTH_PRIMARY_BUTTON_CLASS}
+          >
+            {submitting && (
+              <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+            )}
             {submitting ? "Đang gửi mã..." : "Gửi mã đặt lại"}
           </button>
         </form>
@@ -188,87 +256,70 @@ export default function ForgotPasswordPage() {
         <>
           {message && <AuthSuccessBanner message={message} />}
 
-          <form className="mt-4 space-y-4" onSubmit={resetPassword}>
-            <div>
-              <label htmlFor="reset-email" className={AUTH_LABEL_CLASS}>
-                Email
-              </label>
-              <input
-                id="reset-email"
-                required
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                autoComplete="email"
-                className={AUTH_INPUT_CLASS}
-              />
-            </div>
+          <form className="mt-4 space-y-4" onSubmit={resetPassword} noValidate>
+            <AuthField
+              id="reset-email"
+              label="Email"
+              type="email"
+              value={form.email}
+              onChange={(value) => updateField("email", value)}
+              onBlur={() => resetErrors.validateField(form, "email")}
+              autoComplete="email"
+              error={resetErrors.fieldErrors.email}
+            />
 
-            <div>
-              <label htmlFor="reset-code" className={AUTH_LABEL_CLASS}>
-                Mã đặt lại
-              </label>
-              <input
-                id="reset-code"
-                required
-                minLength={6}
-                maxLength={6}
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                value={code}
-                onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
-                placeholder="000000"
-                autoComplete="one-time-code"
-                aria-describedby="reset-code-hint"
-                className={`${AUTH_INPUT_CLASS} text-center text-[20px] font-bold tracking-[0.4em]`}
-              />
-              <p id="reset-code-hint" className="mt-1 text-[11px] text-[#777]">
-                Gồm đúng 6 chữ số.
-              </p>
-            </div>
+            <AuthField
+              id="reset-code"
+              label="Mã đặt lại"
+              value={form.code}
+              onChange={(value) => updateField("code", value.replace(/\D/g, ""))}
+              onBlur={() => resetErrors.validateField(form, "code")}
+              maxLength={VERIFICATION_CODE_LENGTH}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              inputClassName="text-center text-[20px] font-bold tracking-[0.4em]"
+              hint={`Gồm đúng ${VERIFICATION_CODE_LENGTH} chữ số.`}
+              error={resetErrors.fieldErrors.code}
+            />
 
-            <div>
-              <label htmlFor="reset-new-password" className={AUTH_LABEL_CLASS}>
-                Mật khẩu mới
-              </label>
-              <input
-                id="reset-new-password"
-                required
-                minLength={8}
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="Tối thiểu 8 ký tự"
-                autoComplete="new-password"
-                aria-describedby="reset-new-password-hint"
-                className={AUTH_INPUT_CLASS}
-              />
-              <p id="reset-new-password-hint" className="mt-1 text-[11px] text-[#777]">
-                Tối thiểu 8 ký tự.
-              </p>
-            </div>
+            <AuthField
+              id="reset-new-password"
+              label="Mật khẩu mới"
+              type="password"
+              value={form.newPassword}
+              onChange={(value) => updateField("newPassword", value)}
+              onBlur={() => resetErrors.validateField(form, "newPassword")}
+              maxLength={PASSWORD_MAX_LENGTH}
+              autoComplete="new-password"
+              placeholder={`Tối thiểu ${PASSWORD_MIN_LENGTH} ký tự`}
+              hint={`Tối thiểu ${PASSWORD_MIN_LENGTH} ký tự.`}
+              error={resetErrors.fieldErrors.newPassword}
+            />
 
-            <div>
-              <label htmlFor="reset-confirm-password" className={AUTH_LABEL_CLASS}>
-                Xác nhận mật khẩu mới
-              </label>
-              <input
-                id="reset-confirm-password"
-                required
-                minLength={8}
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="Nhập lại mật khẩu mới"
-                autoComplete="new-password"
-                className={AUTH_INPUT_CLASS}
-              />
-            </div>
+            <AuthField
+              id="reset-confirm-password"
+              label="Xác nhận mật khẩu mới"
+              type="password"
+              value={form.confirmPassword}
+              onChange={(value) => updateField("confirmPassword", value)}
+              onBlur={() => resetErrors.validateField(form, "confirmPassword")}
+              maxLength={PASSWORD_MAX_LENGTH}
+              autoComplete="new-password"
+              placeholder="Nhập lại mật khẩu mới"
+              error={resetErrors.fieldErrors.confirmPassword}
+            />
 
             {error && <AuthErrorBanner message={error} />}
 
-            <button type="submit" disabled={submitting} className={AUTH_PRIMARY_BUTTON_CLASS}>
-              {submitting && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+            <button
+              type="submit"
+              disabled={submitting}
+              className={AUTH_PRIMARY_BUTTON_CLASS}
+            >
+              {submitting && (
+                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              )}
               {submitting ? "Đang đặt lại mật khẩu..." : "Đặt lại mật khẩu"}
             </button>
           </form>
@@ -277,9 +328,14 @@ export default function ForgotPasswordPage() {
             type="button"
             onClick={() => {
               setStep("request");
-              setCode("");
-              setNewPassword("");
-              setConfirmPassword("");
+              setForm((current) => ({
+                ...current,
+                code: "",
+                newPassword: "",
+                confirmPassword: "",
+              }));
+              resetErrors.setFieldErrors({});
+              requestErrors.setFieldErrors({});
               setMessage("");
               setError("");
             }}
