@@ -662,6 +662,7 @@ export class BranchRoomService {
         .lean()
         .exec();
 
+      if (manager && (!manager.isActive || manager.role !== Role.BRANCHMANAGER)) { throw new ForbiddenException('Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.'); }
       if (manager && manager.isActive && manager.role === Role.BRANCHMANAGER) {
         if (manager.branchId) {
           const assignedBranch = await this.branchModel
@@ -674,14 +675,6 @@ export class BranchRoomService {
             return assignedBranch;
           }
         }
-      } else if (
-        manager &&
-        manager.role !== Role.BRANCHMANAGER &&
-        manager.role !== Role.ADMIN
-      ) {
-        throw new ForbiddenException(
-          'Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.',
-        );
       }
     }
 

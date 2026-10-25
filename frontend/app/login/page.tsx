@@ -92,7 +92,9 @@ function LoginForm() {
           ? "/admin/dashboard"
           : result.user?.role === "BRANCHMANAGER"
             ? "/manager"
-            : "/",
+            : result.user?.role === "STAFF"
+              ? "/staff/pos"
+              : "/",
       );
     } catch (submitError) {
       setError(

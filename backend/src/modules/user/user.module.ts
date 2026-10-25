@@ -13,6 +13,7 @@ import { UserAuthenticationService } from './application/services/user-authentic
 import { MailModule } from '../infra/mail/mail.module';
 import { AuthModule } from '../auth/auth.module';
 import { PasswordResetService } from './application/services/password-reset.service';
+import { UserBranchQueryService } from './application/services/user-branch-query.service';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -47,6 +48,8 @@ import { PasswordResetService } from './application/services/password-reset.serv
     UserRegistrationService,
     UserAuthenticationService,
     PasswordResetService,
+    UserBranchQueryService,
   ],
+  exports: [MongooseModule],
 })
 export class UserModule {}

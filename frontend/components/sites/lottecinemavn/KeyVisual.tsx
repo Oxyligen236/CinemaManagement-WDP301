@@ -8,7 +8,9 @@ import {
   KEY_VISUAL_EVENTS,
   TRAILERS,
   BoxOfficeItem,
+  MOVIE_POSTERS,
 } from "./data";
+import { SelectShowtimeModal } from "./SelectShowtimeModal";
 
 export function KeyVisual() {
   // mode: 'events' (left focused), 'office' (normal default), or 'trailer' (trailer shifted)
@@ -18,6 +20,21 @@ export function KeyVisual() {
   const [eventIndex, setEventIndex] = useState<number>(0);
   const [trailerIndex, setTrailerIndex] = useState<number>(0);
   const [hoveredMovie, setHoveredMovie] = useState<number | null>(null);
+  const [selectedMovieForBooking, setSelectedMovieForBooking] = useState<{
+    id: string;
+    title: string;
+    image: string;
+  } | null>(null);
+
+  const handleOpenBooking = () => {
+    const targetMovie = BOX_OFFICE_MOVIES[hoveredMovie ?? 0] || BOX_OFFICE_MOVIES[0];
+    const posterItem = MOVIE_POSTERS.flat().find((p) => p.id === targetMovie.id) || {
+      id: targetMovie.id,
+      title: targetMovie.title,
+      image: "/sites/lottecinemavn/poster/982f8016ba3a451eaf60456c20fe44a7.jpg",
+    };
+    setSelectedMovieForBooking(posterItem);
+  };
 
   const handlePrev = () => {
     if (slideMode === "event") {
@@ -154,12 +171,13 @@ export function KeyVisual() {
           </div>
 
           {/* Ticketing Action Button (bright red) */}
-          <Link
-            href="#ticketing"
-            className="absolute left-0 bottom-0 block w-full h-[645px-581px] h-[64px] leading-[64px] text-center bg-[#ee1c25] hover:bg-[#d61921] text-white font-bold text-[16px] transition-colors"
+          <button
+            type="button"
+            onClick={handleOpenBooking}
+            className="absolute left-0 bottom-0 block w-full h-[64px] leading-[64px] text-center bg-[#ee1c25] hover:bg-[#d61921] text-white font-bold text-[16px] transition-colors cursor-pointer"
           >
             Mua vé ngay
-          </Link>
+          </button>
         </div>
 
         {/* Right section: Trailer Cards (width: 1115px, height: 645px) */}
@@ -236,6 +254,12 @@ export function KeyVisual() {
           Next
         </button>
       </div>
+
+      <SelectShowtimeModal
+        isOpen={Boolean(selectedMovieForBooking)}
+        onClose={() => setSelectedMovieForBooking(null)}
+        movie={selectedMovieForBooking}
+      />
     </div>
   );
 }

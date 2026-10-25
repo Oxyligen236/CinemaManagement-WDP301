@@ -14,6 +14,7 @@ export interface SeatBookingDetail {
   endTime: Date;
   roomId: string;
   roomName: string;
+  branchId?: string;
   movieId: string;
   movieName: string;
 }

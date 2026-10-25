@@ -8,6 +8,7 @@ export interface SeatShowtimeDetailDto {
   seatId: string;
   rowPosition: string;
   columnPosition: number;
+  price?: number;
   startTime: Date;
   endTime: Date;
 }
