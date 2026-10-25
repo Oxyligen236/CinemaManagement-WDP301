@@ -7,7 +7,8 @@ import Link from "next/link";
 export function EventSection() {
   return (
     <section
-      className="w-full py-[40px] border-t border-[#e3e1d6] select-none font-['Arial',sans-serif]"
+      id="events"
+      className="w-full py-[40px] border-t border-[#e3e1d6] select-none font-['Arial',sans-serif] scroll-mt-6"
       style={{
         backgroundImage: "url('/sites/lottecinemavn/ui/bg_pattern.png')",
         backgroundRepeat: "repeat",
