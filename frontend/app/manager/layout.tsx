@@ -18,6 +18,7 @@ import {
   LogOut,
   Home,
   ChevronRight,
+  Popcorn,
 } from 'lucide-react';
 
 interface NavItem {
@@ -41,6 +42,11 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
     label: 'Phòng chiếu & Ghế',
     href: '/manager/rooms',
     icon: MonitorPlay,
+  },
+  {
+    label: 'Quản lý Bắp nước & Combo',
+    href: '/manager/products',
+    icon: Popcorn,
   },
   {
     label: 'Cấu hình Giá vé',
