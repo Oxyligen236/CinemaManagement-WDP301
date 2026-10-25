@@ -1,8 +1,44 @@
 'use client';
 
 import React, { useState } from 'react';
+import { SafeImage as Image } from '@/components/ui/safe-image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import {
+  MonitorPlay,
+  ClipboardList,
+  QrCode,
+  Building2,
+  Menu,
+  X,
+  LogOut,
+  Home,
+  ChevronRight,
+} from 'lucide-react';
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const STAFF_NAV_ITEMS: NavItem[] = [
+  {
+    label: 'Bán vé tại quầy (POS)',
+    href: '/staff/pos',
+    icon: MonitorPlay,
+  },
+  {
+    label: 'Đơn hàng tại quầy',
+    href: '/staff/orders',
+    icon: ClipboardList,
+  },
+  {
+    label: 'Soát vé (Ticket Scan)',
+    href: '/staff/tickets/scan',
+    icon: QrCode,
+  },
+];
 
 export default function StaffLayout({
   children,
@@ -10,141 +46,246 @@ export default function StaffLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const navigation = [
-    {
-      name: 'Đơn hàng tại quầy',
-      href: '/staff/orders',
-      icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z',
-    },
-    {
-      name: 'Soát vé (Ticket Scan)',
-      href: '/staff/tickets/scan',
-      icon: 'M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z',
-    },
-  ];
+  const isActiveRoute = (href: string) => {
+    if (href === '/staff/pos') {
+      return pathname === '/staff/pos';
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const activeNav = STAFF_NAV_ITEMS.find((item) => isActiveRoute(item.href));
 
   return (
-    <div className="min-h-screen flex bg-bg-app text-text-main">
-      {/* Sidebar Desktop for Staff */}
-      <aside className="hidden lg:flex flex-col w-64 border-r border-border-main bg-surface shrink-0">
-        <div className="h-16 flex items-center px-6 border-b border-border-main">
-          <Link href="/staff/orders" className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-lg">
-              S
-            </span>
-            <div className="flex flex-col">
-              <span className="font-bold text-lg tracking-tight text-primary-600">MyCast POS</span>
-              <span className="text-[10px] uppercase font-semibold text-text-muted tracking-wider">
-                Nhân viên rạp
-              </span>
-            </div>
+    <div className="min-h-screen flex flex-col bg-[#fcfbfa] font-['Arial',sans-serif] text-[#555]">
+      {/* 1. Top Utility Bar */}
+      <div className="w-full h-[32px] bg-[#efebdb] border-b border-[#e3e1d6] px-4 lg:px-8 flex items-center justify-between text-[12px] select-none">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 font-semibold text-[#555] hover:text-[#231f20]"
+          >
+            <span
+              className="w-[16px] h-[16px] bg-no-repeat bg-[0_0] inline-block"
+              style={{
+                backgroundImage:
+                  "url('/sites/lottecinemavn/ui/icon_lottecinemaapp.png')",
+              }}
+            />
+            <span>Về Trang chủ Lotte Cinema</span>
           </Link>
+          <span className="text-[#c1b687]">|</span>
+          <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
+            <Building2 className="h-3.5 w-3.5 text-[#da291c]" />
+            Chi nhánh: Lotte Cinema Nam Sài Gòn
+          </span>
         </div>
 
-        {/* Staff Quick Nav */}
-        <nav className="flex-1 py-4 space-y-1.5 px-3 overflow-y-auto">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-colors ${
-                  isActive
-                    ? 'bg-primary-100 text-primary-700 font-bold border border-primary-200'
-                    : 'text-text-sub hover:bg-surface-muted hover:text-text-main'
-                }`}
-              >
-                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon} />
-                </svg>
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Current Shift Box */}
-        <div className="p-4 m-3 bg-surface-muted rounded-xl border border-border-main space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-semibold text-text-main">Ca trực đang mở</span>
-          </div>
-          <p className="text-xs text-text-sub">
-            Cụm rạp: <strong>Hà Nội Cinema 01</strong>
-          </p>
-          <p className="text-[11px] text-text-muted">Ca sáng: 08:00 - 16:00</p>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="h-16 bg-surface border-b border-border-main px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-text-sub hover:bg-surface-muted focus:outline-none cursor-pointer"
-              aria-label="Toggle menu"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <span className="text-sm font-semibold text-text-main">
-              Điểm bán vé & Soát vé tại quầy
+        <ul className="flex items-center gap-5 text-[12px]">
+          <li className="text-[#6f6247]">
+            Xin chào, <strong className="text-[#231f20]">Nhân viên Quầy POS</strong>
+          </li>
+          <li>
+            <span className="bg-[#da291c] text-white text-[10px] uppercase font-bold px-2 py-0.5">
+              STAFF
             </span>
-          </div>
+          </li>
+          <li>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1 text-[#6f6247] hover:text-[#da291c] hover:underline"
+            >
+              <LogOut className="h-3 w-3" />
+              Đăng xuất
+            </Link>
+          </li>
+        </ul>
+      </div>
 
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-100 text-text-main font-bold flex items-center justify-center text-xs border border-border-main">
-              ST
-            </div>
-            <div className="hidden sm:block text-left text-xs">
-              <p className="font-semibold text-text-main">Nhân viên quầy</p>
-              <p className="text-text-muted">staff@mycast.vn</p>
-            </div>
-          </div>
-        </header>
+      {/* 2. Lotte Cinema Brand Header Bar */}
+      <header className="w-full bg-white border-b border-[#dad2b4] select-none">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-[84px] flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="inline-flex h-9 w-9 items-center justify-center border border-[#dad2b4] bg-[#efebdb] text-[#231f20] hover:bg-[#dad2b4] lg:hidden cursor-pointer"
+              aria-label="Mở menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
 
-        {/* Mobile menu */}
-        {isMobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-40 flex">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
-            <div className="relative w-64 bg-surface flex flex-col h-full border-r border-border-main py-4 z-50">
-              <div className="px-6 pb-4 border-b border-border-main flex items-center justify-between">
-                <span className="font-bold text-lg text-primary-600">MyCast POS</span>
-                <button
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="p-1 rounded text-text-muted hover:text-text-main"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+            <Link href="/staff/pos" className="flex items-center gap-4">
+              <Image
+                src="/sites/lottecinemavn/ui/logo.png"
+                alt="LOTTE CINEMA"
+                width={300}
+                height={34}
+                priority
+                className="h-[34px] w-auto object-contain"
+              />
+              <div className="hidden md:block border-l-2 border-[#dad2b4] pl-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6f6247]">
+                  LOTTE CINEMA POS SYSTEM
+                </p>
+                <p className="text-[16px] font-bold text-[#231f20]">
+                  HỆ THỐNG ĐIỂM BÁN VÉ & SOÁT VÉ
+                </p>
               </div>
-              <nav className="flex-1 py-3 px-3 space-y-1">
-                {navigation.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-text-sub hover:bg-surface-muted"
-                  >
-                    <span>{item.name}</span>
-                  </Link>
-                ))}
-              </nav>
-            </div>
+            </Link>
           </div>
+
+          {/* Breadcrumb Bar on the right of Header */}
+          <div className="hidden sm:flex items-center gap-2 bg-[#efebdb] border border-[#dad2b4] px-3.5 py-2 text-[12px] text-[#6f6247]">
+            <Home className="h-3.5 w-3.5 text-[#da291c]" />
+            <Link href="/staff/pos" className="hover:underline font-semibold">
+              Điểm bán vé & Soát vé
+            </Link>
+            {activeNav && (
+              <>
+                <ChevronRight className="h-3.5 w-3.5 text-[#9d9580]" />
+                <span className="font-bold text-[#231f20]">{activeNav.label}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Classic Lotte Cinema GNB Gold-Beige Bar */}
+        <div
+          className="w-full h-[10px] bg-repeat-x bg-top"
+          style={{
+            backgroundImage: "url('/sites/lottecinemavn/ui/bg_gnb.gif')",
+          }}
+        />
+      </header>
+
+      {/* 3. Body Container: Sidebar + Patterned Content Workspace */}
+      <div
+        className="flex-1 flex relative"
+        style={{
+          backgroundImage: "url('/sites/lottecinemavn/ui/bg_pattern.png')",
+          backgroundRepeat: 'repeat',
+          backgroundColor: '#fcfbfa',
+        }}
+      >
+        {/* Mobile Sidebar Backdrop */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
 
-        <main className="flex-1 bg-bg-app p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        {/* Left Navigation Sidebar */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white border-r border-[#e3e1d6] transition-transform duration-200 lg:static lg:translate-x-0 select-none ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          {/* Sidebar Title Box */}
+          <div className="bg-[#231f20] text-white px-5 py-4 flex items-center justify-between border-b-2 border-[#c1b687]">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c1b687]">
+                LOTTE CINEMA
+              </p>
+              <h2 className="text-[15px] font-bold tracking-wide text-white mt-0.5">
+                DANH MỤC THAO TÁC QUẦY
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="text-[#c1b687] hover:text-white lg:hidden cursor-pointer"
+              aria-label="Đóng menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="flex-1 divide-y divide-[#efebdb]">
+            {STAFF_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const active = isActiveRoute(item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center justify-between px-5 py-3.5 text-[13px] transition-colors ${
+                    active
+                      ? 'bg-[#efebdb] text-[#da291c] font-bold border-l-4 border-[#da291c]'
+                      : 'text-[#555] hover:bg-[#fcfbfa] hover:text-[#231f20] font-semibold'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon
+                      className={`h-4 w-4 shrink-0 ${
+                        active ? 'text-[#da291c]' : 'text-[#6f6247]'
+                      }`}
+                    />
+                    <span>{item.label}</span>
+                  </div>
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 ${
+                      active ? 'text-[#da291c]' : 'text-[#dad2b4]'
+                    }`}
+                  />
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Shift & Branch Status Box */}
+          <div className="p-4 bg-[#efebdb] border-t border-[#dad2b4]">
+            <div className="bg-white border border-[#dad2b4] p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#6f6247]">
+                Ca trực nhân viên quầy
+              </p>
+              <p className="mt-1 text-[13px] font-bold text-[#231f20]">
+                Lotte Cinema Nam Sài Gòn
+              </p>
+              <p className="mt-0.5 text-[11px] text-[#666]">
+                Tầng 3, TTTM Lotte, Q.7, TP.HCM
+              </p>
+              <p className="mt-0.5 text-[11px] text-[#888]">
+                Ca sáng: 08:00 - 16:00
+              </p>
+              <div className="mt-2.5 pt-2 border-t border-[#efebdb] flex items-center justify-between text-[11px]">
+                <span className="text-[#6f6247]">Trạng thái:</span>
+                <span className="font-bold text-[#15803d]">● Ca trực đang mở</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1400px] w-full">
           {children}
         </main>
       </div>
+
+      {/* 4. Classic Lotte Cinema Compact Footer */}
+      <footer className="w-full border-t border-[#dedede] bg-white py-5 px-6 lg:px-8 text-[12px] text-[#666] select-none">
+        <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Image
+              src="/sites/lottecinemavn/ui/logo_footer.gif"
+              alt="LOTTE CINEMA"
+              width={160}
+              height={28}
+              className="block"
+            />
+            <span className="text-[#dedede]">|</span>
+            <span>CÔNG TY TNHH LOTTE CINEMA VIỆT NAM - HỆ THỐNG ĐIỂM BÁN VÉ QUẦY & SOÁT VÉ</span>
+          </div>
+          <p className="text-[11px] text-[#777]">
+            COPYRIGHT © LOTTECINEMAVN.COM - ALL RIGHTS RESERVED.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
