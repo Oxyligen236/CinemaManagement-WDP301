@@ -1,4 +1,6 @@
 import { OrderStatus } from '../../domain/enums/order-status.enum';
+import { TicketItemSummaryDto } from '../../contracts/ticket.contract';
+import { PaymentMethod, PaymentStatus } from '../../contracts/payment.contract';
 
 export class BookingSeatRes {
   seatShowtimeId!: string;
@@ -205,4 +207,79 @@ export class OrderDetailRes {
     });
     return res;
   }
+}
+
+export class PosBookingSummaryRes {
+  orderId!: string;
+  staffId!: string;
+  branchId!: string;
+  status!: OrderStatus;
+  totalAmount!: number;
+  discountAmount!: number;
+  finalAmount!: number;
+  customerPhone?: string;
+  customerName?: string;
+  promotionCode?: string;
+  createdAt!: Date;
+  expiresAt!: Date;
+  remainingSeconds!: number;
+  seats!: BookingSeatRes[];
+  products!: BookingProductRes[];
+}
+
+export class PosCashPaymentResultRes {
+  orderId!: string;
+  paymentId!: string;
+  status!: OrderStatus;
+  totalAmount!: number;
+  cashReceived!: number;
+  changeAmount!: number;
+  paidAt!: Date;
+  tickets!: TicketItemSummaryDto[];
+}
+
+export class PosQrPaymentRes {
+  orderId!: string;
+  paymentId!: string;
+  amount!: number;
+  paymentMethod!: PaymentMethod;
+  paymentStatus!: PaymentStatus;
+  qrCodeUrl!: string;
+  qrPayload!: string;
+}
+
+export class PosReceiptTicketRes {
+  ticketCode!: string;
+  movieTitle!: string;
+  roomName!: string;
+  seatLabel!: string;
+  startTime!: Date;
+  endTime!: Date;
+  price!: number;
+}
+
+export class PosReceiptItemRes {
+  productName!: string;
+  quantity!: number;
+  unitPrice!: number;
+  subTotal!: number;
+}
+
+export class PosReceiptRes {
+  orderId!: string;
+  branchName!: string;
+  branchAddress!: string;
+  staffName!: string;
+  customerName?: string;
+  customerPhone?: string;
+  channel!: string;
+  printedAt!: Date;
+  paymentMethod!: string;
+  totalAmount!: number;
+  discountAmount!: number;
+  finalAmount!: number;
+  cashReceived?: number;
+  changeAmount?: number;
+  tickets!: PosReceiptTicketRes[];
+  products!: PosReceiptItemRes[];
 }

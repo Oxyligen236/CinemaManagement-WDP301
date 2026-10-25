@@ -26,6 +26,37 @@ export class Order {
   @Prop({
     trim: true,
   })
+  staffId?: string;
+
+  @Prop({
+    trim: true,
+  })
+  branchId?: string;
+
+  @Prop({
+    trim: true,
+    default: 'ONLINE',
+  })
+  channel?: string;
+
+  @Prop({
+    trim: true,
+  })
+  customerPhone?: string;
+
+  @Prop({
+    trim: true,
+  })
+  customerName?: string;
+
+  @Prop({
+    trim: true,
+  })
+  paymentMethod?: string;
+
+  @Prop({
+    trim: true,
+  })
   promotionId?: string;
 
   @Prop({
@@ -67,3 +98,5 @@ export const OrderSchema = SchemaFactory.createForClass(Order);
 
 OrderSchema.index({ userId: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
+OrderSchema.index({ branchId: 1, createdAt: -1 });
+OrderSchema.index({ staffId: 1, createdAt: -1 });

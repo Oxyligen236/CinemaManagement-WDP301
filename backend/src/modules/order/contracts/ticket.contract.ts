@@ -16,4 +16,8 @@ export const TICKET_CONTRACT = Symbol('TICKET_CONTRACT');
 
 export interface TicketContract {
   getTicketsByOrderId(orderId: string): Promise<TicketItemSummaryDto[]>;
+  createTicketsForOrder(params: {
+    orderId: string;
+    seatShowtimeIds: string[];
+  }): Promise<TicketItemSummaryDto[]>;
 }
