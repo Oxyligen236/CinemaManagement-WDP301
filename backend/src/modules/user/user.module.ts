@@ -48,5 +48,6 @@ import { PasswordResetService } from './application/services/password-reset.serv
     UserAuthenticationService,
     PasswordResetService,
   ],
+  exports: [MongooseModule],
 })
 export class UserModule {}
