@@ -68,3 +68,8 @@ export class AdminBranchRoomCreatedResponseDto {
   branch!: AdminBranchItemDto;
   room!: AdminBranchRoomItemDto;
 }
+
+export class BranchSummaryResDto {
+  branchId!: string;
+  branchName!: string;
+}

@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { MSG_FORBIDDEN } from '../../domain/constants/auth-message.constants';
-import { AuthenticatedUser } from '../../domain/types/authenticated-user.type';
 import { Role, ROLES_KEY } from '../decorators/role.decorator';
 import { AuthenticatedRequest } from '../../domain/auth-user';
 
@@ -28,9 +27,7 @@ export class RoleGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     if (!user || !requiredRoles.includes(user.role)) {
-      throw new ForbiddenException(
-        'You do not have permission to access this resource',
-      );
+      throw new ForbiddenException(MSG_FORBIDDEN);
     }
 
     return true;

@@ -9,8 +9,6 @@ import {
   SeatShowtime,
   SeatShowtimeSchema,
 } from './domain/schemas/seat-showtime.schema';
-import { BranchShowtimeController } from './infra/branch-showtime.controller';
-import { BranchShowtimeService } from './application/branch-showtime.service';
 import { SeatShowtimeQueryService } from './application/services/seat-showtime-query.service';
 import { ShowtimeQueryService } from './application/services/showtime-query.service';
 import { ShowtimeScheduleService } from './application/services/showtime-schedule.service';
@@ -34,13 +32,12 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
       { name: SeatShowtime.name, schema: SeatShowtimeSchema },
     ]),
   ],
-  controllers: [BranchShowtimeController, ShowtimeController],
-  providers: [
-    BranchShowtimeService,
+  controllers: [ShowtimeController],
+  providers: [    
     ShowtimeQueryService,
     SeatShowtimeQueryService,
     ShowtimeBookingService,
   ],
   exports: [MongooseModule, ShowtimeQueryService, ShowtimeBookingService],
 })
-export class ShowtimeModule {}
+export class ShowtimeModule { }

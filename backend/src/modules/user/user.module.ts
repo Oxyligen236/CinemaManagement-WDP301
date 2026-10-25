@@ -48,6 +48,7 @@ import { UserBranchQueryService } from './application/services/user-branch-query
     UserRegistrationService,
     UserAuthenticationService,
     PasswordResetService,
+    UserBranchQueryService,
   ],
   exports: [UserBranchQueryService],
 })

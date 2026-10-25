@@ -278,7 +278,7 @@ async function main(): Promise<void> {
       password: passwordHash,
       firstName: 'UC15',
       lastName,
-      role: Role.MANAGER,
+      role: Role.BRANCHMANAGER,
       isActive: true,
       ...(branch ? { branchId: `${P}branch-${branch}` } : {}),
     });

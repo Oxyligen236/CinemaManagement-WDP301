@@ -1,114 +1,72 @@
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
+  IsArray,
+  IsDate,
   IsDateString,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
-  MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { PageRequest } from '../../../../common/dto/page.dto';
 
-export class BranchShowtimeQueryDto extends PageRequest {
-  /** Lọc theo ngày chiếu định dạng YYYY-MM-DD */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+export class ScheduleSeatSelectionDto {
   @IsString()
-  @MaxLength(20)
-  date?: string;
+  @IsNotEmpty()
+  seatType!: string;
 
-  /** Lọc theo bộ phim */
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
   @IsString()
-  @MaxLength(100)
-  movieId?: string;
+  ruleId!: string | null;
 
-  /** Lọc theo phòng chiếu thuộc chi nhánh */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MaxLength(100)
-  roomId?: string;
-
-  /** Từ khóa tìm theo tên phim hoặc tên phòng */
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MaxLength(100)
-  search?: string;
+  @IsNumber()
+  multiplier!: number;
 }
 
-export class CreateBranchShowtimeDto {
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+export class ScheduleDaySelectionDto {
+  @IsString()
+  @IsNotEmpty()
+  dayType!: string;
+
+  @IsOptional()
+  @IsString()
+  ruleId!: string | null;
+
+  @IsNumber()
+  multiplier!: number;
+}
+
+// Dữ liệu đầu vào đã được module điều phối kiểm tra tham chiếu và tính endTime
+export class ScheduleShowtimeInputDto {
   @IsString()
   @IsNotEmpty()
   movieId!: string;
 
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
   @IsString()
   @IsNotEmpty()
   roomId!: string;
 
-  /** Thời điểm bắt đầu chiếu (ISO 8601 string) */
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsNotEmpty()
-  @IsDateString()
-  startTime!: string;
+  @IsDate()
+  startTime!: Date;
 
-  /** Giá vé cơ bản (VNĐ), mặc định 75.000 nếu không truyền */
-  @IsOptional()
-  @Type(() => Number)
+  @IsDate()
+  endTime!: Date;
+
   @IsNumber()
   @Min(0)
-  basePrice?: number;
-}
+  basePrice!: number;
 
-export class UpdateBranchShowtimeDto {
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @IsNotEmpty()
-  movieId?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleSeatSelectionDto)
+  seatPriceSelections!: ScheduleSeatSelectionDto[];
 
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @IsNotEmpty()
-  roomId?: string;
-
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsNotEmpty()
-  @IsDateString()
-  startTime?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  basePrice?: number;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleDaySelectionDto)
+  dayPriceSelections!: ScheduleDaySelectionDto[];
 }
 
 export class SearchShowtimeReqDto extends PageRequest {

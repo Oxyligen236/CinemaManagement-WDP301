@@ -21,7 +21,6 @@ import { ShowtimeModule } from './modules/showtime/showtime.module';
 import { PriceRuleModule } from './modules/pricerule/pricerule.module';
 import { WorkModule } from './modules/work/work.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { ShowtimeManagementModule } from './modules/showtime-management/showtime-management.module';
 import { StaffModule } from './modules/staff/staff.module';
 
 // Module chỉ được import Module cấm import thứ khác
@@ -67,7 +66,6 @@ import { StaffModule } from './modules/staff/staff.module';
     ShowtimeModule,
     PriceRuleModule,
     WorkModule,
-    ShowtimeManagementModule,
     StaffModule,
   ],
   controllers: [AppController],

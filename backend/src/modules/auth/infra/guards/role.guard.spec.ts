@@ -29,7 +29,7 @@ describe('RoleGuard', () => {
     expect(guard.canActivate(buildContext({ role: Role.ADMIN }))).toBe(true);
   });
 
-  it.each([Role.MANAGER, Role.STAFF, Role.USER])(
+  it.each([Role.BRANCHMANAGER, Role.STAFF, Role.USER])(
     'forbids %s when ADMIN is required',
     (role) => {
       getAllAndOverride.mockReturnValue([Role.ADMIN]);
@@ -49,15 +49,17 @@ describe('RoleGuard', () => {
   });
 
   it('allows MANAGER when ADMIN and MANAGER are required', () => {
-    getAllAndOverride.mockReturnValue([Role.ADMIN, Role.MANAGER]);
-    expect(guard.canActivate(buildContext({ role: Role.MANAGER }))).toBe(true);
+    getAllAndOverride.mockReturnValue([Role.ADMIN, Role.BRANCHMANAGER]);
+    expect(guard.canActivate(buildContext({ role: Role.BRANCHMANAGER }))).toBe(
+      true,
+    );
     expect(guard.canActivate(buildContext({ role: Role.ADMIN }))).toBe(true);
   });
 
   it.each([Role.STAFF, Role.USER])(
     'forbids %s when ADMIN and MANAGER are required',
     (role) => {
-      getAllAndOverride.mockReturnValue([Role.ADMIN, Role.MANAGER]);
+      getAllAndOverride.mockReturnValue([Role.ADMIN, Role.BRANCHMANAGER]);
       expect(() => guard.canActivate(buildContext({ role }))).toThrow(
         ForbiddenException,
       );
@@ -67,7 +69,7 @@ describe('RoleGuard', () => {
   describe('with real Reflector metadata', () => {
     @Roles(Role.ADMIN)
     class SampleController {
-      @Roles(Role.ADMIN, Role.MANAGER)
+      @Roles(Role.ADMIN, Role.BRANCHMANAGER)
       overridden() {}
 
       inherited() {}
@@ -88,7 +90,7 @@ describe('RoleGuard', () => {
     it('handler-level roles override class-level roles', () => {
       expect(
         realGuard.canActivate(
-          contextFor(handlerOf('overridden'), Role.MANAGER),
+          contextFor(handlerOf('overridden'), Role.BRANCHMANAGER),
         ),
       ).toBe(true);
     });
@@ -98,7 +100,9 @@ describe('RoleGuard', () => {
         realGuard.canActivate(contextFor(handlerOf('inherited'), Role.ADMIN)),
       ).toBe(true);
       expect(() =>
-        realGuard.canActivate(contextFor(handlerOf('inherited'), Role.MANAGER)),
+        realGuard.canActivate(
+          contextFor(handlerOf('inherited'), Role.BRANCHMANAGER),
+        ),
       ).toThrow(ForbiddenException);
     });
   });

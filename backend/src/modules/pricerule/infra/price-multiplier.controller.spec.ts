@@ -28,7 +28,7 @@ const MOCK_ADMIN: AuthenticatedUser = {
 const MOCK_MANAGER: AuthenticatedUser = {
   userId: 'mgr-1',
   email: 'manager@cinema.local',
-  role: Role.MANAGER,
+  role: Role.BRANCHMANAGER,
 };
 
 const T = new Date('2026-10-23T00:00:00Z');
@@ -94,7 +94,7 @@ describe('PriceMultiplierController', () => {
           proto['listOptions'],
           PriceMultiplierController,
         ]),
-      ).toEqual([Role.ADMIN, Role.MANAGER]);
+      ).toEqual([Role.ADMIN, Role.BRANCHMANAGER]);
       for (const h of ['listAll', 'create', 'update', 'remove']) {
         expect(
           reflector.getAllAndOverride(ROLES_KEY, [

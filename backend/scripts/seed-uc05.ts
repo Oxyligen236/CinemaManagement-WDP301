@@ -186,7 +186,7 @@ async function main(): Promise<void> {
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const users: [string, string, string, Role][] = [
     ['admin', 'admin-uc05@cinema.local', 'Admin', Role.ADMIN],
-    ['manager', 'manager-uc05@cinema.local', 'Manager', Role.MANAGER],
+    ['manager', 'manager-uc05@cinema.local', 'Manager', Role.BRANCHMANAGER],
   ];
   for (const [k, email, lastName, role] of users) {
     // Không ghi đè tài khoản đã có (theo email)

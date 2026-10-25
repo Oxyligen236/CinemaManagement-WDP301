@@ -48,7 +48,7 @@ export class PriceMultiplierController {
 
   // Phải khai báo trước các route có tham số
   @Get('options')
-  @Roles(Role.ADMIN, Role.MANAGER)
+  @Roles(Role.ADMIN, Role.BRANCHMANAGER)
   listOptions() {
     return this.optionQueryService.listPriceValues();
   }

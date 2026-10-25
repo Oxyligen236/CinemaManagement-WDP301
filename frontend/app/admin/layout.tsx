@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   Users,
   Building2,
+  Tags,
+  Film,
   ShieldCheck,
   Menu,
   X,
@@ -38,9 +40,19 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     icon: Building2,
   },
   {
+    label: "Quản lý phim",
+    href: "/admin/films",
+    icon: Film,
+  },
+  {
     label: "Quản lý Người dùng",
     href: "/admin/users",
     icon: Users,
+  },
+  {
+    label: "Cấu hình giá",
+    href: "/admin/price-multipliers",
+    icon: Tags,
   },
 ];
 
