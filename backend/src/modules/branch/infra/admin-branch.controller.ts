@@ -8,14 +8,18 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
   UsePipes,
   ValidationError,
   ValidationPipe,
 } from '@nestjs/common';
+import { JwtGuard } from '../../auth/infra/guards/jwt.guard';
+import { RoleGuard } from '../../auth/infra/guards/role.guard';
+import { Roles } from '../../auth/infra/decorators/role.decorator';
+import { Role } from '../../user/domain/enums/role.enum';
 import { AdminBranchService } from '../application/admin-branch.service';
 import {
   AdminBranchQueryDto,
-  CreateAdminBranchRoomDto,
   CreateBranchDto,
   UpdateBranchDto,
 } from '../application/dto/req.dto';
@@ -49,21 +53,29 @@ export class AdminBranchController {
   constructor(private readonly adminBranchService: AdminBranchService) {}
 
   @Get('admin')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(Role.ADMIN)
   listAdminBranches(@Query() query: AdminBranchQueryDto) {
     return this.adminBranchService.listBranches(query);
   }
 
   @Get('admin/:branchId')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(Role.ADMIN)
   getAdminBranchDetail(@Param('branchId') branchId: string) {
     return this.adminBranchService.getBranchDetail(branchId);
   }
 
   @Post('admin')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(Role.ADMIN)
   createBranch(@Body() input: CreateBranchDto) {
     return this.adminBranchService.createBranch(input);
   }
 
   @Patch('admin/:branchId')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(Role.ADMIN)
   updateBranch(
     @Param('branchId') branchId: string,
     @Body() input: UpdateBranchDto,
@@ -72,16 +84,10 @@ export class AdminBranchController {
   }
 
   @Delete('admin/:branchId')
+  @UseGuards(JwtGuard, RoleGuard)
+  @Roles(Role.ADMIN)
   deactivateBranch(@Param('branchId') branchId: string) {
     return this.adminBranchService.deactivateBranch(branchId);
-  }
-
-  @Post('admin/:branchId/rooms')
-  createRoomForBranch(
-    @Param('branchId') branchId: string,
-    @Body() input: CreateAdminBranchRoomDto,
-  ) {
-    return this.adminBranchService.createRoomForBranch(branchId, input);
   }
 
   @Get()

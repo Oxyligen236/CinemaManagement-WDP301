@@ -17,8 +17,15 @@ export class ProductContractImpl implements ProductContract {
         productName: prod.productName,
         imageUrl: prod.imageUrl,
         unitPrice: prod.unitPrice,
+        branchId: prod.branchId,
       });
     }
     return result;
+  }
+
+  async deductConcessionStock(
+    items: Array<{ productId: string; quantity: number }>,
+  ): Promise<void> {
+    return this.productService.deductConcessionStock(items);
   }
 }

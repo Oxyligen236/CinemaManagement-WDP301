@@ -4,13 +4,24 @@ import React, { useState } from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
 import { MOVIE_POSTERS, MoviePosterItem } from "./data";
+import { SelectShowtimeModal } from "./SelectShowtimeModal";
 
 export function MoviePosterSlider() {
   const [pageIndex, setPageIndex] = useState<number>(0);
   const [hoveredMovieId, setHoveredMovieId] = useState<string | null>(null);
+  const [selectedMovieForBooking, setSelectedMovieForBooking] =
+    useState<MoviePosterItem | null>(null);
 
   const totalPages = MOVIE_POSTERS.length;
   const currentBatch: MoviePosterItem[] = MOVIE_POSTERS[pageIndex] || [];
+
+  const handleOpenBooking = (movie: MoviePosterItem) => {
+    setSelectedMovieForBooking(movie);
+  };
+
+  const handleCloseBooking = () => {
+    setSelectedMovieForBooking(null);
+  };
 
   const handlePrev = () => {
     if (pageIndex > 0) {
@@ -70,12 +81,13 @@ export function MoviePosterSlider() {
                     }}
                   >
                     {/* Đặt vé (Book) button */}
-                    <Link
-                      href="#ticketing"
-                      className="block mx-[15px] border border-[#c1b687] h-[48px] leading-[48px] font-bold text-[15px] text-[#c1b687] hover:bg-[#c1b687] hover:text-black transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => handleOpenBooking(movie)}
+                      className="block w-[calc(100%-30px)] mx-[15px] border border-[#c1b687] h-[48px] leading-[48px] font-bold text-[15px] text-[#c1b687] hover:bg-[#c1b687] hover:text-black transition-colors cursor-pointer text-center"
                     >
                       Đặt vé
-                    </Link>
+                    </button>
 
                     {/* Chi tiết (Detail) button */}
                     <Link
@@ -136,6 +148,13 @@ export function MoviePosterSlider() {
           Bước tiếp theo
         </button>
       </div>
+
+      {/* Select Showtime Modal */}
+      <SelectShowtimeModal
+        isOpen={Boolean(selectedMovieForBooking)}
+        onClose={handleCloseBooking}
+        movie={selectedMovieForBooking}
+      />
     </section>
   );
 }

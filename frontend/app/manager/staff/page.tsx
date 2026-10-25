@@ -102,10 +102,12 @@ function BranchStaffContent() {
 
   useEffect(() => {
     if (!ready) return;
-    void loadStaff();
-    void request<StaffOptions>("/manager/staff/options")
-      .then(setOptions)
-      .catch(() => undefined);
+    queueMicrotask(() => {
+      void loadStaff();
+      void request<StaffOptions>("/manager/staff/options")
+        .then(setOptions)
+        .catch(() => undefined);
+    });
     // Lần tải đầu dùng bộ lọc mặc định.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);

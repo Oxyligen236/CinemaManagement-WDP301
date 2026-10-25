@@ -175,6 +175,7 @@ export default function ManageShowtimePage() {
     action: 'edit' | 'delete';
   } | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
+  const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
 
   // Quick 7-day strip starting from today
   const quickDates = useMemo(() => {
@@ -275,7 +276,10 @@ export default function ManageShowtimePage() {
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    void fetchAllData();
+    queueMicrotask(() => {
+      setCurrentTimeMs(Date.now());
+      void fetchAllData();
+    });
   }, [fetchAllData]);
 
   // Instant client-side filtering (0ms latency when switching date/movie/room/search)
@@ -360,7 +364,7 @@ export default function ManageShowtimePage() {
     const isPastOrStarted =
       item.isPast ||
       item.isOngoing ||
-      new Date(item.startTime).getTime() <= Date.now();
+      (currentTimeMs > 0 && new Date(item.startTime).getTime() <= currentTimeMs);
     if (isPastOrStarted) {
       showToast(
         'error',
@@ -393,7 +397,7 @@ export default function ManageShowtimePage() {
     const isPastOrStarted =
       item.isPast ||
       item.isOngoing ||
-      new Date(item.startTime).getTime() <= Date.now();
+      (currentTimeMs > 0 && new Date(item.startTime).getTime() <= currentTimeMs);
     if (isPastOrStarted) {
       showToast(
         'error',
@@ -557,9 +561,9 @@ export default function ManageShowtimePage() {
           !s.hasSoldTickets &&
           !s.isPast &&
           !s.isOngoing &&
-          new Date(s.startTime).getTime() > Date.now(),
+          (currentTimeMs > 0 ? new Date(s.startTime).getTime() > currentTimeMs : true),
       ).length,
-    [filteredShowtimes],
+    [filteredShowtimes, currentTimeMs],
   );
   const lockedShowtimesCount = useMemo(
     () =>
@@ -568,9 +572,9 @@ export default function ManageShowtimePage() {
           s.hasSoldTickets ||
           s.isPast ||
           s.isOngoing ||
-          new Date(s.startTime).getTime() <= Date.now(),
+          (currentTimeMs > 0 ? new Date(s.startTime).getTime() <= currentTimeMs : false),
       ).length,
-    [filteredShowtimes],
+    [filteredShowtimes, currentTimeMs],
   );
 
   return (
@@ -884,12 +888,12 @@ export default function ManageShowtimePage() {
               <tbody className="divide-y divide-[#f0eee4]">
                 {filteredShowtimes.map((item) => {
                   const soldCount = item.bookedSeats + item.reservedSeats;
-                  const nowMs = Date.now();
+                  const nowMs = currentTimeMs;
                   const startMs = new Date(item.startTime).getTime();
                   const endMs = new Date(item.endTime).getTime();
-                  const isPast = item.isPast ?? endMs <= nowMs;
+                  const isPast = item.isPast ?? (nowMs > 0 ? endMs <= nowMs : false);
                   const isOngoing =
-                    item.isOngoing ?? (startMs <= nowMs && endMs > nowMs);
+                    item.isOngoing ?? (nowMs > 0 ? (startMs <= nowMs && endMs > nowMs) : false);
                   const isPastOrOngoing = isPast || isOngoing;
                   const isLocked = isPastOrOngoing || item.hasSoldTickets;
 

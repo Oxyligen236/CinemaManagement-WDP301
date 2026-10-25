@@ -148,6 +148,36 @@ describe('ShowtimeBookingService', () => {
     );
   });
 
+  describe('confirmSeats', () => {
+    it('returns 0 when given empty seat list', async () => {
+      await expect(service.confirmSeats([])).resolves.toBe(0);
+      expect(mockSeatShowtimeModel.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('confirms seats by updating RESERVED to BOOKED', async () => {
+      mockSeatShowtimeModel.updateMany.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ modifiedCount: 2 }),
+      });
+      await expect(service.confirmSeats(['ss1', 'ss2'])).resolves.toBe(2);
+      expect(mockSeatShowtimeModel.updateMany).toHaveBeenCalledWith(
+        {
+          seatShowtimeId: { $in: ['ss1', 'ss2'] },
+          seatStatus: SeatShowtimeStatus.RESERVED,
+        },
+        { $set: { seatStatus: SeatShowtimeStatus.BOOKED } },
+      );
+    });
+
+    it('throws ConflictException when modifiedCount does not match', async () => {
+      mockSeatShowtimeModel.updateMany.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+      });
+      await expect(service.confirmSeats(['ss1', 'ss2'])).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+  });
+
   it('joins seat, showtime, room, and movie details', async () => {
     mockSeatShowtimeModel.find.mockReturnValue(
       query([

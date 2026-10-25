@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SafeImage as Image } from '@/components/ui/safe-image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   CalendarClock,
@@ -18,6 +18,7 @@ import {
   LogOut,
   Home,
   ChevronRight,
+  Popcorn,
 } from 'lucide-react';
 
 interface NavItem {
@@ -41,6 +42,11 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
     label: 'Phòng chiếu & Ghế',
     href: '/manager/rooms',
     icon: MonitorPlay,
+  },
+  {
+    label: 'Quản lý Bắp nước & Combo',
+    href: '/manager/products',
+    icon: Popcorn,
   },
   {
     label: 'Cấu hình Giá vé',
@@ -70,7 +76,23 @@ export default function BranchManagerLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const rawUser = localStorage.getItem('cinema_user');
+    if (!rawUser) return;
+    try {
+      const user = JSON.parse(rawUser) as { role?: string };
+      if (user.role === 'ADMIN') {
+        router.replace('/admin/dashboard');
+      } else if (user.role && user.role !== 'BRANCHMANAGER') {
+        router.replace('/');
+      }
+    } catch {
+      // ignore
+    }
+  }, [router]);
 
   const isActiveRoute = (href: string) => {
     if (href === '/manager') {

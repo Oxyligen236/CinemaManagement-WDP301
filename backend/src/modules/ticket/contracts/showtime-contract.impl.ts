@@ -57,6 +57,7 @@ export class ShowtimeContractImpl implements ShowtimeContract {
       seatId: seat.seatId,
       rowPosition: seat.rowPosition,
       columnPosition: seat.columnPosition,
+      price: showtime.basePrice,
       startTime: showtime.startTime,
       endTime: showtime.endTime,
     };
