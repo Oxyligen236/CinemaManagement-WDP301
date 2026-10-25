@@ -206,14 +206,6 @@ export function KeyVisual() {
                     priority
                     className="w-[1115px] h-[645px] object-cover"
                   />
-                  {/* Play button overlay */}
-                  <button
-                    type="button"
-                    onClick={() => alert(`Play trailer: ${item.title}`)}
-                    className="absolute left-1/2 top-1/2 -ml-[20px] -mt-[22px] w-[40px] h-[45px] bg-no-repeat bg-center cursor-pointer z-30"
-                    style={{ backgroundImage: "url('/sites/lottecinemavn/ui/btn_play.png')" }}
-                    title="Play trailer"
-                  />
                 </div>
               </div>
             ))}

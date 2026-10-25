@@ -41,6 +41,8 @@ export function SafeImage(props: ImageProps) {
     typeof alt === "string" ? alt : "LOTTE CINEMA"
   );
 
+  const isExternalUrl = typeof src === "string" && src.startsWith("http");
+
   return (
     <Image
       {...rest}
@@ -48,7 +50,7 @@ export function SafeImage(props: ImageProps) {
       alt={alt}
       width={width}
       height={height}
-      unoptimized={hasError || rest.unoptimized}
+      unoptimized={hasError || isExternalUrl || rest.unoptimized}
       onError={(e) => {
         if (!hasError) {
           setHasError(true);

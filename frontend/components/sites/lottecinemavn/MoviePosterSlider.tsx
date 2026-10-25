@@ -36,7 +36,10 @@ export function MoviePosterSlider() {
   };
 
   return (
-    <section className="relative w-full my-[70px] select-none font-['Arial',sans-serif]">
+    <section
+      id="movies-section"
+      className="relative w-full my-[70px] select-none font-['Arial',sans-serif] scroll-mt-6"
+    >
       {/* 980px slider viewport */}
       <div className="relative w-[980px] h-[274px] mx-auto overflow-hidden">
         <ul className="relative top-0 left-0 w-full h-[274px] flex m-0 p-0 list-none transition-all duration-300">
