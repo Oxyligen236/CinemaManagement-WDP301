@@ -15,33 +15,43 @@ flowchart TD
     ForgotPassword -->|Đặt lại mật khẩu thành công| Login
 
     %% Customer Experience Flow
-    subgraph CustomerFlow [Customer Experience]
+    subgraph CustomerFlow [Customer Experience - Lotte Cinema Booking Flow]
         CustomerOrders["/profile/orders (Lịch sử đặt vé cá nhân)"]
         TicketQRModal["[Modal] Chi tiết vé & Mã QR"]
 
         Home -->|Xem lịch sử mua vé| CustomerOrders
         CustomerOrders -->|Xem vé & QR| TicketQRModal
 
-        SelectShowtime["/ (Chọn Suất chiếu)"]
-        SelectSeats["/booking/[showtimeId] (Chọn ghế & Giữ chỗ)"]
-        BookingSummary["/booking/summary/[orderId] (Tóm tắt đặt vé & Đếm ngược giữ chỗ)"]
+        SelectShowtime["[Modal] Chọn Phim & Suất chiếu Lotte Cinema"]
+        SelectSeats["/booking/[showtimeId] (Bước 1: Chọn ghế & Suất chiếu Lotte Cinema)"]
+        BookingSummary["/booking/summary/[orderId] (Bước 2: Xác nhận đơn, Voucher & Đếm ngược giữ chỗ)"]
 
-        Home -->|Chọn suất chiếu| SelectShowtime
-        SelectShowtime -->|Chọn giờ chiếu| SelectSeats
-        SelectSeats -->|Đặt vé PENDING| BookingSummary
+        Home -->|Đặt vé / Mua vé ngay| SelectShowtime
+        SelectShowtime -->|Chọn khung giờ chiếu| SelectSeats
+        SelectSeats -->|Tiếp tục đặt vé (Tạo đơn PENDING)| BookingSummary
         BookingSummary -->|Áp dụng mã giảm giá / Voucher| BookingSummary
         BookingSummary -->|Hết hạn đếm ngược: Đặt vé lại| SelectSeats
-        BookingSummary -->|Quay về trang chủ| Home
+        BookingSummary -->|Quay về trang chủ Lotte Cinema| Home
+        BookingSummary -->|Tiến hành thanh toán ngay (Gateway VNPAY/MoMo)| CustomerOrders
     end
 
     %% Staff Operations Flow
     subgraph StaffFlow [Staff Operations]
-        StaffOrders["/(staff)/orders (Lịch sử đơn hàng quầy)"]
-        StaffScan["/(staff)/tickets/scan (Soát vé QR / Barcode)"]
+        StaffPOS["/staff/pos (Điểm bán vé & bắp nước tại quầy POS)"]
+        StaffOrders["/staff/orders (Lịch sử đơn hàng quầy)"]
+        StaffScan["/staff/tickets/scan (Soát vé QR / Barcode)"]
         StaffOrderDetail["[Modal] Chi tiết F&B + Vé quầy"]
+        PosReceiptModal["[Modal] In vé cứng & Hóa đơn nhiệt 80mm"]
+        PosCancelDialog["[Dialog] Xác nhận hủy đơn quầy"]
         ScanResultBanner["[Banner] Kết quả soát vé"]
 
-        Login -->|"Đăng nhập thành công (Staff)"| StaffOrders
+        Login -->|"Đăng nhập thành công (Staff)"| StaffPOS
+        StaffPOS -->|Xem lịch sử đơn| StaffOrders
+        StaffOrders -->|Bán vé tại quầy| StaffPOS
+        StaffPOS -->|Tạm giữ ghế & Thu tiền mặt / QR| PosReceiptModal
+        StaffPOS -->|Khách đổi ý hủy đơn| PosCancelDialog
+        PosCancelDialog -->|Xác nhận hủy| StaffPOS
+        PosReceiptModal -->|In xong / Bán đơn mới| StaffPOS
         StaffOrders -->|Soát vé| StaffScan
         StaffOrders -->|Xem chi tiết đơn| StaffOrderDetail
         StaffScan -->|Quét mã| ScanResultBanner
@@ -65,6 +75,7 @@ flowchart TD
     %% Branch Manager Portal Flow
     subgraph ManagerFlow [Branch Manager Portal]
         BMDashboard["/manager (Branch Manager Dashboard)"]
+        ManageProducts["/manager/products (Quản lý F&B: Sản phẩm đơn & Combo)"]
         ManageShowtime["/manager/showtimes (Quản lý Suất chiếu)"]
         ManageRoom["/manager/rooms (Quản lý Phòng chiếu)"]
         ConfigPricing["/manager/pricing (Cấu hình Giá vé)"]
@@ -72,9 +83,15 @@ flowchart TD
         ViewEmployee["/manager/staff (Nhân viên Chi nhánh)"]
         AddEmployee["/manager/staff/add (Thêm Nhân viên)"]
         BranchReport["/manager/statistics (Báo cáo Thống kê)"]
+        ProductModal["[Modal] Tạo / Sửa Sản phẩm đơn (Item)"]
+        StockModal["[Modal] Điều chỉnh Tồn kho"]
+        ComboModal["[Modal] Cấu hình Gói Combo & Món thành phần"]
+        ImportExcelModal["[Modal] Import Excel Cập nhật / Bổ sung Sản phẩm (Item)"]
+        ChangeStatusDialog["[Dialog] Đổi trạng thái Bán/Ngừng"]
 
         Login -->|"Đăng nhập thành công (Manager)"| BMDashboard
         Home -->|Branch Manager Portal| BMDashboard
+        BMDashboard -->|Bắp nước & Combo| ManageProducts
         BMDashboard -->|Suất chiếu| ManageShowtime
         BMDashboard -->|Phòng chiếu| ManageRoom
         BMDashboard -->|Giá vé| ConfigPricing
@@ -82,6 +99,16 @@ flowchart TD
         BMDashboard -->|Nhân viên| ViewEmployee
         BMDashboard -->|Báo cáo| BranchReport
         ViewEmployee -->|Thêm Nhân viên| AddEmployee
+        ManageProducts -->|Thêm / Sửa Sản phẩm đơn| ProductModal
+        ManageProducts -->|Điều chỉnh tồn kho lẻ| StockModal
+        ManageProducts -->|Import file Excel tồn kho/giá| ImportExcelModal
+        ManageProducts -->|Tạo / Sửa Gói Combo| ComboModal
+        ManageProducts -->|Đổi trạng thái| ChangeStatusDialog
+        ProductModal -->|Lưu thành công| ManageProducts
+        StockModal -->|Cập nhật thành công| ManageProducts
+        ImportExcelModal -->|Import hoàn tất / Báo cáo kết quả| ManageProducts
+        ComboModal -->|Lưu thành công| ManageProducts
+        ChangeStatusDialog -->|Xác nhận thành công| ManageProducts
     end
     %% Admin Portal
     AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]

@@ -608,7 +608,11 @@ describe('OrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         lean: () => ({
           exec: jest.fn().mockResolvedValue([
-            { orderId: 'order-apply', seatShowtimeId: 'sst-1', price: 100000 },
+            {
+              orderId: 'order-apply',
+              seatShowtimeId: 'sst-1',
+              price: 100000,
+            },
           ]),
         }),
       });

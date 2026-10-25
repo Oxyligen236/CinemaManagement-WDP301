@@ -1,13 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { OrderDetail, OrderStatus, OrderSummary } from '@/lib/types/order.types';
 import { orderApi } from '@/lib/api/order.api';
 import { OrderDetailModal } from '@/components/orders/OrderDetailModal';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
-import { Button } from '@/components/ui/Button';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
+import {
+  ClipboardList,
+  RefreshCw,
+  MonitorPlay,
+  RotateCcw,
+  Eye,
+} from 'lucide-react';
 
 const MOCK_STAFF_ORDERS: OrderSummary[] = [
   {
@@ -152,29 +159,49 @@ export default function StaffOrdersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5 font-['Arial',sans-serif]">
+      {/* 1. Header & Title Banner */}
+      <div className="border-b-2 border-[#231f20] pb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <nav className="text-xs text-text-muted mb-1 flex items-center gap-1.5" aria-label="Breadcrumb">
-            <span>Quầy vé</span>
-            <span>/</span>
-            <span className="text-text-main font-semibold">Đơn hàng tại quầy</span>
-          </nav>
-          <h1 className="text-2xl font-bold text-text-main tracking-tight">
-            Quản lý đơn hàng quầy & F&B
-          </h1>
-          <p className="text-sm text-text-sub mt-1">
-            Theo dõi tất cả giao dịch bán vé tại quầy và bán lẻ bắp nước trong ca trực
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
+            LOTTE CINEMA • QUẢN LÝ ĐƠN HÀNG QUẦY
           </p>
+          <h1 className="mt-1 text-[22px] font-bold text-[#231f20] uppercase flex items-center gap-2.5">
+            <ClipboardList className="h-6 w-6 text-[#da291c]" />
+            <span>Đơn hàng tại quầy & Bắp nước</span>
+          </h1>
+          <p className="mt-0.5 text-[12px] text-[#666]">
+            Theo dõi tất cả giao dịch bán vé tại quầy và bán lẻ bắp nước trong ca trực của nhân viên.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/staff/pos"
+            className="inline-flex h-[38px] items-center gap-2 bg-[#da291c] hover:bg-[#b91c1c] text-white px-4 text-[12px] font-bold shadow-sm transition-colors cursor-pointer"
+          >
+            <MonitorPlay className="h-4 w-4" />
+            <span>Mở quầy POS bán vé</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              setPage(1);
+            }}
+            className="inline-flex h-[38px] items-center gap-1.5 border border-[#dad2b4] bg-white px-3 text-[12px] font-bold text-[#231f20] hover:bg-[#efebdb] transition-colors cursor-pointer"
+            title="Làm mới danh sách"
+          >
+            <RefreshCw className="h-4 w-4 text-[#6f6247]" />
+            <span className="hidden sm:inline">Làm mới</span>
+          </button>
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="bg-surface p-4 rounded-xl border border-border-main shadow-card flex flex-wrap items-center gap-4 justify-between">
-        <div className="flex flex-wrap items-center gap-3">
+      {/* 2. Filter Bar */}
+      <div className="bg-white p-4 border border-[#dad2b4] shadow-sm flex flex-wrap items-center gap-4 justify-between">
+        <div className="flex flex-wrap items-center gap-4">
           <div>
-            <label className="text-xs font-semibold text-text-sub block mb-1">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[#6f6247] block mb-1">
               Trạng thái đơn
             </label>
             <select
@@ -183,17 +210,17 @@ export default function StaffOrdersPage() {
                 setStatus((e.target.value as OrderStatus) || undefined);
                 setPage(1);
               }}
-              className="h-9 px-3 rounded-lg border border-border-main bg-white text-xs text-text-main focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
+              className="h-9 px-3 border border-[#dad2b4] bg-[#fcfbfa] text-xs text-[#231f20] focus:outline-none focus:border-[#da291c] cursor-pointer"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="PAID">Đã thanh toán</option>
-              <option value="PENDING">Chờ thanh toán</option>
-              <option value="CANCELLED">Đã hủy</option>
+              <option value="PAID">Đã thanh toán (PAID)</option>
+              <option value="PENDING">Chờ thanh toán (PENDING)</option>
+              <option value="CANCELLED">Đã hủy (CANCELLED)</option>
             </select>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-text-sub block mb-1">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[#6f6247] block mb-1">
               Ngày tạo đơn
             </label>
             <input
@@ -203,7 +230,7 @@ export default function StaffOrdersPage() {
                 setSelectedDate(e.target.value);
                 setPage(1);
               }}
-              className="h-9 px-3 rounded-lg border border-border-main bg-white text-xs text-text-main focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
+              className="h-9 px-3 border border-[#dad2b4] bg-[#fcfbfa] text-xs text-[#231f20] focus:outline-none focus:border-[#da291c] cursor-pointer font-mono"
             />
           </div>
         </div>
@@ -211,111 +238,120 @@ export default function StaffOrdersPage() {
         <div className="flex items-center gap-2">
           {selectedDate && (
             <button
+              type="button"
               onClick={() => {
                 setSelectedDate('');
                 setStatus(undefined);
                 setPage(1);
               }}
-              className="text-xs text-primary-600 hover:underline font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs text-[#da291c] hover:underline font-bold cursor-pointer"
             >
-              Xóa bộ lọc
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Xóa bộ lọc</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Table */}
+      {/* 3. Table Orders */}
       {isLoading ? (
-        <TableSkeleton rows={5} cols={6} />
+        <TableSkeleton rows={5} cols={7} />
       ) : orders.length === 0 ? (
-        <div className="p-8 text-center bg-surface rounded-xl border border-border-main space-y-2">
-          <p className="text-sm font-semibold text-text-main">Không tìm thấy đơn hàng quầy nào</p>
-          <p className="text-xs text-text-sub">Không có giao dịch phù hợp với tiêu chí lọc.</p>
+        <div className="p-10 text-center bg-white border border-[#dad2b4] space-y-2">
+          <p className="text-[14px] font-bold text-[#231f20]">Không tìm thấy đơn hàng quầy nào</p>
+          <p className="text-xs text-[#666]">Không có giao dịch phù hợp với tiêu chí lọc hoặc chưa có giao dịch nào được ghi nhận.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border-main bg-surface shadow-card">
-          <table className="w-full text-left text-sm text-text-main">
-            <thead className="bg-surface-muted text-xs font-semibold uppercase tracking-wider text-text-sub border-b border-border-main">
-              <tr>
-                <th className="px-4 py-3">Mã đơn hàng</th>
-                <th className="px-4 py-3">Thời gian tạo</th>
-                <th className="px-4 py-3 text-center">Vé xem phim</th>
-                <th className="px-4 py-3 text-center">F&B Bắp nước</th>
-                <th className="px-4 py-3 text-right">Tổng tiền</th>
-                <th className="px-4 py-3 text-center">Trạng thái</th>
-                <th className="px-4 py-3 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-main">
-              {orders.map((o) => (
-                <tr key={o.orderId} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-mono font-bold text-xs text-text-main">
-                    #{o.orderId.slice(0, 8).toUpperCase()}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-text-sub">
-                    {formatDateTime(o.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-center text-xs">
-                    {o.ticketCount > 0 ? (
-                      <span className="font-semibold text-text-main">{o.ticketCount} vé</span>
-                    ) : (
-                      <span className="text-text-muted">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center text-xs">
-                    {o.hasProducts ? (
-                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                        Có F&B
-                      </span>
-                    ) : (
-                      <span className="text-text-muted">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-primary-600">
-                    {formatCurrency(o.totalAmount)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <OrderStatusBadge status={o.status} />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleOpenDetail(o.orderId)}
-                      isLoading={isLoadingDetail && selectedOrderDetail?.orderId === o.orderId}
-                    >
-                      Chi tiết F&B + Vé
-                    </Button>
-                  </td>
+        <div className="border border-[#dad2b4] bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px] text-[#555]">
+              <thead className="bg-[#efebdb] border-b border-[#dad2b4] text-[11px] font-bold uppercase tracking-wider text-[#6f6247]">
+                <tr>
+                  <th className="px-4 py-3">Mã đơn hàng</th>
+                  <th className="px-4 py-3">Thời gian tạo</th>
+                  <th className="px-4 py-3 text-center">Vé xem phim</th>
+                  <th className="px-4 py-3 text-center">F&B Bắp nước</th>
+                  <th className="px-4 py-3 text-right">Tổng tiền</th>
+                  <th className="px-4 py-3 text-center">Trạng thái</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#efebdb]">
+                {orders.map((o) => (
+                  <tr key={o.orderId} className="hover:bg-[#fcfbfa] transition-colors">
+                    <td className="px-4 py-3.5 font-mono font-bold text-xs text-[#231f20]">
+                      #{o.orderId.slice(0, 8).toUpperCase()}
+                    </td>
+                    <td className="px-4 py-3.5 text-xs text-[#666]">
+                      {formatDateTime(o.createdAt)}
+                    </td>
+                    <td className="px-4 py-3.5 text-center text-xs">
+                      {o.ticketCount > 0 ? (
+                        <span className="font-bold text-[#231f20] bg-[#efebdb] px-2 py-0.5 border border-[#dad2b4]">
+                          {o.ticketCount} vé
+                        </span>
+                      ) : (
+                        <span className="text-[#888]">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-center text-xs">
+                      {o.hasProducts ? (
+                        <span className="px-2 py-0.5 bg-[#f0fdf4] text-[#15803d] font-bold border border-[#bbf7d0]">
+                          Có F&B
+                        </span>
+                      ) : (
+                        <span className="text-[#888]">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-black text-[#da291c] font-mono text-sm">
+                      {formatCurrency(o.totalAmount)}
+                    </td>
+                    <td className="px-4 py-3.5 text-center">
+                      <OrderStatusBadge status={o.status} />
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetail(o.orderId)}
+                        disabled={isLoadingDetail && selectedOrderDetail?.orderId === o.orderId}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] hover:text-[#231f20] text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>Chi tiết F&B + Vé</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Pagination */}
+      {/* 4. Pagination */}
       {total > limit && (
-        <div className="flex justify-end gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Trang trước
-          </Button>
-          <span className="text-xs text-text-sub flex items-center px-2">
-            Trang {page} / {Math.ceil(total / limit)}
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-xs text-[#666]">
+            Hiển thị trang <strong>{page}</strong> / <strong>{Math.ceil(total / limit)}</strong> (Tổng cộng {total} đơn)
           </span>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={page >= Math.ceil(total / limit)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Trang sau
-          </Button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] disabled:opacity-40 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Trang trước
+            </button>
+            <button
+              type="button"
+              disabled={page >= Math.ceil(total / limit)}
+              onClick={() => setPage((p) => p + 1)}
+              className="px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] disabled:opacity-40 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Trang sau
+            </button>
+          </div>
         </div>
       )}
 
@@ -327,7 +363,6 @@ export default function StaffOrdersPage() {
           setSelectedOrderDetail(null);
         }}
         order={selectedOrderDetail}
-        mode="staff"
       />
     </div>
   );

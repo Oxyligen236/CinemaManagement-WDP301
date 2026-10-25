@@ -221,7 +221,9 @@ export default function ManageRoomSeatPage() {
   );
 
   useEffect(() => {
-    void fetchRoomsList();
+    queueMicrotask(() => {
+      void fetchRoomsList();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

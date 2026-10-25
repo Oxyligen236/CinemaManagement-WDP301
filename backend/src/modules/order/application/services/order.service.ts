@@ -423,12 +423,13 @@ export class OrderService
     const baseAmount =
       originalSubtotal > 0 ? originalSubtotal : order.totalAmount;
 
-    const validationResult =
-      await this.promotionContract.validatePromotionCode({
+    const validationResult = await this.promotionContract.validatePromotionCode(
+      {
         code: request.promotionCode,
         orderAmount: baseAmount,
         userId,
-      });
+      },
+    );
 
     if (!validationResult.isValid) {
       throw new BadRequestException(

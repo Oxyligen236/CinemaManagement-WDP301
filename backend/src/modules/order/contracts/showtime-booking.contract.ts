@@ -12,6 +12,7 @@ export interface SeatBookingDetail {
   endTime: Date;
   roomId: string;
   roomName: string;
+  branchId?: string;
   movieId: string;
   movieName: string;
 }
@@ -19,4 +20,5 @@ export interface ShowtimeBookingContract {
   reserveSeats(ids: string[]): Promise<SeatBookingDetail[]>;
   releaseSeats(ids: string[]): Promise<number>;
   getSeatBookingDetails(ids: string[]): Promise<SeatBookingDetail[]>;
+  confirmSeats(ids: string[]): Promise<number>;
 }
