@@ -1218,34 +1218,6 @@ export default function StaffPosPage() {
             )}
           </div>
 
-          {/* Form thông tin khách hàng */}
-          <div className="p-3 border-b border-[#dad2b4] bg-[#fcfbfa] grid grid-cols-2 gap-2 text-[12px] shrink-0">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#6f6247] mb-1">
-                Số điện thoại:
-              </label>
-              <input
-                type="tel"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="09xx xxx xxx"
-                className="w-full bg-white border border-[#dad2b4] px-2.5 py-1.5 text-xs text-[#231f20] placeholder-[#888] focus:outline-none focus:border-[#da291c] font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-[#6f6247] mb-1">
-                Tên khách hàng:
-              </label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Khách vãng lai"
-                className="w-full bg-white border border-[#dad2b4] px-2.5 py-1.5 text-xs text-[#231f20] placeholder-[#888] focus:outline-none focus:border-[#da291c]"
-              />
-            </div>
-          </div>
-
           {/* Danh sách mục đã chọn */}
           <div className="p-3 space-y-3 flex-1 overflow-y-auto max-h-[380px]">
             {/* Mục Vé xem phim */}
