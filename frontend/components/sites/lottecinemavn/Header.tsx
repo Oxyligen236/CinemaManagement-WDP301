@@ -153,7 +153,7 @@ export function Header() {
                     </Link>
                   </li>
                   <li className="inline-block px-[20px] text-[14px]">
-                    <Link href="#movie-schedule" className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block">
+                    <Link href="/showtimes" className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block">
                       LỊCH CHIẾU PHIM
                     </Link>
                   </li>
