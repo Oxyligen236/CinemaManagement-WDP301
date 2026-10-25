@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { randomUUID } from 'crypto';
 import { ScanTicketUsecase } from '../usecase/scan-ticket.usecase';
 import { GetTicketDetailUsecase } from '../usecase/get-ticket-detail.usecase';
+import { CreateTicketsForOrderUsecase } from '../usecase/create-tickets-for-order.usecase';
 import {
   SHOWTIME_CONTRACT,
   ShowtimeContract,
@@ -25,7 +27,10 @@ import { TicketScannedEvent } from '../../domain/events/ticket-scanned.event';
 
 @Injectable()
 export class TicketService
-  implements ScanTicketUsecase, GetTicketDetailUsecase
+  implements
+    ScanTicketUsecase,
+    GetTicketDetailUsecase,
+    CreateTicketsForOrderUsecase
 {
   constructor(
     @InjectModel(Ticket.name)
@@ -201,5 +206,69 @@ export class TicketService
     }
 
     return results;
+  }
+
+  /**
+   * Sinh bản ghi vé cho từng ghế trong đơn hàng đã thanh toán.
+   *
+   * Quy trình nghiệp vụ:
+   * 1. Kiểm tra đơn hàng đã có vé chưa; nếu có trả về danh sách vé hiện tại (idempotent).
+   * 2. Lấy chi tiết từng ghế suất chiếu qua ShowtimeContract.
+   * 3. Sinh mã ticketCode duy nhất và tạo bản ghi Ticket với trạng thái VALID.
+   * 4. Trả về danh sách chi tiết vé vừa phát hành.
+   *
+   * @param params - Đối tượng chứa orderId và seatShowtimeIds
+   * @param params.orderId - Mã đơn hàng đã thanh toán
+   * @param params.seatShowtimeIds - Danh sách mã ghế suất chiếu cần phát hành vé
+   * @returns Danh sách vé đã phát hành kèm thông tin phòng, phim, suất chiếu
+   * @throws BadRequestException khi danh sách ghế rỗng hoặc không tìm thấy thông tin suất chiếu
+   */
+  async createTicketsForOrder(params: {
+    orderId: string;
+    seatShowtimeIds: string[];
+  }): Promise<TicketItemSummaryDto[]> {
+    const { orderId, seatShowtimeIds } = params;
+    if (!orderId) {
+      throw new BadRequestException('Mã đơn hàng không được để trống');
+    }
+    const existing = await this.getTicketsByOrderId(orderId);
+    if (existing.length > 0) {
+      return existing;
+    }
+
+    if (!seatShowtimeIds || seatShowtimeIds.length === 0) {
+      throw new BadRequestException('Danh sách ghế không được để trống');
+    }
+
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const ticketsToCreate = [];
+
+    for (const seatShowtimeId of seatShowtimeIds) {
+      const showtimeDetail =
+        await this.showtimeContract.getSeatShowtimeDetail(seatShowtimeId);
+      if (!showtimeDetail) {
+        throw new BadRequestException(
+          `Không tìm thấy thông tin suất chiếu cho ghế ${seatShowtimeId}`,
+        );
+      }
+
+      const randomSuffix = randomUUID()
+        .replace(/-/g, '')
+        .slice(0, 6)
+        .toUpperCase();
+      const ticketCode = `TK-${dateStr}-${randomSuffix}`;
+
+      ticketsToCreate.push({
+        ticketId: randomUUID(),
+        orderId,
+        seatShowtimeId,
+        ticketCode,
+        price: showtimeDetail.price ?? 0,
+        ticketStatus: TicketStatus.VALID,
+      });
+    }
+
+    await this.ticketModel.insertMany(ticketsToCreate);
+    return this.getTicketsByOrderId(orderId);
   }
 }

@@ -21,9 +21,10 @@ import {
   ShowtimeDocument,
 } from '../../domain/schemas/showtime.schema';
 import { SeatBookingDetail } from '../../contract/seat-booking-detail';
+import { ConfirmShowtimeSeatsUsecase } from '../usecase/confirm-showtime-seats.usecase';
 
 @Injectable()
-export class ShowtimeBookingService {
+export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
   constructor(
     @InjectModel(SeatShowtime.name)
     private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
@@ -129,6 +130,37 @@ export class ShowtimeBookingService {
   }
 
   /**
+   * Chuyển các ghế thuộc suất chiếu từ RESERVED sang BOOKED.
+   *
+   * Quy trình nghiệp vụ:
+   * 1. Kiểm tra danh sách ghế đầu vào không rỗng.
+   * 2. Thực hiện cập nhật nguyên tử có điều kiện seatStatus: RESERVED -> BOOKED.
+   * 3. Trả về số lượng ghế đã được chuyển trạng thái.
+   *
+   * @param seatShowtimeIds - Danh sách mã ghế suất chiếu cần khóa
+   * @returns Số lượng ghế thực tế đã chuyển sang BOOKED
+   * @throws ConflictException khi số ghế cập nhật không khớp số lượng yêu cầu
+   */
+  async confirmSeats(seatShowtimeIds: string[]): Promise<number> {
+    if (!seatShowtimeIds.length) return 0;
+    const result = await this.seatShowtimeModel
+      .updateMany(
+        {
+          seatShowtimeId: { $in: seatShowtimeIds },
+          seatStatus: SeatShowtimeStatus.RESERVED,
+        },
+        { $set: { seatStatus: SeatShowtimeStatus.BOOKED } },
+      )
+      .exec();
+    if (result.modifiedCount !== seatShowtimeIds.length) {
+      throw new ConflictException(
+        'Một số ghế không ở trạng thái giữ chỗ để có thể hoàn tất đặt vé',
+      );
+    }
+    return result.modifiedCount;
+  }
+
+  /**
    * Tra cứu dữ liệu ghế và thông tin suất chiếu liên quan.
    *
    * Quy trình nghiệp vụ:
@@ -195,6 +227,7 @@ export class ShowtimeBookingService {
           endTime: showtime.endTime,
           roomId: room.roomId,
           roomName: room.roomName,
+          branchId: room.branchId,
           movieId: movie.movieId,
           movieName: movie.movieName,
         };
