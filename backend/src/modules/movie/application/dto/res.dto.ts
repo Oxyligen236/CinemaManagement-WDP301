@@ -24,6 +24,23 @@ export class UploadMovieAssetResDto {
   contentType!: string;
 }
 
+export class MovieOptionResDto {
+  movieId!: string;
+  movieName!: string;
+  duration!: number;
+  status!: string;
+  posterUrl?: string;
+}
+
+export class MovieSchedulingInfoResDto {
+  movieId!: string;
+  movieName!: string;
+  duration!: number;
+  status!: string;
+  isActive!: boolean;
+  posterUrl?: string;
+}
+
 export class GenreResDto {
   genreId!: string;
   genreName!: string;

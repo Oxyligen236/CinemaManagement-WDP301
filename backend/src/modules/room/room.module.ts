@@ -6,6 +6,7 @@ import { MovieModule } from '../movie/movie.module';
 import { ShowtimeModule } from '../showtime/showtime.module';
 import { Room, RoomSchema } from './domain/schemas/room.schema';
 import { Seat, SeatSchema } from './domain/schemas/seat.schema';
+import { RoomOptionQueryService } from './application/services/room-option-query.service';
 import { BranchRoomController } from './infra/branch-room.controller';
 import { BranchRoomService } from './application/branch-room.service';
 
