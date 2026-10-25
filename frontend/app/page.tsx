@@ -7,7 +7,6 @@ import { KeyVisual } from "@/components/sites/lottecinemavn/KeyVisual";
 import { MoviePosterSlider } from "@/components/sites/lottecinemavn/MoviePosterSlider";
 import { EventSection } from "@/components/sites/lottecinemavn/EventSection";
 import { Footer } from "@/components/sites/lottecinemavn/Footer";
-import { PromoModal } from "@/components/sites/lottecinemavn/PromoModal";
 
 export default function Home() {
   const router = useRouter();
@@ -45,9 +44,6 @@ export default function Home() {
           Chuyển đến phần thân
         </a>
       </div>
-
-      {/* Promo Popup Modal */}
-      <PromoModal />
 
       {/* Main Header */}
       <Header />
