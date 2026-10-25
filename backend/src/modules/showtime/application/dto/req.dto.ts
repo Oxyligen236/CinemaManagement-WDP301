@@ -98,3 +98,17 @@ export class SearchShowtimeReqDto extends PageRequest {
   @IsDateString()
   to?: string;
 }
+
+export class GetPublicShowtimesReqDto {
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  date?: string;
+
+  @IsOptional()
+  @IsString()
+  movieId?: string;
+}
