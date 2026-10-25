@@ -20,6 +20,7 @@ import { MovieModule } from './modules/movie/movie.module';
 import { ShowtimeModule } from './modules/showtime/showtime.module';
 import { PriceRuleModule } from './modules/pricerule/pricerule.module';
 import { WorkModule } from './modules/work/work.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { StaffModule } from './modules/staff/staff.module';
 
 // Module chỉ được import Module cấm import thứ khác
@@ -50,6 +51,7 @@ import { StaffModule } from './modules/staff/staff.module';
     DatabaseModule,
     EventModule,
     MailModule,
+    AuthModule,
     UserModule,
     AdminModule,
     TempModule,

@@ -9,6 +9,7 @@ import {
 } from '../../domain/schemas/showtime.schema';
 import { SearchShowtimeReqDto } from '../dto/req.dto';
 import { ShowtimeResDto } from '../dto/res.dto';
+import { toShowtimeResDto } from '../helpers/showtime-res.mapper';
 import { GetShowtimeDetailUsecase } from '../usecase/get-showtime-detail.usecase';
 import { SearchShowtimesUsecase } from '../usecase/search-showtimes.usecase';
 
@@ -102,6 +103,58 @@ export class ShowtimeQueryService
     );
   }
 
+  /**
+   * Danh sách suất chiếu thuộc nhiều phòng, có lọc và phân trang (sắp xếp startTime tăng dần).
+   *
+   * @param roomIds - Các phòng được phép xem (rỗng -> trả Page rỗng, không truy vấn)
+   * @param filter - Bộ lọc phim, phòng, khoảng startTime [from, to)
+   * @param page - Trang hiện tại
+   * @param limit - Số bản ghi mỗi trang
+   * @returns Page<ShowtimeResDto>
+   */
+  async searchShowtimesByRooms(
+    roomIds: string[],
+    filter: { movieId?: string; roomId?: string; from?: Date; to?: Date },
+    page: number,
+    limit: number,
+  ): Promise<Page<ShowtimeResDto>> {
+    const scopedRoomIds = filter.roomId
+      ? roomIds.filter((id) => id === filter.roomId)
+      : roomIds;
+    if (scopedRoomIds.length === 0) {
+      return Page.from([], 0, page, limit);
+    }
+
+    const query: QueryFilter<ShowtimeDocument> = {
+      roomId: { $in: scopedRoomIds },
+    };
+    if (filter.movieId) {
+      query.movieId = filter.movieId;
+    }
+    const startTime: { $gte?: Date; $lt?: Date } = {};
+    if (filter.from) startTime.$gte = filter.from;
+    if (filter.to) startTime.$lt = filter.to;
+    if (Object.keys(startTime).length > 0) {
+      query.startTime = startTime;
+    }
+
+    const [docs, total] = await Promise.all([
+      this.showtimeModel
+        .find(query)
+        .sort({ startTime: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .exec(),
+      this.showtimeModel.countDocuments(query).exec(),
+    ]);
+    return Page.from(
+      docs.map((doc) => this.toShowtimeResDto(doc)),
+      total,
+      page,
+      limit,
+    );
+  }
+
   async getShowtimeDetail(showtimeId: string): Promise<ShowtimeResDto> {
     const doc = await this.showtimeModel.findOne({ showtimeId }).exec();
     if (!doc) {
@@ -111,17 +164,6 @@ export class ShowtimeQueryService
   }
 
   private toShowtimeResDto(doc: ShowtimeDocument): ShowtimeResDto {
-    const dto = new ShowtimeResDto();
-    dto.showtimeId = doc.showtimeId;
-    dto.movieId = doc.movieId;
-    dto.roomId = doc.roomId;
-    dto.startTime = doc.startTime;
-    dto.endTime = doc.endTime;
-    dto.basePrice = doc.basePrice;
-    dto.dayPriceRuleId = doc.dayPriceRuleId;
-    dto.seatPriceRuleId = doc.seatPriceRuleId;
-    dto.createdAt = (doc as unknown as { createdAt: Date }).createdAt;
-    dto.updatedAt = (doc as unknown as { updatedAt: Date }).updatedAt;
-    return dto;
+    return toShowtimeResDto(doc);
   }
 }

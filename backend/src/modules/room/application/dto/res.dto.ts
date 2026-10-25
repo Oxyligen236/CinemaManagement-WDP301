@@ -68,3 +68,10 @@ export class BranchRoomSeatsMutationResponseDto {
   room!: BranchRoomSummaryDto;
   seats!: RoomSeatItemDto[];
 }
+
+export class RoomOptionResDto {
+  roomId!: string;
+  roomName!: string;
+  roomStatus!: string;
+  branchId!: string;
+}
