@@ -53,3 +53,9 @@
 - Khi triển khai hoặc cập nhật UI Frontend (`frontend/`), bắt buộc phải cập nhật sơ đồ màn hình vào `docs/screen.mmd`.
 - Biểu diễn các màn hình có trong hệ thống và cách chuyển từ màn hình này sang màn hình khác (trigger/action điều hướng).
 - Thông tin ngắn gọn, súc tích, hạn chế chi tiết (chỉ ghi route/tên màn hình và action chuyển tiếp, dùng Mermaid `flowchart` hoặc `stateDiagram-v2`).
+
+## Mock Data Rule (Bắt buộc)
+
+- **Frontend (`frontend/`)**: Cấm tuyệt đối sử dụng mock data, fake data hoặc fallback mock array trong source code (API client, hooks, components, pages). Toàn bộ dữ liệu hiển thị phải gọi trực tiếp từ API backend thật.
+- **Backend (`backend/`)**: Chỉ được phép dùng mock cho các contract / interface chưa được triển khai (chờ module phụ thuộc hoàn thành). Khi contract đã triển khai xong, bắt buộc kết nối dữ liệu thật từ database (Mongoose Model).
+
