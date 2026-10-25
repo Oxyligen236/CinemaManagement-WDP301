@@ -60,8 +60,8 @@ export default function BookingSummaryPage({
     try {
       const data = await bookingApi.getBookingSummary(orderId);
       setSummary(data);
-      if (data.promotionCode && !promoCode) {
-        setPromoCode(data.promotionCode);
+      if (data.promotion?.promotionCode && !promoCode) {
+        setPromoCode(data.promotion.promotionCode);
       }
 
       if (data.status === "EXPIRED") {
@@ -92,8 +92,8 @@ export default function BookingSummaryPage({
         if (!isMounted) return;
 
         setSummary(data);
-        if (data.promotionCode) {
-          setPromoCode(data.promotionCode);
+        if (data.promotion?.promotionCode) {
+          setPromoCode(data.promotion.promotionCode);
         }
 
         if (data.status === "EXPIRED") {
@@ -171,9 +171,10 @@ export default function BookingSummaryPage({
       setPromoFeedback(null);
       const updatedSummary = await orderApi.applyPromotion(orderId, code);
       setSummary(updatedSummary);
+      const discount = updatedSummary.promotion?.discountAmount ?? 0;
       setPromoFeedback({
         type: "success",
-        message: `Áp dụng mã ${code.toUpperCase()} thành công! Bạn được giảm ${formatCurrency(updatedSummary.discountAmount)}.`,
+        message: `Áp dụng mã ${code.toUpperCase()} thành công! Bạn được giảm ${formatCurrency(discount)}.`,
       });
     } catch (err: unknown) {
       const message = getFriendlyErrorMessage(
@@ -242,6 +243,16 @@ export default function BookingSummaryPage({
 
   const isCriticalTime =
     secondsLeft !== null && secondsLeft > 0 && secondsLeft <= 60;
+
+  const seatsSubtotal = (summary.seats || []).reduce(
+    (acc, s) => acc + (s.price || 0),
+    0,
+  );
+  const productsSubtotal = (summary.products || []).reduce(
+    (acc, p) => acc + (p.subTotal ?? p.unitPrice * p.quantity),
+    0,
+  );
+  const subtotal = seatsSubtotal + productsSubtotal;
 
   return (
     <div className="space-y-6">
@@ -596,20 +607,18 @@ export default function BookingSummaryPage({
 
             <div className="p-5 space-y-3.5 text-[13px]">
               <div className="flex justify-between items-center text-[#666]">
-                <span>Tạm tính tiền vé:</span>
+                <span>Tạm tính tiền vé & bắp nước:</span>
                 <span className="font-semibold text-[#231f20]">
-                  {formatCurrency(summary.totalAmount)}
+                  {formatCurrency(subtotal > 0 ? subtotal : summary.totalAmount)}
                 </span>
               </div>
 
-              {summary.discountAmount > 0 && (
+              {summary.promotion && summary.promotion.discountAmount > 0 && (
                 <div className="flex justify-between items-center text-[#15803d] font-semibold bg-[#f0fdf4] p-2 border border-[#bbf7d0]">
                   <span>
-                    Giảm giá voucher
-                    {summary.promotionCode ? ` (${summary.promotionCode})` : ""}
-                    :
+                    Giảm giá voucher ({summary.promotion.promotionCode}):
                   </span>
-                  <span>-{formatCurrency(summary.discountAmount)}</span>
+                  <span>-{formatCurrency(summary.promotion.discountAmount)}</span>
                 </div>
               )}
 
@@ -624,7 +633,7 @@ export default function BookingSummaryPage({
                 </div>
                 <div className="text-right">
                   <span className="text-[26px] font-black text-[#da291c] leading-none">
-                    {formatCurrency(summary.finalAmount ?? summary.totalAmount)}
+                    {formatCurrency(summary.totalAmount)}
                   </span>
                 </div>
               </div>
@@ -753,9 +762,7 @@ export default function BookingSummaryPage({
                       Tổng thanh toán:
                     </span>
                     <span className="text-[22px] font-black text-[#da291c]">
-                      {formatCurrency(
-                        summary.finalAmount ?? summary.totalAmount,
-                      )}
+                      {formatCurrency(summary.totalAmount)}
                     </span>
                   </div>
                 </div>

@@ -1,3 +1,5 @@
+import type { PromotionSummary } from './order.types';
+
 export type SeatShowtimeStatus = 'EMPTY' | 'RESERVED' | 'BOOKED';
 
 export interface SeatShowtime {
@@ -35,14 +37,12 @@ export interface BookingSummary {
   userId: string;
   status: 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED';
   totalAmount: number;
-  finalAmount?: number;
-  promotionCode?: string;
   createdAt: string;
   expiresAt: string;
   remainingSeconds: number;
   seats: BookingSeat[];
   products: { productId: string; productName?: string; quantity: number; unitPrice: number; subTotal?: number }[];
-  discountAmount: number;
+  promotion?: PromotionSummary;
   showtimeId?: string;
   movieName?: string;
   roomName?: string;

@@ -49,7 +49,6 @@ describe('OrderController', () => {
         remainingSeconds: 600,
         seats: [],
         products: [],
-        discountAmount: 0,
       };
 
       mockOrderService.createBookingOrder.mockResolvedValue(expectedRes);
@@ -95,7 +94,6 @@ describe('OrderController', () => {
         remainingSeconds: 580,
         seats: [],
         products: [],
-        discountAmount: 0,
       };
 
       mockOrderService.getBookingSummary.mockResolvedValue(expectedRes);
@@ -132,8 +130,13 @@ describe('OrderController', () => {
         remainingSeconds: 580,
         seats: [],
         products: [],
-        discountAmount: 20000,
-        promotionCode: 'SALE20',
+        promotion: {
+          promotionId: 'promo-1',
+          promotionCode: 'SALE20',
+          discountType: 'PERCENTAGE',
+          discountValue: 20,
+          discountAmount: 20000,
+        },
       };
 
       mockOrderService.applyPromotion.mockResolvedValue(expectedRes);

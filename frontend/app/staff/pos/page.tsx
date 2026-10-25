@@ -69,10 +69,6 @@ export default function StaffPosPage() {
     Map<string, SelectedProductCart>
   >(new Map());
 
-  // Thông tin khách hàng
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerName, setCustomerName] = useState("");
-
   // Khuyến mãi
   const [voucherCode, setVoucherCode] = useState("");
   const [voucherDiscount, setVoucherDiscount] = useState(0);
@@ -291,8 +287,6 @@ export default function StaffPosPage() {
     setPendingOrder(null);
     setSelectedSeatIds([]);
     setProductCart(new Map());
-    setCustomerPhone("");
-    setCustomerName("");
     setVoucherCode("");
     setVoucherDiscount(0);
     setVoucherApplied(null);
@@ -355,13 +349,11 @@ export default function StaffPosPage() {
         showtimeId: selectedShowtime.showtimeId,
         seatShowtimeIds: selectedSeatIds,
         products: productsPayload.length > 0 ? productsPayload : undefined,
-        customerPhone: customerPhone.trim() || undefined,
-        customerName: customerName.trim() || undefined,
       });
 
       setPendingOrder(res);
       setRemainingSeconds(res.remainingSeconds || 600);
-      setCashReceived(res.finalAmount || finalTotal);
+      setCashReceived(res.totalAmount || finalTotal);
       setSuccessBanner(
         "Đã giữ chỗ thành công trong 10 phút! Vui lòng thu tiền.",
       );
@@ -389,11 +381,12 @@ export default function StaffPosPage() {
           voucherCode.trim(),
         );
         setPendingOrder(updated);
-        setVoucherDiscount(updated.discountAmount || 0);
+        const discount = updated.promotion?.discountAmount || 0;
+        setVoucherDiscount(discount);
         setVoucherApplied(voucherCode.trim());
-        setCashReceived(updated.finalAmount);
+        setCashReceived(updated.totalAmount);
         setSuccessBanner(
-          `Áp dụng mã ${voucherCode.trim()} thành công! Giảm ${formatCurrency(updated.discountAmount)}`,
+          `Áp dụng mã ${voucherCode.trim()} thành công! Giảm ${formatCurrency(discount)}`,
         );
       } else {
         setVoucherApplied(voucherCode.trim());
@@ -442,7 +435,7 @@ export default function StaffPosPage() {
       return;
     }
 
-    const currentTotal = pendingOrder.finalAmount || finalTotal;
+    const currentTotal = pendingOrder.totalAmount || finalTotal;
     if (cashReceived < currentTotal) {
       setErrorBanner(
         `Số tiền khách đưa (${formatCurrency(cashReceived)}) không đủ tổng tiền (${formatCurrency(currentTotal)})`,
@@ -533,7 +526,7 @@ export default function StaffPosPage() {
   };
 
   const currentPayableAmount = pendingOrder
-    ? pendingOrder.finalAmount
+    ? pendingOrder.totalAmount
     : finalTotal;
   const changeDue = Math.max(0, cashReceived - currentPayableAmount);
   const isCashSufficient =

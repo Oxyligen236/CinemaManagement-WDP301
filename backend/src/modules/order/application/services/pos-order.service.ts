@@ -179,14 +179,7 @@ export class PosOrderService
       await this.orderModel.create({
         orderId,
         userId: staffContext.staffId,
-        staffId: staffContext.staffId,
-        branchId: staffContext.branchId,
-        channel: 'POS',
-        customerPhone: request.customerPhone,
-        customerName: request.customerName,
         totalAmount,
-        discountAmount: 0,
-        finalAmount: totalAmount,
         status: OrderStatus.PENDING,
       });
 
@@ -249,14 +242,9 @@ export class PosOrderService
 
     return {
       orderId,
-      staffId: staffContext.staffId,
-      branchId: staffContext.branchId,
+      userId: staffContext.staffId,
       status: OrderStatus.PENDING,
       totalAmount,
-      discountAmount: 0,
-      finalAmount: totalAmount,
-      customerPhone: request.customerPhone,
-      customerName: request.customerName,
       createdAt,
       expiresAt,
       remainingSeconds: Math.floor(ORDER_HOLD_TIMEOUT_MS / 1000),
@@ -290,11 +278,7 @@ export class PosOrderService
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    if (order.branchId && order.branchId !== staffContext.branchId) {
-      throw new ForbiddenException(
-        'Đơn hàng không thuộc chi nhánh của nhân viên',
-      );
-    }
+    await this.verifyOrderBranch(orderId, staffContext.branchId);
 
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException(
@@ -314,10 +298,8 @@ export class PosOrderService
       );
     }
 
-    order.promotionCode = validation.promotionCode;
     order.promotionId = validation.promotionId;
-    order.discountAmount = validation.discountAmount;
-    order.finalAmount = Math.max(
+    order.totalAmount = Math.max(
       0,
       order.totalAmount - validation.discountAmount,
     );
@@ -336,11 +318,7 @@ export class PosOrderService
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    if (order.branchId && order.branchId !== staffContext.branchId) {
-      throw new ForbiddenException(
-        'Đơn hàng không thuộc chi nhánh của nhân viên',
-      );
-    }
+    await this.verifyOrderBranch(orderId, staffContext.branchId);
 
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException(
@@ -390,11 +368,7 @@ export class PosOrderService
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    if (order.branchId && order.branchId !== staffContext.branchId) {
-      throw new ForbiddenException(
-        'Đơn hàng không thuộc chi nhánh của nhân viên',
-      );
-    }
+    await this.verifyOrderBranch(orderId, staffContext.branchId);
 
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException(
@@ -402,7 +376,7 @@ export class PosOrderService
       );
     }
 
-    const amountToPay = order.finalAmount ?? order.totalAmount;
+    const amountToPay = order.totalAmount;
     if (request.cashReceived < amountToPay) {
       throw new BadRequestException('Số tiền nhận từ khách không đủ');
     }
@@ -433,7 +407,6 @@ export class PosOrderService
     }
 
     order.status = OrderStatus.PAID;
-    order.paymentMethod = 'CASH';
     await order.save();
 
     try {
@@ -441,7 +414,7 @@ export class PosOrderService
         new OrderPaidEvent(
           orderId,
           staffContext.staffId,
-          order.branchId || staffContext.branchId,
+          staffContext.branchId,
           amountToPay,
           'CASH',
           new Date(),
@@ -476,11 +449,7 @@ export class PosOrderService
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    if (order.branchId && order.branchId !== staffContext.branchId) {
-      throw new ForbiddenException(
-        'Đơn hàng không thuộc chi nhánh của nhân viên',
-      );
-    }
+    await this.verifyOrderBranch(orderId, staffContext.branchId);
 
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException(
@@ -488,16 +457,13 @@ export class PosOrderService
       );
     }
 
-    const amountToPay = order.finalAmount ?? order.totalAmount;
+    const amountToPay = order.totalAmount;
     const qrPayment = await this.paymentContract.generateQrPayment({
       orderId,
       amount: amountToPay,
       method: request.paymentMethod,
       description: `Thanh toan ve quay ${orderId}`,
     });
-
-    order.paymentMethod = request.paymentMethod;
-    await order.save();
 
     return {
       orderId,
@@ -519,13 +485,9 @@ export class PosOrderService
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    if (order.branchId && order.branchId !== staffContext.branchId) {
-      throw new ForbiddenException(
-        'Đơn hàng không thuộc chi nhánh của nhân viên',
-      );
-    }
+    await this.verifyOrderBranch(orderId, staffContext.branchId);
 
-    const amountToPay = order.finalAmount ?? order.totalAmount;
+    const amountToPay = order.totalAmount;
 
     if (order.status === OrderStatus.PAID) {
       const tickets = await this.ticketContract.getTicketsByOrderId(orderId);
@@ -571,17 +533,17 @@ export class PosOrderService
       }
 
       order.status = OrderStatus.PAID;
-      order.paymentMethod = statusSummary.method || order.paymentMethod || 'QR';
       await order.save();
 
+      const paymentMethod = statusSummary.method || 'QR';
       try {
         await this.internalEventBus.publish(
           new OrderPaidEvent(
             orderId,
             staffContext.staffId,
-            order.branchId || staffContext.branchId,
+            staffContext.branchId,
             amountToPay,
-            order.paymentMethod,
+            paymentMethod,
             new Date(),
           ),
         );
@@ -629,15 +591,24 @@ export class PosOrderService
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
 
-    if (order.branchId && order.branchId !== staffContext.branchId) {
-      throw new ForbiddenException(
-        'Đơn hàng không thuộc chi nhánh của nhân viên',
-      );
-    }
+    await this.verifyOrderBranch(orderId, staffContext.branchId);
 
     if (order.status !== OrderStatus.PAID) {
       throw new BadRequestException(
         'Hóa đơn chỉ được in cho đơn hàng đã thanh toán',
+      );
+    }
+
+    let paymentMethod = 'CASH';
+    try {
+      const paymentStatus =
+        await this.paymentContract.checkPaymentStatus(orderId);
+      if (paymentStatus?.method) {
+        paymentMethod = paymentStatus.method;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to check payment status for receipt ${orderId}: ${(err as Error)?.message}`,
       );
     }
 
@@ -648,25 +619,18 @@ export class PosOrderService
       ? await this.productContract.getProductsByIds(productIds)
       : new Map<string, ProductSummaryDto>();
 
-    const finalAmount = order.finalAmount ?? order.totalAmount;
-
     return {
       orderId,
       branchName:
         staffContext.branchName ||
-        `MyCast Chi nhánh ${order.branchId || staffContext.branchId}`,
+        `MyCast Chi nhánh ${staffContext.branchId}`,
       branchAddress:
         staffContext.branchAddress || 'Chi nhánh hệ thống rạp MyCast',
       staffName: staffContext.staffName || 'Thu ngân',
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      channel: order.channel || 'POS',
       printedAt: new Date(),
-      paymentMethod: order.paymentMethod || 'CASH',
+      paymentMethod,
       totalAmount: order.totalAmount,
-      discountAmount: order.discountAmount || 0,
-      finalAmount,
-      cashReceived: order.paymentMethod === 'CASH' ? finalAmount : undefined,
+      cashReceived: paymentMethod === 'CASH' ? order.totalAmount : undefined,
       changeAmount: 0,
       tickets: tickets.map((t) => ({
         ticketCode: t.ticketCode,
@@ -687,6 +651,23 @@ export class PosOrderService
         };
       }),
     };
+  }
+
+  private async verifyOrderBranch(
+    orderId: string,
+    branchId: string,
+  ): Promise<void> {
+    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
+    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+    if (seatShowtimeIds.length) {
+      const seats =
+        await this.showtimeBookingService.getSeatBookingDetails(seatShowtimeIds);
+      if (seats.some((seat) => seat.branchId && seat.branchId !== branchId)) {
+        throw new ForbiddenException(
+          'Đơn hàng không thuộc chi nhánh của nhân viên',
+        );
+      }
+    }
   }
 
   private async buildPosBookingSummary(
@@ -718,15 +699,9 @@ export class PosOrderService
 
     return {
       orderId: order.orderId,
-      staffId: order.staffId || order.userId,
-      branchId: order.branchId || '',
+      userId: order.userId,
       status: order.status,
       totalAmount: order.totalAmount,
-      discountAmount: order.discountAmount || 0,
-      finalAmount: order.finalAmount ?? order.totalAmount,
-      customerPhone: order.customerPhone,
-      customerName: order.customerName,
-      promotionCode: order.promotionCode,
       createdAt,
       expiresAt,
       remainingSeconds,

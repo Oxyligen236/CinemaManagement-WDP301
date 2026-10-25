@@ -15,23 +15,23 @@ flowchart TD
     ForgotPassword -->|Đặt lại mật khẩu thành công| Login
 
     %% Customer Experience Flow
-    subgraph CustomerFlow [Customer Experience - Lotte Cinema Booking Flow]
+    subgraph CustomerFlow [Customer Experience - Online Booking Flow]
         CustomerOrders["/profile/orders (Lịch sử đặt vé cá nhân)"]
         TicketQRModal["[Modal] Chi tiết vé & Mã QR"]
 
         Home -->|Xem lịch sử mua vé| CustomerOrders
         CustomerOrders -->|Xem vé & QR| TicketQRModal
 
-        SelectShowtime["[Modal] Chọn Phim & Suất chiếu Lotte Cinema"]
-        SelectSeats["/booking/[showtimeId] (Bước 1: Chọn ghế & Suất chiếu Lotte Cinema)"]
-        BookingSummary["/booking/summary/[orderId] (Bước 2: Xác nhận đơn, Voucher & Đếm ngược giữ chỗ)"]
+        SelectShowtime["[Modal] Chọn Phim & Suất chiếu"]
+        SelectSeats["/booking/[showtimeId] (Bước 1: Chọn ghế & Combo)"]
+        BookingSummary["/booking/summary/[orderId] (Bước 2: Xác nhận đơn, Voucher & Đếm ngược 10p)"]
 
         Home -->|Đặt vé / Mua vé ngay| SelectShowtime
         SelectShowtime -->|Chọn khung giờ chiếu| SelectSeats
-        SelectSeats -->|Tiếp tục đặt vé (Tạo đơn PENDING)| BookingSummary
+        SelectSeats -->|Tiếp tục đặt vé (Tạo đơn PENDING totalAmount)| BookingSummary
         BookingSummary -->|Áp dụng mã giảm giá / Voucher| BookingSummary
         BookingSummary -->|Hết hạn đếm ngược: Đặt vé lại| SelectSeats
-        BookingSummary -->|Quay về trang chủ Lotte Cinema| Home
+        BookingSummary -->|Quay về trang chủ| Home
         BookingSummary -->|Tiến hành thanh toán ngay (Gateway VNPAY/MoMo)| CustomerOrders
     end
 
@@ -48,7 +48,7 @@ flowchart TD
         Login -->|"Đăng nhập thành công (Staff)"| StaffPOS
         StaffPOS -->|Xem lịch sử đơn| StaffOrders
         StaffOrders -->|Bán vé tại quầy| StaffPOS
-        StaffPOS -->|Tạm giữ ghế & Thu tiền mặt / QR| PosReceiptModal
+        StaffPOS -->|Tạo đơn giữ chỗ 10p & Thu tiền mặt / QR| PosReceiptModal
         StaffPOS -->|Khách đổi ý hủy đơn| PosCancelDialog
         PosCancelDialog -->|Xác nhận hủy| StaffPOS
         PosReceiptModal -->|In xong / Bán đơn mới| StaffPOS

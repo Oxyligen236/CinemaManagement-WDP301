@@ -98,14 +98,6 @@ export class CreatePosOrderReq {
   @ValidateNested({ each: true })
   @Type(() => PosProductItemReq)
   products?: PosProductItemReq[];
-
-  @IsOptional()
-  @IsString()
-  customerPhone?: string;
-
-  @IsOptional()
-  @IsString()
-  customerName?: string;
 }
 
 export class ProcessPosCashPaymentReq {

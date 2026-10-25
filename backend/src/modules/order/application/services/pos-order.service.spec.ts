@@ -55,15 +55,8 @@ describe('PosOrderService', () => {
   const mockOrder = {
     orderId: 'order-pos-123',
     userId: 'staff-001',
-    staffId: 'staff-001',
-    branchId: 'branch-hn-01',
-    channel: 'POS',
     totalAmount: 180000,
-    discountAmount: 0,
-    finalAmount: 180000,
     status: OrderStatus.PENDING,
-    customerName: 'Nguyen Khach',
-    customerPhone: '0901234567',
     save: jest.fn().mockResolvedValue(true),
   };
 
@@ -247,7 +240,7 @@ describe('PosOrderService', () => {
       expect(mockShowtimeBooking.releaseSeats).toHaveBeenCalledWith(['sst-1']);
     });
 
-    it('should create POS booking order successfully', async () => {
+    it('should create POS booking order without saving old 9 fields', async () => {
       (mockShowtimeBooking.reserveSeats as jest.Mock).mockResolvedValue([
         {
           seatShowtimeId: 'sst-1',
@@ -278,19 +271,28 @@ describe('PosOrderService', () => {
         showtimeId: 'st-01',
         seatShowtimeIds: ['sst-1'],
         products: [{ productId: 'prod-1', quantity: 1 }],
-        customerName: 'Anh Tuan',
-        customerPhone: '0909999999',
       });
 
       expect(result).toBeDefined();
       expect(result.status).toBe(OrderStatus.PENDING);
       expect(result.totalAmount).toBe(150000);
+      expect(result.userId).toBe('staff-001');
+      expect((result as Record<string, unknown>).customerPhone).toBeUndefined();
+      expect((result as Record<string, unknown>).customerName).toBeUndefined();
+      expect((result as Record<string, unknown>).discountAmount).toBeUndefined();
+      expect((result as Record<string, unknown>).finalAmount).toBeUndefined();
+      expect(mockOrderModel.create).toHaveBeenCalledWith({
+        orderId: expect.any(String),
+        userId: staffContext.staffId,
+        totalAmount: 150000,
+        status: OrderStatus.PENDING,
+      });
       expect(mockQueueService.publish).toHaveBeenCalled();
       expect(mockEventBus.publish).toHaveBeenCalled();
     });
   });
 
-  describe('cancelPosOrder', () => {
+  describe('cancelPosOrder & verifyOrderBranch', () => {
     it('should throw NotFoundException when order not found', async () => {
       mockOrderModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
@@ -301,20 +303,29 @@ describe('PosOrderService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException if order belongs to different branch', async () => {
+    it('should throw ForbiddenException if order belongs to different branch via seats', async () => {
       mockOrderModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           ...mockOrder,
-          branchId: 'branch-other',
+          status: OrderStatus.PENDING,
         }),
       });
+      mockSeatOrderModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
+      });
+      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          branchId: 'branch-other',
+        },
+      ]);
 
       await expect(
         service.cancelPosOrder(staffContext, 'order-pos-123'),
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('should cancel pending order and release seats', async () => {
+    it('should cancel pending order and release seats when branch matches', async () => {
       const orderToCancel = {
         ...mockOrder,
         status: OrderStatus.PENDING,
@@ -326,6 +337,12 @@ describe('PosOrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
+      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          branchId: 'branch-hn-01',
+        },
+      ]);
       (mockShowtimeBooking.releaseSeats as jest.Mock).mockResolvedValue(1);
 
       const res = await service.cancelPosOrder(staffContext, 'order-pos-123');
@@ -338,13 +355,16 @@ describe('PosOrderService', () => {
   });
 
   describe('confirmPosCashPayment', () => {
-    it('should throw BadRequestException if cash received is less than final amount', async () => {
+    it('should throw BadRequestException if cash received is less than totalAmount', async () => {
       mockOrderModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           ...mockOrder,
           status: OrderStatus.PENDING,
-          finalAmount: 150000,
+          totalAmount: 150000,
         }),
+      });
+      mockSeatOrderModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
       });
 
       await expect(
@@ -354,23 +374,29 @@ describe('PosOrderService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should confirm cash payment, confirm seats, issue tickets, and update order to PAID', async () => {
+    it('should confirm cash payment using totalAmount, issue tickets, and update order to PAID', async () => {
       const pendingOrder = {
         ...mockOrder,
         status: OrderStatus.PENDING,
-        finalAmount: 150000,
+        totalAmount: 150000,
         save: jest.fn().mockResolvedValue(true),
       };
       mockOrderModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(pendingOrder),
       });
+      mockSeatOrderModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
+      });
+      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          branchId: 'branch-hn-01',
+        },
+      ]);
       (mockPaymentContract.processCashPayment as jest.Mock).mockResolvedValue({
         paymentId: 'pay-001',
         changeAmount: 50000,
         paidAt: new Date(),
-      });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
       mockProductOrderModel.find.mockReturnValue({
         exec: jest
@@ -399,8 +425,14 @@ describe('PosOrderService', () => {
       );
 
       expect(res.status).toBe(OrderStatus.PAID);
+      expect(res.totalAmount).toBe(150000);
       expect(res.changeAmount).toBe(50000);
       expect(res.tickets).toHaveLength(1);
+      expect(mockPaymentContract.processCashPayment).toHaveBeenCalledWith({
+        orderId: 'order-pos-123',
+        totalAmount: 150000,
+        cashReceived: 200000,
+      });
       expect(mockShowtimeBooking.confirmSeats).toHaveBeenCalledWith(['sst-1']);
       expect(mockProductContract.deductConcessionStock).toHaveBeenCalled();
       expect(pendingOrder.status).toBe(OrderStatus.PAID);
@@ -409,16 +441,25 @@ describe('PosOrderService', () => {
   });
 
   describe('initiatePosQrPayment', () => {
-    it('should initiate QR payment and return QR payload', async () => {
+    it('should initiate QR payment using totalAmount and return QR payload', async () => {
       const pendingOrder = {
         ...mockOrder,
         status: OrderStatus.PENDING,
-        finalAmount: 180000,
+        totalAmount: 180000,
         save: jest.fn().mockResolvedValue(true),
       };
       mockOrderModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(pendingOrder),
       });
+      mockSeatOrderModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
+      });
+      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          branchId: 'branch-hn-01',
+        },
+      ]);
       (mockPaymentContract.generateQrPayment as jest.Mock).mockResolvedValue({
         paymentId: 'pay-qr-001',
         status: PaymentStatus.PENDING,
@@ -433,30 +474,42 @@ describe('PosOrderService', () => {
       );
 
       expect(res.paymentId).toBe('pay-qr-001');
+      expect(res.amount).toBe(180000);
       expect(res.qrCodeUrl).toBe('https://qr.vietqr.io/image.png');
-      expect(pendingOrder.paymentMethod).toBe(PaymentMethod.VNPAY);
+      expect(mockPaymentContract.generateQrPayment).toHaveBeenCalledWith({
+        orderId: 'order-pos-123',
+        amount: 180000,
+        method: PaymentMethod.VNPAY,
+        description: 'Thanh toan ve quay order-pos-123',
+      });
     });
   });
 
   describe('checkPosPaymentStatus', () => {
-    it('should complete order when status is SUCCESS', async () => {
+    it('should complete order when status is SUCCESS and publish OrderPaidEvent', async () => {
       const pendingOrder = {
         ...mockOrder,
         status: OrderStatus.PENDING,
-        finalAmount: 180000,
+        totalAmount: 180000,
         save: jest.fn().mockResolvedValue(true),
       };
       mockOrderModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(pendingOrder),
       });
+      mockSeatOrderModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
+      });
+      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          branchId: 'branch-hn-01',
+        },
+      ]);
       (mockPaymentContract.checkPaymentStatus as jest.Mock).mockResolvedValue({
         paymentId: 'pay-qr-001',
         amount: 180000,
         method: PaymentMethod.VNPAY,
         status: PaymentStatus.SUCCESS,
-      });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
       mockProductOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([]),
@@ -479,21 +532,37 @@ describe('PosOrderService', () => {
       )) as PosCashPaymentResultRes;
 
       expect(res.status).toBe(OrderStatus.PAID);
+      expect(res.totalAmount).toBe(180000);
       expect(res.tickets).toHaveLength(1);
       expect(mockShowtimeBooking.confirmSeats).toHaveBeenCalled();
+      expect(mockEventBus.publish).toHaveBeenCalled();
     });
   });
 
   describe('getPosReceipt', () => {
-    it('should return receipt data for paid order', async () => {
+    it('should return receipt data with actual paymentMethod from PaymentContract and totalAmount', async () => {
       const paidOrder = {
         ...mockOrder,
         status: OrderStatus.PAID,
-        finalAmount: 180000,
-        paymentMethod: 'CASH',
+        totalAmount: 180000,
       };
       mockOrderModel.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(paidOrder),
+      });
+      mockSeatOrderModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
+      });
+      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          branchId: 'branch-hn-01',
+        },
+      ]);
+      (mockPaymentContract.checkPaymentStatus as jest.Mock).mockResolvedValue({
+        paymentId: 'pay-001',
+        amount: 180000,
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.SUCCESS,
       });
       (mockTicketContract.getTicketsByOrderId as jest.Mock).mockResolvedValue([
         {
@@ -525,9 +594,14 @@ describe('PosOrderService', () => {
       );
 
       expect(receipt.orderId).toBe('order-pos-123');
+      expect(receipt.paymentMethod).toBe(PaymentMethod.CASH);
+      expect(receipt.totalAmount).toBe(180000);
       expect(receipt.tickets).toHaveLength(1);
       expect(receipt.products).toHaveLength(1);
-      expect(receipt.totalAmount).toBe(180000);
+      expect((receipt as Record<string, unknown>).customerName).toBeUndefined();
+      expect((receipt as Record<string, unknown>).customerPhone).toBeUndefined();
+      expect((receipt as Record<string, unknown>).discountAmount).toBeUndefined();
+      expect((receipt as Record<string, unknown>).finalAmount).toBeUndefined();
     });
 
     it('should throw BadRequestException if order is not PAID', async () => {
@@ -536,6 +610,9 @@ describe('PosOrderService', () => {
           ...mockOrder,
           status: OrderStatus.PENDING,
         }),
+      });
+      mockSeatOrderModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
       });
 
       await expect(
