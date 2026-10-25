@@ -28,9 +28,7 @@ export class BookingSummaryRes {
   remainingSeconds!: number;
   seats!: BookingSeatRes[];
   products!: BookingProductRes[];
-  discountAmount!: number;
-  promotionCode?: string;
-  finalAmount?: number;
+  promotion?: PromotionSummaryRes;
 }
 
 export class ApplyPromotionRes {
@@ -38,15 +36,12 @@ export class ApplyPromotionRes {
   userId!: string;
   status!: OrderStatus;
   totalAmount!: number;
-  discountAmount!: number;
-  finalAmount!: number;
-  promotionCode?: string;
-  promotionId?: string;
   createdAt!: Date;
   expiresAt!: Date;
   remainingSeconds!: number;
   seats!: BookingSeatRes[];
   products!: BookingProductRes[];
+  promotion?: PromotionSummaryRes;
 }
 
 export class OrderSummaryRes {
@@ -211,20 +206,15 @@ export class OrderDetailRes {
 
 export class PosBookingSummaryRes {
   orderId!: string;
-  staffId!: string;
-  branchId!: string;
+  userId!: string;
   status!: OrderStatus;
   totalAmount!: number;
-  discountAmount!: number;
-  finalAmount!: number;
-  customerPhone?: string;
-  customerName?: string;
-  promotionCode?: string;
   createdAt!: Date;
   expiresAt!: Date;
   remainingSeconds!: number;
   seats!: BookingSeatRes[];
   products!: BookingProductRes[];
+  promotion?: PromotionSummaryRes;
 }
 
 export class PosCashPaymentResultRes {
@@ -270,14 +260,9 @@ export class PosReceiptRes {
   branchName!: string;
   branchAddress!: string;
   staffName!: string;
-  customerName?: string;
-  customerPhone?: string;
-  channel!: string;
   printedAt!: Date;
   paymentMethod!: string;
   totalAmount!: number;
-  discountAmount!: number;
-  finalAmount!: number;
   cashReceived?: number;
   changeAmount?: number;
   tickets!: PosReceiptTicketRes[];

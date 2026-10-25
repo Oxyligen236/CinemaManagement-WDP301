@@ -51,4 +51,5 @@ next-env.d.ts
 *.gif
 *.webp
 *.avif
+!e2e-evidence/**/*.png
 

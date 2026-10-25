@@ -84,6 +84,7 @@ describe('OrderService', () => {
   };
 
   const mockTicketContract: TicketContract = {
+    createTicketsForOrder: jest.fn().mockResolvedValue([]),
     getTicketsByOrderId: jest.fn().mockResolvedValue([
       {
         ticketId: 't-001',
@@ -102,6 +103,7 @@ describe('OrderService', () => {
   };
 
   const mockProductContract: ProductContract = {
+    deductConcessionStock: jest.fn().mockResolvedValue(true),
     getProductsByIds: jest.fn().mockImplementation(() => {
       const map = new Map<string, ProductSummaryDto>();
       map.set('prod-001', {
@@ -135,6 +137,7 @@ describe('OrderService', () => {
   const mockShowtimeBooking: ShowtimeBookingContract = {
     reserveSeats: jest.fn(),
     releaseSeats: jest.fn(),
+    confirmSeats: jest.fn(),
     getSeatBookingDetails: jest.fn(),
   };
 
@@ -654,10 +657,10 @@ describe('OrderService', () => {
       });
 
       expect(res.orderId).toBe('order-apply');
-      expect(res.discountAmount).toBe(20000);
       expect(res.totalAmount).toBe(80000);
-      expect(res.finalAmount).toBe(80000);
-      expect(res.promotionCode).toBe('SALE20');
+      expect(res.promotion).toBeDefined();
+      expect(res.promotion?.discountAmount).toBe(20000);
+      expect(res.promotion?.promotionCode).toBe('SALE20');
       expect(mockPendingOrder.save).toHaveBeenCalled();
     });
 
