@@ -107,7 +107,11 @@ export function useManagerApi() {
     try {
       const user = JSON.parse(rawUser) as { role?: string };
       const role = user.role?.toUpperCase();
-      if (role !== "BRANCHMANAGER" && role !== "MANAGER") {
+      if (
+        role !== "BRANCHMANAGER" &&
+        role !== "MANAGER" &&
+        role !== "BRANCH_MANAGER"
+      ) {
         router.replace("/");
         return;
       }
