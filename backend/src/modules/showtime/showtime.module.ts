@@ -11,10 +11,11 @@ import {
 } from './domain/schemas/seat-showtime.schema';
 import { SeatShowtimeQueryService } from './application/services/seat-showtime-query.service';
 import { ShowtimeQueryService } from './application/services/showtime-query.service';
-import { ShowtimeScheduleService } from './application/services/showtime-schedule.service';
 import { PublicShowtimeQueryService } from './application/services/public-showtime-query.service';
 import { ShowtimeController } from './infra/showtime.controller';
 import { ShowtimeBookingService } from './application/services/showtime-booking.service';
+import { SHOWTIME_CONTRACT } from './contracts/showtime.contract';
+import { ShowtimeContractImpl } from './contracts/showtime-contract.impl';
 export type { SeatBookingDetail } from './contract/seat-booking-detail';
 
 // Module chỉ được import Module cấm import thứ khác
@@ -39,12 +40,18 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     SeatShowtimeQueryService,
     ShowtimeBookingService,
     PublicShowtimeQueryService,
+    ShowtimeContractImpl,
+    {
+      provide: SHOWTIME_CONTRACT,
+      useClass: ShowtimeContractImpl,
+    },
   ],
   exports: [
     MongooseModule,
     ShowtimeQueryService,
     ShowtimeBookingService,
     PublicShowtimeQueryService,
+    SHOWTIME_CONTRACT,
   ],
 })
 export class ShowtimeModule {}

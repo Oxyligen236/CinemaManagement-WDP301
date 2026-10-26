@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PromotionPublicService } from '../../promotion/application/services/promotion-public.service';
+import { PromotionPublicService } from '../application/services/promotion-public.service';
 import {
   PromotionContract,
   PromotionDetailDto,

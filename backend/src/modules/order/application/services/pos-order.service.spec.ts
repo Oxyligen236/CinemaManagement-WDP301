@@ -283,12 +283,13 @@ describe('PosOrderService', () => {
         (result as Record<string, unknown>).discountAmount,
       ).toBeUndefined();
       expect((result as Record<string, unknown>).finalAmount).toBeUndefined();
-      expect(mockOrderModel.create).toHaveBeenCalledWith({
+      const expectedCreatedOrder: Record<string, unknown> = {
         orderId: expect.any(String),
         userId: staffContext.staffId,
         totalAmount: 150000,
         status: OrderStatus.PENDING,
-      });
+      };
+      expect(mockOrderModel.create).toHaveBeenCalledWith(expectedCreatedOrder);
       expect(mockQueueService.publish).toHaveBeenCalled();
       expect(mockEventBus.publish).toHaveBeenCalled();
     });

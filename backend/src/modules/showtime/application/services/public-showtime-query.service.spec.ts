@@ -9,6 +9,7 @@ import { SeatShowtime } from '../../domain/schemas/seat-showtime.schema';
 import { Seat } from '../../../room/domain/schemas/seat.schema';
 import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
 import { SeatStatus } from '../../../room/domain/enums/seat-status.enum';
+import { Branch } from '../../../branch/domain/schemas/branch.schema';
 
 const mockQueryChain = (result: unknown) => ({
   select: jest.fn().mockReturnThis(),
@@ -25,6 +26,7 @@ describe('PublicShowtimeQueryService', () => {
   const genreModel = { find: jest.fn() };
   const seatShowtimeModel = { find: jest.fn() };
   const seatModel = { find: jest.fn() };
+  const branchModel = { find: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -40,6 +42,7 @@ describe('PublicShowtimeQueryService', () => {
           useValue: seatShowtimeModel,
         },
         { provide: getModelToken(Seat.name), useValue: seatModel },
+        { provide: getModelToken(Branch.name), useValue: branchModel },
       ],
     }).compile();
 
@@ -59,9 +62,21 @@ describe('PublicShowtimeQueryService', () => {
 
   it('lấy danh sách suất chiếu công khai kèm đầy đủ thông tin phim, phòng và ghế', async () => {
     const mockRooms = [
-      { roomId: 'room-01', roomName: 'Cinema 01 (2D Phụ Đề)' },
+      {
+        roomId: 'room-01',
+        roomName: 'Cinema 01 (2D Phụ Đề)',
+        branchId: 'branch-cantavil',
+      },
     ];
     roomModel.find.mockReturnValue(mockQueryChain(mockRooms));
+    branchModel.find.mockReturnValue(
+      mockQueryChain([
+        {
+          branchId: 'branch-cantavil',
+          branchName: 'Lotte Cinema Cantavil',
+        },
+      ]),
+    );
 
     const mockShowtimes = [
       {
@@ -112,6 +127,8 @@ describe('PublicShowtimeQueryService', () => {
     expect(item.posterUrl).toBe('/posters/12349.jpg');
     expect(item.genreNames).toEqual(['Kinh Dị', 'Giật Gân']);
     expect(item.roomName).toBe('Cinema 01 (2D Phụ Đề)');
+    expect(item.branchId).toBe('branch-cantavil');
+    expect(item.branchName).toBe('Lotte Cinema Cantavil');
     expect(item.basePrice).toBe(90000);
     expect(item.totalSeats).toBe(3);
     expect(item.availableSeats).toBe(2);
@@ -119,7 +136,21 @@ describe('PublicShowtimeQueryService', () => {
 
   it('fallback tính số ghế từ SeatModel khi suất chiếu chưa có bản ghi SeatShowtime', async () => {
     roomModel.find.mockReturnValue(
-      mockQueryChain([{ roomId: 'room-02', roomName: 'Cinema 02' }]),
+      mockQueryChain([
+        {
+          roomId: 'room-02',
+          roomName: 'Cinema 02',
+          branchId: 'branch-govap',
+        },
+      ]),
+    );
+    branchModel.find.mockReturnValue(
+      mockQueryChain([
+        {
+          branchId: 'branch-govap',
+          branchName: 'Lotte Cinema Gò Vấp',
+        },
+      ]),
     );
     showtimeModel.find.mockReturnValue(
       mockQueryChain([

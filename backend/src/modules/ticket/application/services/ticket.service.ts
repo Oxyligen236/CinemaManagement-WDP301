@@ -13,7 +13,7 @@ import { CreateTicketsForOrderUsecase } from '../usecase/create-tickets-for-orde
 import {
   SHOWTIME_CONTRACT,
   ShowtimeContract,
-} from '../../contracts/showtime.contract';
+} from '../../../showtime/contracts/showtime.contract';
 import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
