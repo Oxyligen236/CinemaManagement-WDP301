@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Loader2, MailCheck } from "lucide-react";
 import {
-  AUTH_INPUT_CLASS,
-  AUTH_LABEL_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
   AUTH_SECONDARY_BUTTON_CLASS,
   AuthErrorBanner,
   AuthShell,
 } from "@/components/auth/auth-shell";
+import { AuthField } from "@/components/auth/auth-field";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+import { useFormErrors, type FieldErrors } from "@/lib/utils/use-form-errors";
+import {
+  VERIFICATION_CODE_LENGTH,
+  validateEmail,
+  validateVerificationCode,
+} from "@/lib/utils/auth-validation";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
@@ -20,24 +25,59 @@ type VerifyResponse = {
   message?: string;
 };
 
+type VerifyForm = {
+  email: string;
+  code: string;
+};
+
+/** Khớp với ràng buộc `VerifyEmailDto` của backend. */
+function validateVerifyForm(form: VerifyForm): FieldErrors<VerifyForm> {
+  const errors: FieldErrors<VerifyForm> = {};
+
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  const code = validateVerificationCode(form.code);
+  if (code) errors.code = code;
+
+  return errors;
+}
+
 function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState(searchParams.get("email") ?? "");
-  const [code, setCode] = useState("");
+  const [form, setForm] = useState<VerifyForm>({
+    email: searchParams.get("email") ?? "",
+    code: "",
+  });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const { fieldErrors, clearFieldError, validateField, validateAll } =
+    useFormErrors<VerifyForm>(
+      useCallback((values: VerifyForm) => validateVerifyForm(values), []),
+    );
+
+  function updateField(field: keyof VerifyForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    clearFieldError(field);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (!validateAll(form)) return;
+
     setSubmitting(true);
 
     try {
       const response = await fetch(`${apiUrl}/auth/verify-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({
+          email: form.email.trim(),
+          code: form.code.trim(),
+        }),
       });
       const data = (await response.json().catch(() => ({}))) as VerifyResponse;
 
@@ -50,7 +90,7 @@ function VerifyEmailForm() {
         );
       }
 
-      router.push(`/login?email=${encodeURIComponent(email)}`);
+      router.push(`/login?email=${encodeURIComponent(form.email.trim())}`);
     } catch (submitError) {
       setError(
         getFriendlyErrorMessage(
@@ -67,7 +107,7 @@ function VerifyEmailForm() {
     <AuthShell
       eyebrow="XÁC THỰC EMAIL"
       title="Kiểm tra hộp thư của bạn"
-      description="Nhập mã 6 chữ số đã được gửi đến email của bạn. Mã có hiệu lực trong 5 phút."
+      description={`Nhập mã ${VERIFICATION_CODE_LENGTH} chữ số đã được gửi đến email của bạn. Mã có hiệu lực trong 5 phút.`}
       panelTitle="Nhập Mã Xác thực"
       panelAside="Hiệu lực 5 phút"
       icon={MailCheck}
@@ -78,46 +118,33 @@ function VerifyEmailForm() {
         </Link>
       }
     >
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="verify-email" className={AUTH_LABEL_CLASS}>
-            Email
-          </label>
-          <input
-            id="verify-email"
-            required
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            className={AUTH_INPUT_CLASS}
-          />
-        </div>
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        <AuthField
+          id="verify-email"
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={(value) => updateField("email", value)}
+          onBlur={() => validateField(form, "email")}
+          placeholder="you@example.com"
+          autoComplete="email"
+          error={fieldErrors.email}
+        />
 
-        <div>
-          <label htmlFor="verify-code" className={AUTH_LABEL_CLASS}>
-            Mã xác thực
-          </label>
-          <input
-            id="verify-code"
-            required
-            minLength={6}
-            maxLength={6}
-            inputMode="numeric"
-            pattern="[0-9]{6}"
-            value={code}
-            onChange={(event) =>
-              setCode(event.target.value.replace(/\D/g, ""))
-            }
-            placeholder="000000"
-            autoComplete="one-time-code"
-            aria-describedby="verify-code-hint"
-            className={`${AUTH_INPUT_CLASS} text-center text-[20px] font-bold tracking-[0.4em]`}
-          />
-          <p id="verify-code-hint" className="mt-1 text-[11px] text-[#777]">
-            Gồm đúng 6 chữ số, không chứa khoảng trắng.
-          </p>
-        </div>
+        <AuthField
+          id="verify-code"
+          label="Mã xác thực"
+          value={form.code}
+          onChange={(value) => updateField("code", value.replace(/\D/g, ""))}
+          onBlur={() => validateField(form, "code")}
+          maxLength={VERIFICATION_CODE_LENGTH}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="000000"
+          inputClassName="text-center text-[20px] font-bold tracking-[0.4em]"
+          hint={`Gồm đúng ${VERIFICATION_CODE_LENGTH} chữ số, không chứa khoảng trắng.`}
+          error={fieldErrors.code}
+        />
 
         {error && <AuthErrorBanner message={error} />}
 

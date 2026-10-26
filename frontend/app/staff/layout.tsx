@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { SafeImage as Image } from '@/components/ui/safe-image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   MonitorPlay,
   ClipboardList,
@@ -46,7 +46,14 @@ export default function StaffLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  function logout() {
+    localStorage.removeItem('cinema_access_token');
+    localStorage.removeItem('cinema_user');
+    router.replace('/login');
+  }
 
   const isActiveRoute = (href: string) => {
     if (href === '/staff/pos') {
@@ -92,13 +99,14 @@ export default function StaffLayout({
             </span>
           </li>
           <li>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1 text-[#6f6247] hover:text-[#da291c] hover:underline"
+            <button
+              type="button"
+              onClick={logout}
+              className="inline-flex items-center gap-1 text-[#6f6247] hover:text-[#da291c] hover:underline cursor-pointer"
             >
               <LogOut className="h-3 w-3" />
               Đăng xuất
-            </Link>
+            </button>
           </li>
         </ul>
       </div>

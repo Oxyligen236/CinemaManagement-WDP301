@@ -1,29 +1,95 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, LogIn } from "lucide-react";
 import {
   AuthShell,
   AuthErrorBanner,
-  AUTH_INPUT_CLASS,
-  AUTH_LABEL_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
 } from "@/components/auth/auth-shell";
+import { AuthField } from "@/components/auth/auth-field";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+import { useFormErrors, type FieldErrors } from "@/lib/utils/use-form-errors";
+import { validateEmail, validatePassword } from "@/lib/utils/auth-validation";
+
+type LoginForm = {
+  email: string;
+  password: string;
+};
+
+function getRedirectPathByRole(role?: string): string {
+  const normalizedRole = role?.toUpperCase();
+  if (normalizedRole === "ADMIN") return "/admin/dashboard";
+  if (
+    normalizedRole === "BRANCHMANAGER" ||
+    normalizedRole === "MANAGER" ||
+    normalizedRole === "BRANCH_MANAGER"
+  ) {
+    return "/manager";
+  }
+  if (normalizedRole === "STAFF") return "/staff/pos";
+  return "/";
+}
+
+/**
+ * Khớp với ràng buộc `LoginDto` của backend.
+ * `LoginDto` không có `@MaxLength`, nên không chặn mật khẩu dài.
+ */
+function validateLoginForm(form: LoginForm): FieldErrors<LoginForm> {
+  const errors: FieldErrors<LoginForm> = {};
+
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  const password = validatePassword(form.password, {
+    enforceMaxLength: false,
+  });
+  if (password) errors.password = password;
+
+  return errors;
+}
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState(searchParams.get("email") ?? "");
-  const [password, setPassword] = useState("");
+  const [form, setForm] = useState<LoginForm>({
+    email: searchParams.get("email") ?? "",
+    password: "",
+  });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { fieldErrors, clearFieldError, validateField, validateAll } =
+    useFormErrors<LoginForm>(
+      useCallback((values: LoginForm) => validateLoginForm(values), []),
+    );
+
+  useEffect(() => {
+    const token = localStorage.getItem("cinema_access_token");
+    const rawUser = localStorage.getItem("cinema_user");
+    if (token && rawUser) {
+      try {
+        const user = JSON.parse(rawUser) as { role?: string };
+        router.replace(getRedirectPathByRole(user.role));
+      } catch {
+        localStorage.removeItem("cinema_access_token");
+        localStorage.removeItem("cinema_user");
+      }
+    }
+  }, [router]);
+
+  function updateField(field: keyof LoginForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    clearFieldError(field);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (!validateAll(form)) return;
+
     setIsSubmitting(true);
 
     try {
@@ -31,7 +97,10 @@ function LoginForm() {
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: form.email.trim(),
+          password: form.password,
+        }),
       });
       const result = await response.json().catch(() => ({}));
 
@@ -46,15 +115,7 @@ function LoginForm() {
 
       localStorage.setItem("cinema_access_token", result.accessToken);
       localStorage.setItem("cinema_user", JSON.stringify(result.user));
-      router.push(
-        result.user?.role === "ADMIN"
-          ? "/admin/dashboard"
-          : result.user?.role === "BRANCHMANAGER"
-            ? "/manager"
-            : result.user?.role === "STAFF"
-              ? "/staff/pos"
-              : "/",
-      );
+      router.replace(getRedirectPathByRole(result.user?.role));
     } catch (submitError) {
       setError(
         getFriendlyErrorMessage(
@@ -86,28 +147,30 @@ function LoginForm() {
         </p>
       }
     >
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="login-email" className={AUTH_LABEL_CLASS}>
-            Email
-          </label>
-          <input
-            id="login-email"
-            required
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            placeholder="you@example.com"
-            className={AUTH_INPUT_CLASS}
-          />
-        </div>
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        <AuthField
+          id="login-email"
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={(value) => updateField("email", value)}
+          onBlur={() => validateField(form, "email")}
+          placeholder="you@example.com"
+          autoComplete="email"
+          error={fieldErrors.email}
+        />
 
-        <div>
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="login-password" className={AUTH_LABEL_CLASS}>
-              Mật khẩu
-            </label>
+        <AuthField
+          id="login-password"
+          label="Mật khẩu"
+          type="password"
+          value={form.password}
+          onChange={(value) => updateField("password", value)}
+          onBlur={() => validateField(form, "password")}
+          autoComplete="current-password"
+          error={fieldErrors.password}
+        >
+          <div className="mt-2 flex justify-end">
             <Link
               href="/forgot-password"
               className="text-[12px] font-bold text-[#da291c] hover:underline"
@@ -115,16 +178,7 @@ function LoginForm() {
               Quên mật khẩu?
             </Link>
           </div>
-          <input
-            id="login-password"
-            required
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            className={AUTH_INPUT_CLASS}
-          />
-        </div>
+        </AuthField>
 
         {error && <AuthErrorBanner message={error} />}
 

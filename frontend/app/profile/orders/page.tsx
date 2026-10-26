@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { OrderDetail, OrderStatus, OrderSummary } from '@/lib/types/order.types';
 import { orderApi } from '@/lib/api/order.api';
 import { OrderDetailModal } from '@/components/orders/OrderDetailModal';
@@ -89,6 +90,7 @@ const MOCK_DETAIL_FALLBACK: OrderDetail = {
 };
 
 export default function CustomerOrderHistoryPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -102,6 +104,13 @@ export default function CustomerOrderHistoryPage() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   useEffect(() => {
+    const token = localStorage.getItem('cinema_access_token') || localStorage.getItem('access_token');
+    const rawUser = localStorage.getItem('cinema_user');
+    if (!token || !rawUser) {
+      router.replace('/login');
+      return;
+    }
+
     let ignore = false;
     async function fetchOrders() {
       setIsLoading(true);
@@ -130,7 +139,7 @@ export default function CustomerOrderHistoryPage() {
     return () => {
       ignore = true;
     };
-  }, [page, limit, status]);
+  }, [page, limit, status, router]);
 
   const handleOpenDetail = async (orderId: string) => {
     setIsLoadingDetail(true);

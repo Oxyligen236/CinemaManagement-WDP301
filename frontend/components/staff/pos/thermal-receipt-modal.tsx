@@ -138,7 +138,7 @@ export function ThermalReceiptModal({
               </div>
               <div className="flex justify-between">
                 <span>Thu ngân:</span>
-                <span className="font-medium">{receipt.cashierName || 'Nhân viên POS'}</span>
+                <span className="font-medium">{receipt.cashierName || receipt.staffName || 'Nhân viên POS'}</span>
               </div>
             </div>
 
@@ -195,11 +195,13 @@ export function ThermalReceiptModal({
 
             {/* Tổng hợp Thanh toán */}
             <div className="py-2 border-b border-dashed border-black text-[11px] space-y-1">
-              <div className="flex justify-between">
-                <span>Tạm tính:</span>
-                <span>{formatCurrency(receipt.subtotal)}</span>
-              </div>
-              {receipt.discount > 0 && (
+              {typeof receipt.subtotal === 'number' && receipt.subtotal > 0 && (
+                <div className="flex justify-between">
+                  <span>Tạm tính:</span>
+                  <span>{formatCurrency(receipt.subtotal)}</span>
+                </div>
+              )}
+              {typeof receipt.discount === 'number' && receipt.discount > 0 && (
                 <div className="flex justify-between text-black">
                   <span>Giảm giá (Voucher):</span>
                   <span>-{formatCurrency(receipt.discount)}</span>

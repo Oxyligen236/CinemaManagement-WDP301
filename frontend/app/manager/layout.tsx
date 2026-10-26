@@ -84,15 +84,27 @@ export default function BranchManagerLayout({
     if (!rawUser) return;
     try {
       const user = JSON.parse(rawUser) as { role?: string };
-      if (user.role === 'ADMIN') {
+      const role = user.role?.toUpperCase();
+      if (role === 'ADMIN') {
         router.replace('/admin/dashboard');
-      } else if (user.role && user.role !== 'BRANCHMANAGER') {
+      } else if (
+        role &&
+        role !== 'BRANCHMANAGER' &&
+        role !== 'MANAGER' &&
+        role !== 'BRANCH_MANAGER'
+      ) {
         router.replace('/');
       }
     } catch {
       // ignore
     }
   }, [router]);
+
+  function logout() {
+    localStorage.removeItem('cinema_access_token');
+    localStorage.removeItem('cinema_user');
+    router.replace('/login');
+  }
 
   const isActiveRoute = (href: string) => {
     if (href === '/manager') {
@@ -109,7 +121,7 @@ export default function BranchManagerLayout({
       <div className="w-full h-[32px] bg-[#efebdb] border-b border-[#e3e1d6] px-4 lg:px-8 flex items-center justify-between text-[12px] select-none">
         <div className="flex items-center gap-4">
           <Link
-            href="/"
+            href="/manager"
             className="inline-flex items-center gap-1.5 font-semibold text-[#555] hover:text-[#231f20]"
           >
             <span
@@ -119,7 +131,7 @@ export default function BranchManagerLayout({
                   "url('/sites/lottecinemavn/ui/icon_lottecinemaapp.png')",
               }}
             />
-            <span>Về Trang chủ Lotte Cinema</span>
+            <span>Trang Quản lý Chi nhánh</span>
           </Link>
           <span className="text-[#c1b687]">|</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
@@ -138,13 +150,14 @@ export default function BranchManagerLayout({
             </span>
           </li>
           <li>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1 text-[#6f6247] hover:text-[#da291c] hover:underline"
+            <button
+              type="button"
+              onClick={logout}
+              className="inline-flex items-center gap-1 text-[#6f6247] hover:text-[#da291c] hover:underline cursor-pointer"
             >
               <LogOut className="h-3 w-3" />
               Đăng xuất
-            </Link>
+            </button>
           </li>
         </ul>
       </div>

@@ -10,9 +10,8 @@ export interface InitiatePosQrPaymentUsecase {
    *
    * Quy trình nghiệp vụ:
    * 1. Tra cứu đơn hàng theo orderId, xác thực chi nhánh và trạng thái PENDING.
-   * 2. Gọi PaymentContract sinh mã QR động với số tiền finalAmount của đơn hàng.
-   * 3. Cập nhật paymentMethod dự kiến vào đơn hàng.
-   * 4. Trả về thông tin QR code và mã giao dịch để màn hình phụ hoặc thiết bị quét QR hiển thị.
+   * 2. Gọi PaymentContract sinh mã QR động với số tiền totalAmount của đơn hàng.
+   * 3. Trả về thông tin QR code và mã giao dịch để màn hình phụ hoặc thiết bị quét QR hiển thị.
    *
    * @param staffContext - Thông tin định danh và chi nhánh của nhân viên thực hiện
    * @param orderId - Mã định danh đơn hàng cần thanh toán QR

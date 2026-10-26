@@ -1,21 +1,25 @@
-import { ApiError } from './order.api';
-import { getFriendlyErrorMessage } from '../utils/error-handler';
+import { ApiError } from "./order.api";
+import { getFriendlyErrorMessage } from "../utils/error-handler";
+import type { PromotionSummary } from "../types/order.types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 function getAuthHeader(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
+  if (typeof window === "undefined") return {};
   const token =
-    localStorage.getItem('access_token') ||
-    localStorage.getItem('cinema_access_token') ||
-    sessionStorage.getItem('access_token');
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("cinema_access_token") ||
+    sessionStorage.getItem("access_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...getAuthHeader(),
     ...options.headers,
   };
@@ -23,19 +27,22 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   try {
     const res = await fetch(url, { ...options, headers });
     if (!res.ok) {
-      let errorMessage = 'Yêu cầu không thành công';
+      let errorMessage = "Yêu cầu không thành công";
       let errorData;
       try {
         errorData = await res.json();
         if (errorData?.message) {
           errorMessage = Array.isArray(errorData.message)
-            ? errorData.message.join(', ')
+            ? errorData.message.join(", ")
             : errorData.message;
         }
       } catch {
         // Not JSON
       }
-      const friendlyMessage = getFriendlyErrorMessage({ status: res.status, message: errorMessage });
+      const friendlyMessage = getFriendlyErrorMessage({
+        status: res.status,
+        message: errorMessage,
+      });
       throw new ApiError(friendlyMessage, res.status, errorData);
     }
     return (await res.json()) as T;
@@ -43,7 +50,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     if (err instanceof ApiError) {
       throw err;
     }
-    const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ';
+    const message = err instanceof Error ? err.message : "Lỗi kết nối máy chủ";
     throw new ApiError(message);
   }
 }
@@ -100,7 +107,7 @@ export interface PosSeatShowtime {
   seatShowtimeId: string;
   showtimeId: string;
   seatId: string;
-  seatStatus: 'EMPTY' | 'RESERVED' | 'BOOKED';
+  seatStatus: "EMPTY" | "RESERVED" | "BOOKED";
   rowPosition: string;
   columnPosition: number;
   seatType: string;
@@ -111,16 +118,12 @@ export interface CreatePosOrderReq {
   showtimeId: string;
   seatShowtimeIds: string[];
   products?: { productId: string; quantity: number }[];
-  customerPhone?: string;
-  customerName?: string;
 }
 
 export interface PosBookingSummary {
   orderId: string;
   orderCode?: string;
   totalAmount: number;
-  discountAmount: number;
-  finalAmount: number;
   expiresAt: string;
   remainingSeconds: number;
   seats: Array<{
@@ -142,9 +145,7 @@ export interface PosBookingSummary {
   movieName?: string;
   roomName?: string;
   startTime?: string;
-  customerPhone?: string;
-  customerName?: string;
-  promotionCode?: string;
+  promotion?: PromotionSummary;
 }
 
 export interface ConfirmCashPaymentReq {
@@ -169,7 +170,7 @@ export interface PosCashPaymentResult {
 }
 
 export interface InitiateQrPaymentReq {
-  paymentMethod: 'VNPAY' | 'MOMO' | 'ZALOPAY';
+  paymentMethod: "VNPAY" | "MOMO" | "ZALOPAY";
 }
 
 export interface PosQrPaymentRes {
@@ -190,28 +191,35 @@ export interface PosPaymentStatusRes {
 
 export interface PosReceiptRes {
   orderId: string;
-  orderCode: string;
+  orderCode?: string;
   branchName: string;
   branchAddress: string;
-  cashierName: string;
+  cashierName?: string;
+  staffName?: string;
   printedAt: string;
-  movieTitle: string;
-  roomName: string;
-  showDate: string;
-  showtime: string;
-  seats: Array<{
+  movieTitle?: string;
+  roomName?: string;
+  showDate?: string;
+  showtime?: string;
+  seats?: Array<{
     seatName: string;
     seatType: string;
     price: number;
   }>;
-  concessions: Array<{
+  concessions?: Array<{
     name: string;
     quantity: number;
     unitPrice: number;
     subTotal: number;
   }>;
-  subtotal: number;
-  discount: number;
+  products?: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    subTotal: number;
+  }>;
+  subtotal?: number;
+  discount?: number;
   totalAmount: number;
   paymentMethod: string;
   cashReceived?: number;
@@ -222,81 +230,119 @@ export interface PosReceiptRes {
 export const posApi = {
   // Lấy danh mục bắp nước & combo quầy
   getStaffProducts: (): Promise<PosConcessionCatalog> => {
-    return request<PosConcessionCatalog>('/staff/products');
+    return request<PosConcessionCatalog>("/staff/products");
   },
 
   // Lấy danh sách suất chiếu hôm nay
   getTodayShowtimes: async (): Promise<PosShowtime[]> => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>(`/showtimes?limit=50&date=${today}`);
-      if (Array.isArray(res)) return res;
-      if (res && Array.isArray(res.items)) return res.items;
+      const today = new Date().toISOString().split("T")[0];
+      const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
+        `/showtimes?limit=50&date=${today}`,
+      );
+      if (Array.isArray(res) && res.length > 0) return res;
+      if (res && 'items' in res && Array.isArray(res.items) && res.items.length > 0) return res.items;
+
+      // Fallback nếu ngày hôm nay chưa có suất chiếu
+      const fallback = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
+        "/showtimes?limit=50",
+      );
+      if (Array.isArray(fallback)) return fallback;
+      if (fallback && 'items' in fallback && Array.isArray(fallback.items)) return fallback.items;
       return [];
     } catch {
       // Fallback lấy toàn bộ suất chiếu
-      const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>('/showtimes?limit=50');
+      const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
+        "/showtimes?limit=50",
+      );
       if (Array.isArray(res)) return res;
-      if (res && Array.isArray(res.items)) return res.items;
+      if (res && 'items' in res && Array.isArray(res.items)) return res.items;
       return [];
     }
   },
 
   // Lấy sơ đồ ghế theo suất chiếu
   getShowtimeSeats: (showtimeId: string): Promise<PosSeatShowtime[]> => {
-    return request<PosSeatShowtime[]>(`/showtimes/${encodeURIComponent(showtimeId)}/seats`);
+    return request<PosSeatShowtime[]>(
+      `/showtimes/${encodeURIComponent(showtimeId)}/seats`,
+    );
   },
 
   // Tạo đơn giữ chỗ tại quầy
   createPosOrder: (payload: CreatePosOrderReq): Promise<PosBookingSummary> => {
-    return request<PosBookingSummary>('/staff/pos/orders', {
-      method: 'POST',
+    return request<PosBookingSummary>("/staff/pos/orders", {
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
   // Áp dụng khuyến mãi / voucher
-  applyPromotion: (orderId: string, promotionCode: string): Promise<PosBookingSummary> => {
-    return request<PosBookingSummary>(`/staff/pos/orders/${encodeURIComponent(orderId)}/apply-promotion`, {
-      method: 'POST',
-      body: JSON.stringify({ promotionCode }),
-    });
+  applyPromotion: (
+    orderId: string,
+    promotionCode: string,
+  ): Promise<PosBookingSummary> => {
+    return request<PosBookingSummary>(
+      `/staff/pos/orders/${encodeURIComponent(orderId)}/apply-promotion`,
+      {
+        method: "POST",
+        body: JSON.stringify({ promotionCode }),
+      },
+    );
   },
 
   // Hủy đơn quầy (nhả ghế ngay lập tức)
-  cancelPosOrder: (orderId: string, reason?: string): Promise<{ message: string; orderId: string; status: string }> => {
+  cancelPosOrder: (
+    orderId: string,
+    reason?: string,
+  ): Promise<{ message: string; orderId: string; status: string }> => {
     return request<{ message: string; orderId: string; status: string }>(
       `/staff/pos/orders/${encodeURIComponent(orderId)}/cancel`,
       {
-        method: 'POST',
-        body: JSON.stringify({ reason: reason || 'Khách hủy tại quầy' }),
+        method: "POST",
+        body: JSON.stringify({ reason: reason || "Khách hủy tại quầy" }),
       },
     );
   },
 
   // Thu tiền mặt & in vé
-  confirmCashPayment: (orderId: string, payload: ConfirmCashPaymentReq): Promise<PosCashPaymentResult> => {
-    return request<PosCashPaymentResult>(`/staff/pos/orders/${encodeURIComponent(orderId)}/pay/cash`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+  confirmCashPayment: (
+    orderId: string,
+    payload: ConfirmCashPaymentReq,
+  ): Promise<PosCashPaymentResult> => {
+    return request<PosCashPaymentResult>(
+      `/staff/pos/orders/${encodeURIComponent(orderId)}/pay/cash`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
   },
 
   // Khởi tạo thanh toán QR
-  initiateQrPayment: (orderId: string, payload: InitiateQrPaymentReq): Promise<PosQrPaymentRes> => {
-    return request<PosQrPaymentRes>(`/staff/pos/orders/${encodeURIComponent(orderId)}/pay/qr`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+  initiateQrPayment: (
+    orderId: string,
+    payload: InitiateQrPaymentReq,
+  ): Promise<PosQrPaymentRes> => {
+    return request<PosQrPaymentRes>(
+      `/staff/pos/orders/${encodeURIComponent(orderId)}/pay/qr`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
   },
 
   // Kiểm tra trạng thái thanh toán QR
   checkPaymentStatus: (orderId: string): Promise<PosPaymentStatusRes> => {
-    return request<PosPaymentStatusRes>(`/staff/pos/orders/${encodeURIComponent(orderId)}/pay/status`);
+    return request<PosPaymentStatusRes>(
+      `/staff/pos/orders/${encodeURIComponent(orderId)}/pay/status`,
+    );
   },
 
   // Lấy dữ liệu hóa đơn in nhiệt 80mm
   getReceipt: (orderId: string): Promise<PosReceiptRes> => {
-    return request<PosReceiptRes>(`/staff/pos/orders/${encodeURIComponent(orderId)}/receipt`);
+    return request<PosReceiptRes>(
+      `/staff/pos/orders/${encodeURIComponent(orderId)}/receipt`,
+    );
   },
 };

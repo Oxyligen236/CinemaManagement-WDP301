@@ -185,6 +185,7 @@ export class OrderService
 
     let discountAmount = 0;
     let appliedPromotionId: string | undefined;
+    let appliedPromotion: PromotionSummaryRes | undefined;
 
     if (request.promotionCode) {
       try {
@@ -201,6 +202,13 @@ export class OrderService
           } else {
             discountAmount = Math.min(originalSubtotal, promo.discountValue);
           }
+          appliedPromotion = PromotionSummaryRes.of(
+            promo.promotionId,
+            promo.promotionCode,
+            promo.discountType,
+            promo.discountValue,
+            discountAmount,
+          );
         }
       } catch {
         discountAmount = 0;
@@ -294,7 +302,7 @@ export class OrderService
       remainingSeconds,
       seats: bookingSeats,
       products: bookingProducts,
-      discountAmount,
+      promotion: appliedPromotion,
     };
   }
 
@@ -356,29 +364,45 @@ export class OrderService
         ? Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
         : 0;
 
-    const ticketSubtotal = bookingSeats.reduce((sum, s) => sum + s.price, 0);
-    const productSubtotal = bookingProducts.reduce(
-      (sum, p) => sum + p.quantity * p.unitPrice,
-      0,
-    );
-    const discountAmount =
-      order.discountAmount !== undefined && order.discountAmount > 0
-        ? order.discountAmount
-        : Math.max(0, ticketSubtotal + productSubtotal - order.totalAmount);
+    let promotion: PromotionSummaryRes | undefined;
+    if (order.promotionId) {
+      try {
+        const promoInfo = await this.promotionContract.getPromotionById(
+          order.promotionId,
+        );
+        if (promoInfo) {
+          const ticketSubtotal = bookingSeats.reduce((sum, s) => sum + s.price, 0);
+          const productSubtotal = bookingProducts.reduce(
+            (sum, p) => sum + p.quantity * p.unitPrice,
+            0,
+          );
+          const originalTotal = ticketSubtotal + productSubtotal;
+          const discountAmount = Math.max(0, originalTotal - order.totalAmount);
+
+          promotion = PromotionSummaryRes.of(
+            promoInfo.promotionId,
+            promoInfo.promotionCode,
+            promoInfo.discountType,
+            promoInfo.discountValue,
+            discountAmount,
+          );
+        }
+      } catch {
+        // ignore promotion retrieval error
+      }
+    }
 
     return {
       orderId: order.orderId,
       userId: order.userId,
       status: order.status,
       totalAmount: order.totalAmount,
-      finalAmount: order.finalAmount ?? order.totalAmount,
       createdAt,
       expiresAt,
       remainingSeconds,
       seats: bookingSeats,
       products: bookingProducts,
-      discountAmount,
-      promotionCode: order.promotionCode,
+      promotion,
     };
   }
 
@@ -441,9 +465,6 @@ export class OrderService
     const finalAmount = Math.max(0, baseAmount - discountAmount);
 
     order.promotionId = validationResult.promotionId;
-    order.promotionCode = (request.promotionCode || '').trim().toUpperCase();
-    order.discountAmount = discountAmount;
-    order.finalAmount = finalAmount;
     order.totalAmount = finalAmount;
     await order.save();
 
@@ -484,19 +505,25 @@ export class OrderService
       Math.floor((expiresAt.getTime() - Date.now()) / 1000),
     );
 
+    const promotion = PromotionSummaryRes.of(
+      validationResult.promotionId || '',
+      validationResult.promotionCode || request.promotionCode,
+      validationResult.discountType || 'PERCENTAGE',
+      validationResult.discountValue || 0,
+      discountAmount,
+    );
+
     return {
       orderId: order.orderId,
       userId: order.userId,
       status: order.status,
       totalAmount: finalAmount,
-      finalAmount,
       createdAt,
       expiresAt,
       remainingSeconds,
       seats: bookingSeats,
       products: bookingProducts,
-      discountAmount,
-      promotionCode: order.promotionCode,
+      promotion,
     };
   }
 
