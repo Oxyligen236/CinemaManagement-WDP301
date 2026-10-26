@@ -19,7 +19,7 @@ const movie = (o: Record<string, unknown> = {}) => ({
   duration: 166,
   status: 'NOW_SHOWING',
   isActive: true,
-  posterUrl: 'https://cdn/x.jpg',
+  posterKey: 'posters/x.jpg',
   ...o,
 });
 
@@ -34,6 +34,7 @@ describe('MovieOptionQueryService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    storageService.getPublicUrl.mockReturnValue('https://cdn/x.jpg');
     movieModel.find.mockImplementation(() =>
       chain([movie(), movie({ movieId: 'm-2', movieName: 'Inside Out 2' })]),
     );
@@ -113,7 +114,7 @@ describe('MovieOptionQueryService', () => {
       expect(result.items[0].posterUrl).toBe('https://pub/posters/a.jpg');
     });
 
-    it('falls back to posterUrl when public url resolution fails', async () => {
+    it('returns undefined when public url resolution fails', async () => {
       movieModel.find.mockReturnValue(
         chain([movie({ posterKey: 'posters/a.jpg' })]),
       );
@@ -123,7 +124,7 @@ describe('MovieOptionQueryService', () => {
 
       const result = await service.searchMovieOptions(undefined, 1, 10);
 
-      expect(result.items[0].posterUrl).toBe('https://cdn/x.jpg');
+      expect(result.items[0].posterUrl).toBeUndefined();
     });
   });
 

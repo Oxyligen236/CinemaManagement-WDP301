@@ -39,6 +39,7 @@ const buildMovieDoc = (overrides: Record<string, unknown> = {}) => ({
   movieName: 'Film',
   duration: 100,
   status: MovieStatus.COMING_SOON,
+  posterKey: 'movies/posters/abc-p.png',
   isActive: true,
   genreIds: ['g1'],
   createdAt: new Date(),
@@ -102,6 +103,7 @@ describe('MovieService', () => {
       movieName: 'Film',
       duration: 100,
       genreIds: ['g1'],
+      posterKey: 'movies/posters/abc-p.png',
       releaseDate: '2026-01-01',
       status: MovieStatus.COMING_SOON,
     });
@@ -197,7 +199,12 @@ describe('MovieService', () => {
   });
 
   describe('createMovie with assets', () => {
-    const base = { movieName: 'Film', duration: 100, genreIds: ['g1'] };
+    const base = {
+      movieName: 'Film',
+      duration: 100,
+      genreIds: ['g1'],
+      posterKey: 'movies/posters/abc-p.png',
+    };
 
     it('persists posterKey and trailerUrl only, response uses public url', async () => {
       movieModel.create.mockImplementation((data: Record<string, unknown>) =>
@@ -230,12 +237,6 @@ describe('MovieService', () => {
       expect(movieModel.create).not.toHaveBeenCalled();
     });
 
-    it('skips storage check when no posterKey', async () => {
-      movieModel.create.mockResolvedValue(buildMovieDoc());
-      await service.createMovie(base);
-      expect(mockStorageService.exists).not.toHaveBeenCalled();
-    });
-
     it('does not break response when getPublicUrl throws', async () => {
       mockStorageService.getPublicUrl.mockImplementation(() => {
         throw new Error('missing config');
@@ -246,14 +247,6 @@ describe('MovieService', () => {
       const res = await service.createMovie(base);
       expect(res.posterUrl).toBeUndefined();
     });
-
-    it('falls back to legacy posterUrl when no posterKey', async () => {
-      movieModel.create.mockResolvedValue(
-        buildMovieDoc({ posterUrl: 'https://legacy/p.png' }),
-      );
-      const res = await service.createMovie(base);
-      expect(res.posterUrl).toBe('https://legacy/p.png');
-    });
   });
 
   describe('CreateMovieReqDto validation', () => {
@@ -262,6 +255,7 @@ describe('MovieService', () => {
         movieName: 'Film',
         duration: 100,
         genreIds: ['g1'],
+        posterKey: 'movies/posters/uuid-name.png',
         ...extra,
       });
 
@@ -293,6 +287,11 @@ describe('MovieService', () => {
         expect(errors[0].property).toBe('posterKey');
       },
     );
+
+    it('rejects missing posterKey', async () => {
+      const errors = await validate(make({ posterKey: undefined }));
+      expect(errors[0].property).toBe('posterKey');
+    });
   });
 
   it('searchMovies applies filters and returns Page', async () => {
@@ -374,5 +373,90 @@ describe('MovieService', () => {
     await expect(service.getGenres()).resolves.toEqual([
       { genreId: 'g1', genreName: 'Action', genreDescription: '' },
     ]);
+  });
+
+  describe('getMovieDetail', () => {
+    it('returns movie detail with resolved genres and posterUrl', async () => {
+      const movieDoc = {
+        movieId: 'm1',
+        movieName: 'Film 1',
+        duration: 120,
+        status: MovieStatus.NOW_SHOWING,
+        posterKey: 'movies/posters/p1.png',
+        trailerUrl: 'https://youtube.com/watch?v=1',
+        description: 'Test description',
+        releaseDate: new Date('2026-05-01'),
+        isActive: true,
+        genreIds: ['g1', 'g2'],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      movieModel.findOne.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(movieDoc),
+        }),
+      });
+      genreModel.find.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue([
+              { genreId: 'g1', genreName: 'Hành động' },
+              { genreId: 'g2', genreName: 'Phiêu lưu' },
+            ]),
+          }),
+        }),
+      });
+
+      const res = await service.getMovieDetail('m1');
+      expect(movieModel.findOne).toHaveBeenCalledWith({
+        movieId: 'm1',
+        isActive: true,
+      });
+      expect(genreModel.find).toHaveBeenCalledWith({
+        genreId: { $in: ['g1', 'g2'] },
+      });
+      expect(res.movieId).toBe('m1');
+      expect(res.movieName).toBe('Film 1');
+      expect(res.posterUrl).toBe(`${PUBLIC_BASE}/movies/posters/p1.png`);
+      expect(res.genres).toEqual([
+        { genreId: 'g1', genreName: 'Hành động' },
+        { genreId: 'g2', genreName: 'Phiêu lưu' },
+      ]);
+    });
+
+    it('throws NotFoundException when movie not found or inactive', async () => {
+      movieModel.findOne.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(null),
+        }),
+      });
+
+      await expect(service.getMovieDetail('not-exist')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('returns empty genres array when movie has no genreIds', async () => {
+      const movieDoc = {
+        movieId: 'm2',
+        movieName: 'Film 2',
+        duration: 90,
+        status: MovieStatus.COMING_SOON,
+        posterKey: 'movies/posters/p2.png',
+        isActive: true,
+        genreIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      movieModel.findOne.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(movieDoc),
+        }),
+      });
+
+      const res = await service.getMovieDetail('m2');
+      expect(res.genres).toEqual([]);
+      expect(genreModel.find).not.toHaveBeenCalled();
+    });
   });
 });
