@@ -110,12 +110,18 @@ export function Header() {
           ) : (
             <>
               <li className="pt-[9px] pl-[20px]">
-                <Link href="/login" className="text-[#6f6247] hover:border-b hover:border-[#9d9580] pb-[1px]">
+                <Link
+                  href="/login"
+                  className="text-[#6f6247] hover:border-b hover:border-[#9d9580] pb-[1px]"
+                >
                   Đăng nhập
                 </Link>
               </li>
               <li className="pt-[9px] pl-[20px]">
-                <Link href="/register" className="text-[#6f6247] hover:border-b hover:border-[#9d9580] pb-[1px]">
+                <Link
+                  href="/register"
+                  className="text-[#6f6247] hover:border-b hover:border-[#9d9580] pb-[1px]"
+                >
                   Đăng ký
                 </Link>
               </li>
@@ -172,7 +178,7 @@ export function Header() {
                   </li>
                   <li className="inline-block px-[20px] text-[14px]">
                     <Link
-                      href="/#movies-section"
+                      href="/showtimes"
                       onClick={() => setActiveMenu(null)}
                       className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block"
                     >
@@ -187,7 +193,10 @@ export function Header() {
           {/* Item 2: PHIM ĐANG CHIẾU */}
           <li
             className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px] bg-no-repeat bg-left-top"
-            style={{ backgroundImage: "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')" }}
+            style={{
+              backgroundImage:
+                "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
+            }}
             onMouseEnter={() => setActiveMenu(2)}
           >
             <Link
@@ -216,11 +225,14 @@ export function Header() {
           {/* Item 3: RẠP CHIẾU PHIM (Multi-level cinema picker) */}
           <li
             className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px] bg-no-repeat bg-left-top"
-            style={{ backgroundImage: "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')" }}
+            style={{
+              backgroundImage:
+                "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
+            }}
             onMouseEnter={() => setActiveMenu(3)}
           >
             <Link
-              href="/#movies-section"
+              href="/showtimes"
               className={`inline-block font-normal hover:font-bold ${activeMenu === 3 ? "font-bold" : "text-[#555]"}`}
             >
               RẠP CHIẾU PHIM
@@ -231,7 +243,10 @@ export function Header() {
                 <div className="w-full h-[40px] bg-[#dad2b4]">
                   <ul className="w-[980px] mx-auto text-center h-[40px] flex items-center justify-center gap-2">
                     {CINEMA_REGIONS.map((item) => (
-                      <li key={item.region} className="inline-block px-[10px] text-[13px]">
+                      <li
+                        key={item.region}
+                        className="inline-block px-[10px] text-[13px]"
+                      >
                         <button
                           type="button"
                           onMouseEnter={() => setActiveRegion(item.region)}
@@ -250,13 +265,18 @@ export function Header() {
                 {/* Level 3: Cinema list per region */}
                 <div
                   className="w-full bg-[rgba(34,34,34,0.95)] text-white py-[12px]"
-                  style={{ backgroundImage: "url('/sites/lottecinemavn/ui/bg_m_mask.png')" }}
+                  style={{
+                    backgroundImage:
+                      "url('/sites/lottecinemavn/ui/bg_m_mask.png')",
+                  }}
                 >
                   <ul className="w-[980px] mx-auto flex flex-wrap justify-center gap-x-6 gap-y-2 text-[12px] text-[#c5c5c5]">
-                    {CINEMA_REGIONS.find((r) => r.region === activeRegion)?.cinemas.map((c) => (
+                    {CINEMA_REGIONS.find(
+                      (r) => r.region === activeRegion,
+                    )?.cinemas.map((c) => (
                       <li key={c}>
                         <Link
-                          href="/#movies-section"
+                          href={`/showtimes?cinema=${encodeURIComponent(c)}`}
                           onClick={() => setActiveMenu(null)}
                           className="hover:text-white hover:underline"
                         >
@@ -273,10 +293,16 @@ export function Header() {
           {/* Item 4: TIN MỚI & ƯU ĐÃI */}
           <li
             className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px] bg-no-repeat bg-left-top"
-            style={{ backgroundImage: "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')" }}
+            style={{
+              backgroundImage:
+                "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
+            }}
             onMouseEnter={() => setActiveMenu(null)}
           >
-            <Link href="/#events" className="inline-block font-normal hover:font-bold text-[#555]">
+            <Link
+              href="/#events"
+              className="inline-block font-normal hover:font-bold text-[#555]"
+            >
               TIN MỚI & ƯU ĐÃI
             </Link>
           </li>
@@ -285,10 +311,16 @@ export function Header() {
           {user && (
             <li
               className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px] bg-no-repeat bg-left-top"
-              style={{ backgroundImage: "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')" }}
+              style={{
+                backgroundImage:
+                  "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
+              }}
               onMouseEnter={() => setActiveMenu(null)}
             >
-              <Link href="/profile/orders" className="inline-block font-normal hover:font-bold text-[#555]">
+              <Link
+                href="/profile/orders"
+                className="inline-block font-normal hover:font-bold text-[#555]"
+              >
                 VÉ CỦA TÔI
               </Link>
             </li>

@@ -371,7 +371,10 @@ export class OrderService
           order.promotionId,
         );
         if (promoInfo) {
-          const ticketSubtotal = bookingSeats.reduce((sum, s) => sum + s.price, 0);
+          const ticketSubtotal = bookingSeats.reduce(
+            (sum, s) => sum + s.price,
+            0,
+          );
           const productSubtotal = bookingProducts.reduce(
             (sum, p) => sum + p.quantity * p.unitPrice,
             0,

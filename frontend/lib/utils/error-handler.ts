@@ -22,23 +22,27 @@ function hasVietnameseText(message: string): boolean {
 
 export function getFriendlyErrorMessage(
   error: unknown,
-  fallbackMessage = 'Hệ thống đang bận, vui lòng thử lại sau.',
+  fallbackMessage = "Hệ thống đang bận, vui lòng thử lại sau.",
 ): string {
   if (!error) return fallbackMessage;
 
   const status =
-    typeof error === 'object' && error !== null && 'status' in error
+    typeof error === "object" && error !== null && "status" in error
       ? Number((error as { status: unknown }).status)
       : undefined;
 
-  let message = '';
-  if (typeof error === 'string') {
+  let message = "";
+  if (typeof error === "string") {
     message = error;
   } else if (error instanceof Error) {
     message = error.message;
-  } else if (typeof error === 'object' && error !== null && 'message' in error) {
+  } else if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error
+  ) {
     const rawMsg = (error as { message: unknown }).message;
-    message = Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
+    message = Array.isArray(rawMsg) ? rawMsg.join(", ") : String(rawMsg);
   }
 
   // 409 Conflict: Ghế đã được giữ hoặc đặt
@@ -46,7 +50,7 @@ export function getFriendlyErrorMessage(
     if (hasVietnameseText(message)) {
       return sanitizeErrorText(message);
     }
-    return 'Ghế này vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.';
+    return "Ghế này vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.";
   }
 
   // 401 / 403: Hết phiên hoặc không có quyền.
@@ -61,12 +65,12 @@ export function getFriendlyErrorMessage(
     if (hasVietnameseText(message) && !isRawHttpError(message)) {
       return sanitizeErrorText(message);
     }
-    return 'Phiên đăng nhập đã hết hạn hoặc bạn không có quyền thực hiện thao tác này.';
+    return "Phiên đăng nhập đã hết hạn hoặc bạn không có quyền thực hiện thao tác này.";
   }
 
   // 404: Không tìm thấy
   if (status === 404 || /\b(404|not found)\b/i.test(message)) {
-    return 'Không tìm thấy dữ liệu yêu cầu.';
+    return "Không tìm thấy dữ liệu yêu cầu.";
   }
 
   // 400: Dữ liệu không hợp lệ
@@ -74,7 +78,7 @@ export function getFriendlyErrorMessage(
     if (hasVietnameseText(message)) {
       return sanitizeErrorText(message);
     }
-    return 'Thông tin không hợp lệ, vui lòng kiểm tra lại.';
+    return "Thông tin không hợp lệ, vui lòng kiểm tra lại.";
   }
 
   // 500+ / Lỗi máy chủ
@@ -82,7 +86,7 @@ export function getFriendlyErrorMessage(
     (status && status >= 500) ||
     /\b(500|502|503|504|internal server error)\b/i.test(message)
   ) {
-    return 'Hệ thống đang bận, vui lòng thử lại sau.';
+    return "Hệ thống đang bận, vui lòng thử lại sau.";
   }
 
   // Lọc sạch mọi status code còn sót trong text
@@ -98,11 +102,17 @@ export function getFriendlyErrorMessage(
 
 function sanitizeErrorText(text: string): string {
   return text
-    .replace(/Request failed with status code \d+/gi, '')
-    .replace(/Error\s*\d+\s*(Conflict|Bad Request|Not Found|Internal Server Error)?/gi, '')
-    .replace(/\b(HTTP|status|code)?\s*[:#]?\s*(400|401|403|404|409|500|502|503)\b/gi, '')
-    .replace(/\(\s*\)/g, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/Request failed with status code \d+/gi, "")
+    .replace(
+      /Error\s*\d+\s*(Conflict|Bad Request|Not Found|Internal Server Error)?/gi,
+      "",
+    )
+    .replace(
+      /\b(HTTP|status|code)?\s*[:#]?\s*(400|401|403|404|409|500|502|503)\b/gi,
+      "",
+    )
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }
 
@@ -110,7 +120,6 @@ function isRawHttpError(text: string): boolean {
   return (
     /^(failed|error|request failed|internal server error|bad request|conflict|not found)$/i.test(
       text.trim(),
-    ) ||
-    /^\d{3}$/.test(text.trim())
+    ) || /^\d{3}$/.test(text.trim())
   );
 }

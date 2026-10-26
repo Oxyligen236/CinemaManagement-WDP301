@@ -73,3 +73,11 @@ export class BranchSummaryResDto {
   branchId!: string;
   branchName!: string;
 }
+
+export class PublicBranchResDto {
+  branchId!: string;
+  branchName!: string;
+  address!: string;
+  hotline!: string;
+  branchStatus!: BranchStatus;
+}

@@ -12,6 +12,7 @@ import {
 import { SeatShowtimeQueryService } from './application/services/seat-showtime-query.service';
 import { ShowtimeQueryService } from './application/services/showtime-query.service';
 import { ShowtimeScheduleService } from './application/services/showtime-schedule.service';
+import { PublicShowtimeQueryService } from './application/services/public-showtime-query.service';
 import { ShowtimeController } from './infra/showtime.controller';
 import { ShowtimeBookingService } from './application/services/showtime-booking.service';
 export type { SeatBookingDetail } from './contract/seat-booking-detail';
@@ -33,11 +34,17 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     ]),
   ],
   controllers: [ShowtimeController],
-  providers: [    
+  providers: [
     ShowtimeQueryService,
     SeatShowtimeQueryService,
     ShowtimeBookingService,
+    PublicShowtimeQueryService,
   ],
-  exports: [MongooseModule, ShowtimeQueryService, ShowtimeBookingService],
+  exports: [
+    MongooseModule,
+    ShowtimeQueryService,
+    ShowtimeBookingService,
+    PublicShowtimeQueryService,
+  ],
 })
-export class ShowtimeModule { }
+export class ShowtimeModule {}

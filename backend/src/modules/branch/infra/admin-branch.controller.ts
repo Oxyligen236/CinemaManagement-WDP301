@@ -18,9 +18,11 @@ import { RoleGuard } from '../../auth/infra/guards/role.guard';
 import { Roles } from '../../auth/infra/decorators/role.decorator';
 import { Role } from '../../user/domain/enums/role.enum';
 import { AdminBranchService } from '../application/admin-branch.service';
+import { BranchQueryService } from '../application/services/branch-query.service';
 import {
   AdminBranchQueryDto,
   CreateBranchDto,
+  GetPublicBranchesReqDto,
   UpdateBranchDto,
 } from '../application/dto/req.dto';
 import { BRANCH_MESSAGES } from '../domain/branch.rules';
@@ -50,7 +52,10 @@ const branchValidationPipe = new ValidationPipe({
 @Controller('branches')
 @UsePipes(branchValidationPipe)
 export class AdminBranchController {
-  constructor(private readonly adminBranchService: AdminBranchService) {}
+  constructor(
+    private readonly adminBranchService: AdminBranchService,
+    private readonly branchQueryService: BranchQueryService,
+  ) {}
 
   @Get('admin')
   @UseGuards(JwtGuard, RoleGuard)
@@ -88,6 +93,11 @@ export class AdminBranchController {
   @Roles(Role.ADMIN)
   deactivateBranch(@Param('branchId') branchId: string) {
     return this.adminBranchService.deactivateBranch(branchId);
+  }
+
+  @Get('public')
+  listPublicBranchesCompact(@Query() query: GetPublicBranchesReqDto) {
+    return this.branchQueryService.getPublicBranches(query);
   }
 
   @Get()

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -76,7 +75,7 @@ describe('PaymentContractImpl', () => {
 
   describe('generateQrPayment', () => {
     it('sinh mã QR thanh toán thành công', async () => {
-      (MockPaymentConstructor.findOne as jest.Mock).mockReturnValue({
+      MockPaymentConstructor.findOne.mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
       });
 
@@ -103,7 +102,7 @@ describe('PaymentContractImpl', () => {
 
   describe('checkPaymentStatus', () => {
     it('trả về thông tin giao dịch nếu tìm thấy', async () => {
-      (MockPaymentConstructor.findOne as jest.Mock).mockReturnValue({
+      MockPaymentConstructor.findOne.mockReturnValue({
         sort: jest.fn().mockReturnValue({
           lean: jest.fn().mockReturnValue({
             exec: jest.fn().mockResolvedValue({
@@ -124,7 +123,7 @@ describe('PaymentContractImpl', () => {
     });
 
     it('ném lỗi NotFoundException khi không tìm thấy thanh toán', async () => {
-      (MockPaymentConstructor.findOne as jest.Mock).mockReturnValue({
+      MockPaymentConstructor.findOne.mockReturnValue({
         sort: jest.fn().mockReturnValue({
           lean: jest.fn().mockReturnValue({
             exec: jest.fn().mockResolvedValue(null),
