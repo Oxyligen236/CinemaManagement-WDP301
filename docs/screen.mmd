@@ -43,6 +43,7 @@ flowchart TD
         MovieList -->|"Click Mua vé phim này"| Ticketing
 
         MovieDetail -->|Click Xem Trailer| TrailerModal
+        TrailerModal -->|"Đóng modal (Nút X / Backdrop / Escape)"| MovieDetail
         MovieDetail -->|"Tab Lịch chiếu: Chọn rạp & ngày -> Click suất chiếu"| SelectSeats
         MovieDetail -->|Click Nút Mua vé ngay| Ticketing
 

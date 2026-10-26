@@ -76,19 +76,78 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function getYoutubeEmbedUrl(rawUrl?: string): string | null {
+export function extractYoutubeVideoId(rawUrl?: string): string | null {
   if (!rawUrl) return null;
   const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
 
-  // Check youtube ID
-  const ytMatch =
-    trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([\w-]{11})/) ||
-    trimmed.match(/^([\w-]{11})$/);
-
-  if (ytMatch && ytMatch[1]) {
-    return `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&rel=0`;
+  // 1. Bare ID 11 ký tự
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+    return trimmed;
   }
+
+  // 2. Phân tích cú pháp URL chuẩn
+  try {
+    const urlString =
+      trimmed.startsWith('http://') || trimmed.startsWith('https://')
+        ? trimmed
+        : `https://${trimmed}`;
+    const url = new URL(urlString);
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+
+    // youtu.be/<id>
+    if (hostname === 'youtu.be') {
+      const pathSegment = url.pathname.slice(1).split('/')[0];
+      if (pathSegment && /^[a-zA-Z0-9_-]{11}$/.test(pathSegment)) {
+        return pathSegment;
+      }
+    }
+
+    // youtube.com, m.youtube.com, youtube-nocookie.com
+    if (
+      hostname === 'youtube.com' ||
+      hostname === 'm.youtube.com' ||
+      hostname === 'youtube-nocookie.com'
+    ) {
+      // Query param `v` (e.g. /watch?v=ID hoặc /watch?feature=shared&v=ID&t=10s)
+      const v = url.searchParams.get('v');
+      if (v && /^[a-zA-Z0-9_-]{11}$/.test(v)) {
+        return v;
+      }
+
+      // Đường dẫn: /embed/ID, /shorts/ID, /v/ID
+      const segments = url.pathname.split('/').filter(Boolean);
+      if (segments.length >= 2 && ['embed', 'shorts', 'v'].includes(segments[0])) {
+        const id = segments[1];
+        if (id && /^[a-zA-Z0-9_-]{11}$/.test(id)) {
+          return id;
+        }
+      }
+    }
+  } catch {
+    // Bỏ qua lỗi URL để thử fallback regex
+  }
+
+  // 3. Fallback regex trích xuất video ID 11 ký tự
+  const regexPatterns = [
+    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|shorts\/|v\/))([a-zA-Z0-9_-]{11})/i,
+    /[?&]v=([a-zA-Z0-9_-]{11})/i,
+  ];
+
+  for (const pattern of regexPatterns) {
+    const match = trimmed.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+
   return null;
+}
+
+export function getYoutubeEmbedUrl(rawUrl?: string): string | null {
+  const videoId = extractYoutubeVideoId(rawUrl);
+  if (!videoId) return null;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
 }
 
 interface TrailerModalProps {
@@ -123,22 +182,25 @@ function TrailerModal({ isOpen, onClose, trailerUrl, movieTitle }: TrailerModalP
       role="dialog"
       aria-modal="true"
       aria-labelledby="trailer-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/85 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-4xl bg-black rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+        className="relative w-full max-w-4xl bg-neutral-950 rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-neutral-900 border-b border-white/10">
-          <h3 id="trailer-modal-title" className="text-sm sm:text-base font-bold text-white truncate pr-4">
-            Trailer: {movieTitle}
-          </h3>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-neutral-900/90 border-b border-white/10">
+          <div className="flex items-center gap-2 min-w-0 pr-4">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#dc2626] shrink-0" />
+            <h3 id="trailer-modal-title" className="text-sm sm:text-base font-bold text-white truncate">
+              Trailer: {movieTitle}
+            </h3>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-neutral-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-neutral-300 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer shrink-0"
             aria-label="Đóng trailer"
           >
             <X className="w-5 h-5" />
@@ -146,12 +208,12 @@ function TrailerModal({ isOpen, onClose, trailerUrl, movieTitle }: TrailerModalP
         </div>
 
         {/* Video Player */}
-        <div className="relative w-full aspect-video bg-black flex items-center justify-center">
+        <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
           {embedUrl ? (
             <iframe
               src={embedUrl}
               title={`Trailer ${movieTitle}`}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               className="w-full h-full border-0"
             />
@@ -163,15 +225,21 @@ function TrailerModal({ isOpen, onClose, trailerUrl, movieTitle }: TrailerModalP
               className="w-full h-full object-contain"
             />
           ) : trailerUrl ? (
-            <div className="text-center p-8 space-y-4">
+            <div className="text-center p-6 sm:p-10 space-y-4 max-w-lg mx-auto">
+              <div className="w-12 h-12 rounded-full bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
+                <Play className="w-6 h-6 stroke-[1.5]" />
+              </div>
               <p className="text-neutral-300 text-sm">
-                Đường dẫn trailer: <span className="text-white font-mono">{trailerUrl}</span>
+                Không thể nhúng trực tiếp trailer từ liên kết này.
+              </p>
+              <p className="text-xs text-neutral-500 font-mono break-all line-clamp-2 px-2">
+                {trailerUrl}
               </p>
               <a
                 href={trailerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#dc2626] text-white font-semibold text-sm rounded-lg hover:bg-[#b91c1c] transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#dc2626] text-white font-semibold text-sm rounded-lg hover:bg-[#b91c1c] transition-colors cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>Xem trailer trên trang nguồn</span>

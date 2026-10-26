@@ -227,7 +227,14 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
         posterKey?: string;
         posterUrl?: string;
       };
-      item.posterUrl = moviePoster?.posterKey || moviePoster?.posterUrl;
+      const rawPoster = moviePoster?.posterKey || moviePoster?.posterUrl;
+      const pubStorageUrl =
+        process.env.STORAGE_PUBLIC_URL?.replace(/\/+$/, '') || '';
+      item.posterUrl = rawPoster
+        ? rawPoster.startsWith('http') || rawPoster.startsWith('/')
+          ? rawPoster
+          : `${pubStorageUrl}/${rawPoster}`
+        : undefined;
       item.genreNames =
         movie?.genreIds
           ?.map((gid) => genreMap.get(gid))
