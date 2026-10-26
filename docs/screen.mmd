@@ -9,6 +9,7 @@ flowchart TD
     Home -->|Đăng nhập| Login
     Home -->|Đăng ký| Register
     Login -->|"Đăng nhập thành công (User)"| Home
+    Login -->|"Sai email/mật khẩu hoặc tài khoản bị vô hiệu hóa (hiện lỗi, ở lại trang)"| Login
     Login -->|Quên mật khẩu| ForgotPassword
     Register -->|Đăng ký thành công| VerifyEmail
     VerifyEmail -->|Xác thực thành công| Login
