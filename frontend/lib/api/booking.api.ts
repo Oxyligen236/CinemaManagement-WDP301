@@ -2,7 +2,7 @@ import type { BookingSummary, CreateBookingReq, SeatShowtime } from '../types/bo
 import { ApiError } from './order.api';
 import { getFriendlyErrorMessage } from '../utils/error-handler';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
 
 function authHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return {};
