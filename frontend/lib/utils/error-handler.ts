@@ -3,6 +3,23 @@
  * Loại bỏ hoàn toàn HTTP status code (409, 400, 404, 500, etc.) và các raw error string khỏi UI.
  */
 
+const VIETNAMESE_PATTERN =
+  /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+
+/**
+ * Thông báo có dấu tiếng Việt là thông báo nghiệp vụ do backend chủ động gửi,
+ * không phải chuỗi lỗi thô của HTTP client -> an toàn để hiển thị cho người dùng.
+ */
+function hasVietnameseText(message: string): boolean {
+  return (
+    !!message &&
+    !/\b(400|401|403|404|409|bad request|unauthorized|forbidden|conflict|status code|error)\b/i.test(
+      message,
+    ) &&
+    VIETNAMESE_PATTERN.test(message)
+  );
+}
+
 export function getFriendlyErrorMessage(
   error: unknown,
   fallbackMessage = 'Hệ thống đang bận, vui lòng thử lại sau.',
@@ -26,22 +43,24 @@ export function getFriendlyErrorMessage(
 
   // 409 Conflict: Ghế đã được giữ hoặc đặt
   if (status === 409 || /\b409\b|conflict/i.test(message)) {
-    if (
-      message &&
-      !/\b(409|conflict|status code|error)\b/i.test(message) &&
-      /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(message)
-    ) {
+    if (hasVietnameseText(message)) {
       return sanitizeErrorText(message);
     }
     return 'Ghế này vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.';
   }
 
-  // 401 / 403: Hết phiên hoặc không có quyền
+  // 401 / 403: Hết phiên hoặc không có quyền.
+  // Backend có thể gửi kèm thông báo tiếng Việt cụ thể (sai mật khẩu, tài khoản
+  // bị vô hiệu hóa...). Ưu tiên giữ nguyên thông báo đó, vì câu "phiên đăng nhập
+  // đã hết hạn" là sai ngữ cảnh khi người dùng vừa đăng nhập sai.
   if (
     status === 401 ||
     status === 403 ||
     /\b(401|403|unauthorized|forbidden)\b/i.test(message)
   ) {
+    if (hasVietnameseText(message) && !isRawHttpError(message)) {
+      return sanitizeErrorText(message);
+    }
     return 'Phiên đăng nhập đã hết hạn hoặc bạn không có quyền thực hiện thao tác này.';
   }
 
@@ -52,11 +71,7 @@ export function getFriendlyErrorMessage(
 
   // 400: Dữ liệu không hợp lệ
   if (status === 400 || /\b(400|bad request)\b/i.test(message)) {
-    if (
-      message &&
-      !/\b(400|bad request|status code|error)\b/i.test(message) &&
-      /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(message)
-    ) {
+    if (hasVietnameseText(message)) {
       return sanitizeErrorText(message);
     }
     return 'Thông tin không hợp lệ, vui lòng kiểm tra lại.';
