@@ -37,7 +37,13 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     ShowtimeQueryService,
     SeatShowtimeQueryService,
     ShowtimeBookingService,
+    ShowtimeScheduleService,
   ],
-  exports: [MongooseModule, ShowtimeQueryService, ShowtimeBookingService],
+  exports: [
+    MongooseModule,
+    ShowtimeQueryService,
+    ShowtimeBookingService,
+    ShowtimeScheduleService,
+  ],
 })
 export class ShowtimeModule { }
