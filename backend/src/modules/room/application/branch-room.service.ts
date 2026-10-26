@@ -662,15 +662,15 @@ export class BranchRoomService {
         .lean()
         .exec();
 
-      if (
-        manager &&
-        (!manager.isActive || manager.role !== Role.BRANCHMANAGER)
-      ) {
+      const isManagerRole =
+        manager?.role === Role.BRANCHMANAGER ||
+        (manager?.role as string) === 'MANAGER';
+      if (manager && (!manager.isActive || !isManagerRole)) {
         throw new ForbiddenException(
           'Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.',
         );
       }
-      if (manager && manager.isActive && manager.role === Role.BRANCHMANAGER) {
+      if (manager && manager.isActive && isManagerRole) {
         if (manager.branchId) {
           const assignedBranch = await this.branchModel
             .findOne({ branchId: manager.branchId })

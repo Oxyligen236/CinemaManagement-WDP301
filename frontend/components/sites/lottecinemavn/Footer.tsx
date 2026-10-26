@@ -91,39 +91,6 @@ export function NoticeBar() {
 export function Footer() {
   return (
     <footer id="footer" className="relative w-full border-t border-[#dedede] bg-white select-none font-['Arial',sans-serif]">
-      {/* Notice Bar */}
-      <NoticeBar />
-
-      {/* Footer Banner 1 (BTS World Tour) */}
-      <div className="w-full bg-[#f8f8f8]">
-        <div className="w-[980px] mx-auto py-[10px]">
-          <Link href="#movie-detail-bts" className="block">
-            <Image
-              src="/sites/lottecinemavn/banners/bottom-bts.jpg"
-              alt="BTS World Tour Arirang"
-              width={980}
-              height={372}
-              className="w-[980px] h-auto object-cover block mx-auto"
-            />
-          </Link>
-        </div>
-      </div>
-
-      {/* Footer Banner 2 (Pack 3v 99k) */}
-      <div className="w-full bg-[#f8f8f8] border-t border-b border-[#eee]">
-        <div className="w-[980px] mx-auto py-[10px]">
-          <Link href="#promo-pack3" className="block">
-            <Image
-              src="/sites/lottecinemavn/banners/bottom-pack3.jpg"
-              alt="Xem Phim Nhóm 03 Người Giá Chỉ 99.000đ"
-              width={980}
-              height={372}
-              className="w-[980px] h-auto object-cover block mx-auto"
-            />
-          </Link>
-        </div>
-      </div>
-
       {/* Footer Legal & Info inner section */}
       <div className="w-[980px] mx-auto pt-[30px] pb-[20px]">
         {/* Footer Logo */}

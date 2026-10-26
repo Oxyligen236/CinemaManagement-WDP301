@@ -70,12 +70,22 @@ export default function SystemAdminLayout({
     const rawUser = localStorage.getItem(USER_KEY);
     if (!rawUser) return;
     try {
-      const user = JSON.parse(rawUser) as { email?: string };
+      const user = JSON.parse(rawUser) as { email?: string; role?: string };
+      const role = user.role?.toUpperCase();
       setAdminEmail(user.email ?? "");
+      if (
+        role === "BRANCHMANAGER" ||
+        role === "MANAGER" ||
+        role === "BRANCH_MANAGER"
+      ) {
+        router.replace("/manager");
+      } else if (role && role !== "ADMIN") {
+        router.replace("/");
+      }
     } catch {
       setAdminEmail("");
     }
-  }, []);
+  }, [router]);
 
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
@@ -94,7 +104,7 @@ export default function SystemAdminLayout({
       <div className="w-full h-[32px] bg-[#efebdb] border-b border-[#e3e1d6] px-4 lg:px-8 flex items-center justify-between text-[12px] select-none">
         <div className="flex items-center gap-4">
           <Link
-            href="/"
+            href="/admin/dashboard"
             className="inline-flex items-center gap-1.5 font-semibold text-[#555] hover:text-[#231f20]"
           >
             <span
@@ -104,7 +114,7 @@ export default function SystemAdminLayout({
                   "url('/sites/lottecinemavn/ui/icon_lottecinemaapp.png')",
               }}
             />
-            <span>Về Trang chủ Lotte Cinema</span>
+            <span>Trang Quản trị Hệ thống</span>
           </Link>
           <span className="text-[#c1b687]">|</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">

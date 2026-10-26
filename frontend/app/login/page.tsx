@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useCallback, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, LogIn } from "lucide-react";
 import {
@@ -18,6 +18,20 @@ type LoginForm = {
   email: string;
   password: string;
 };
+
+function getRedirectPathByRole(role?: string): string {
+  const normalizedRole = role?.toUpperCase();
+  if (normalizedRole === "ADMIN") return "/admin/dashboard";
+  if (
+    normalizedRole === "BRANCHMANAGER" ||
+    normalizedRole === "MANAGER" ||
+    normalizedRole === "BRANCH_MANAGER"
+  ) {
+    return "/manager";
+  }
+  if (normalizedRole === "STAFF") return "/staff/pos";
+  return "/";
+}
 
 /**
  * Khớp với ràng buộc `LoginDto` của backend.
@@ -50,6 +64,20 @@ function LoginForm() {
     useFormErrors<LoginForm>(
       useCallback((values: LoginForm) => validateLoginForm(values), []),
     );
+
+  useEffect(() => {
+    const token = localStorage.getItem("cinema_access_token");
+    const rawUser = localStorage.getItem("cinema_user");
+    if (token && rawUser) {
+      try {
+        const user = JSON.parse(rawUser) as { role?: string };
+        router.replace(getRedirectPathByRole(user.role));
+      } catch {
+        localStorage.removeItem("cinema_access_token");
+        localStorage.removeItem("cinema_user");
+      }
+    }
+  }, [router]);
 
   function updateField(field: keyof LoginForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -87,15 +115,7 @@ function LoginForm() {
 
       localStorage.setItem("cinema_access_token", result.accessToken);
       localStorage.setItem("cinema_user", JSON.stringify(result.user));
-      router.push(
-        result.user?.role === "ADMIN"
-          ? "/admin/dashboard"
-          : result.user?.role === "BRANCHMANAGER"
-            ? "/manager"
-            : result.user?.role === "STAFF"
-              ? "/staff/pos"
-              : "/",
-      );
+      router.replace(getRedirectPathByRole(result.user?.role));
     } catch (submitError) {
       setError(
         getFriendlyErrorMessage(
