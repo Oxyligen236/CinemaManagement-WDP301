@@ -13,6 +13,7 @@ import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { Role } from '../../user/domain/enums/role.enum';
+import { isBranchManagerRole } from '../../user/domain/role.normalizer';
 import { EmploymentStatus } from '../../user/domain/enums/employment-status.enum';
 import { JobPosition } from '../../user/domain/enums/job-position.enum';
 import { Branch, BranchDocument } from '../../branch/domain/schemas/branch.schema';
@@ -245,10 +246,8 @@ export class BranchStaffService {
       .lean()
       .exec();
 
-    if (!manager || !manager.isActive || manager.role !== Role.BRANCHMANAGER) {
-      throw new ForbiddenException(
-        'You do not have permission to access this resource',
-      );
+    if (!manager || !manager.isActive || !isBranchManagerRole(manager.role)) {
+      throw new ForbiddenException(STAFF_MESSAGES.FORBIDDEN);
     }
     if (!manager.branchId) {
       throw new ForbiddenException(STAFF_MESSAGES.NO_BRANCH);
