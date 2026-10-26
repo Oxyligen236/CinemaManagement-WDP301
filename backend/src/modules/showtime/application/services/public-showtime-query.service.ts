@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
+  Branch,
+  BranchDocument,
+} from '../../../branch/domain/schemas/branch.schema';
+import {
   Genre,
   GenreDocument,
 } from '../../../movie/domain/schemas/genre.schema';
@@ -41,13 +45,15 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
     private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
     @InjectModel(Seat.name)
     private readonly seatModel: Model<SeatDocument>,
+    @InjectModel(Branch.name)
+    private readonly branchModel: Model<BranchDocument>,
   ) {}
 
   async getPublicShowtimes(
     query: GetPublicShowtimesReqDto,
   ): Promise<PublicShowtimeItemResDto[]> {
     const filter: Record<string, unknown> = {};
-    const roomMap = new Map<string, string>();
+    const roomMap = new Map<string, { roomName: string; branchId: string }>();
 
     if (query.branchId) {
       const rooms = await this.roomModel
@@ -55,7 +61,7 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
           branchId: query.branchId,
           roomStatus: RoomStatus.AVAILABLE,
         })
-        .select('roomId roomName')
+        .select('roomId roomName branchId')
         .lean()
         .exec();
 
@@ -64,7 +70,10 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
       }
 
       for (const r of rooms) {
-        roomMap.set(r.roomId, r.roomName);
+        roomMap.set(r.roomId, {
+          roomName: r.roomName,
+          branchId: r.branchId,
+        });
       }
       filter.roomId = { $in: rooms.map((r) => r.roomId) };
     }
@@ -100,12 +109,32 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
     if (missingRoomIds.length > 0) {
       const extraRooms = await this.roomModel
         .find({ roomId: { $in: missingRoomIds } })
-        .select('roomId roomName')
+        .select('roomId roomName branchId')
         .lean()
         .exec();
       for (const r of extraRooms) {
-        roomMap.set(r.roomId, r.roomName);
+        roomMap.set(r.roomId, {
+          roomName: r.roomName,
+          branchId: r.branchId,
+        });
       }
+    }
+
+    const branchIds = [
+      ...new Set(
+        Array.from(roomMap.values())
+          .map((r) => r.branchId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    let branchMap = new Map<string, string>();
+    if (branchIds.length > 0) {
+      const branches = await this.branchModel
+        .find({ branchId: { $in: branchIds } })
+        .select('branchId branchName')
+        .lean()
+        .exec();
+      branchMap = new Map(branches.map((b) => [b.branchId, b.branchName]));
     }
 
     const movieIds = [...new Set(showtimes.map((s) => s.movieId))];
@@ -187,19 +216,35 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
       const movie = movieMap.get(st.movieId);
       const stats = seatShowtimeStatsByShowtime.get(st.showtimeId) ||
         roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
+      const roomInfo = roomMap.get(st.roomId);
 
       const item = new PublicShowtimeItemResDto();
       item.showtimeId = st.showtimeId;
       item.movieId = st.movieId;
       item.movieName = movie?.movieName || 'Unknown';
       item.duration = movie?.duration || 120;
-      item.posterUrl = movie?.posterUrl;
+      const moviePoster = movie as unknown as {
+        posterKey?: string;
+        posterUrl?: string;
+      };
+      const rawPoster = moviePoster?.posterKey || moviePoster?.posterUrl;
+      const pubStorageUrl =
+        process.env.STORAGE_PUBLIC_URL?.replace(/\/+$/, '') || '';
+      item.posterUrl = rawPoster
+        ? rawPoster.startsWith('http') || rawPoster.startsWith('/')
+          ? rawPoster
+          : `${pubStorageUrl}/${rawPoster}`
+        : undefined;
       item.genreNames =
         movie?.genreIds
           ?.map((gid) => genreMap.get(gid))
           .filter((name): name is string => Boolean(name)) || [];
       item.roomId = st.roomId;
-      item.roomName = roomMap.get(st.roomId) || 'Cinema';
+      item.roomName = roomInfo?.roomName || 'Cinema';
+      item.branchId = roomInfo?.branchId;
+      item.branchName = roomInfo?.branchId
+        ? branchMap.get(roomInfo.branchId)
+        : undefined;
       item.startTime = st.startTime;
       item.endTime = st.endTime;
       item.basePrice = st.basePrice;

@@ -6,12 +6,9 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { randomUUID } from 'crypto';
-import {
-  Payment,
-  PaymentDocument,
-} from '../../payment/domain/schemas/payment.schema';
-import { PaymentMethod } from '../../payment/domain/enums/payment-method.enum';
-import { PaymentStatus } from '../../payment/domain/enums/payment-status.enum';
+import { Payment, PaymentDocument } from '../domain/schemas/payment.schema';
+import { PaymentMethod } from '../domain/enums/payment-method.enum';
+import { PaymentStatus } from '../domain/enums/payment-status.enum';
 import {
   CashPaymentSummaryDto,
   PaymentContract,

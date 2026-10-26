@@ -43,6 +43,9 @@ import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
 } from '../../../infra/event/application/internal-event-bus.interface';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { QueryMyOrdersReq } from '../dto/req.dto';
 
 describe('OrderService', () => {
   let service: OrderService;
@@ -743,6 +746,183 @@ describe('OrderService', () => {
           promotionCode: 'SALE20',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getMyOrderHistory', () => {
+    const setupPaginateMocks = (orders = [mockOrder], total = 1) => {
+      mockOrderModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          skip: jest.fn().mockReturnValue({
+            limit: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue(orders),
+              }),
+            }),
+          }),
+        }),
+      });
+
+      mockOrderModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(total),
+      });
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest
+            .fn()
+            .mockResolvedValue([
+              { orderId: 'order-123', seatShowtimeId: 'sst-1' },
+            ]),
+        }),
+      });
+
+      mockProductOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+    };
+
+    it('loc theo mot status don le', async () => {
+      setupPaginateMocks();
+
+      const result = await service.getMyOrderHistory('user-001', {
+        status: OrderStatus.PAID,
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: OrderStatus.PAID,
+      });
+      expect(mockOrderModel.countDocuments).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: OrderStatus.PAID,
+      });
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+
+    it('loc theo nhieu status phan tach bang dau phay (CANCELLED,EXPIRED)', async () => {
+      setupPaginateMocks();
+
+      const result = await service.getMyOrderHistory('user-001', {
+        status: 'CANCELLED,EXPIRED',
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+      expect(mockOrderModel.countDocuments).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+
+    it('tra ve tat ca khi khong truyen status', async () => {
+      setupPaginateMocks();
+
+      const result = await service.getMyOrderHistory('user-001', {});
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        userId: 'user-001',
+      });
+      expect(mockOrderModel.countDocuments).toHaveBeenCalledWith({
+        userId: 'user-001',
+      });
+      expect(result.items).toHaveLength(1);
+    });
+  });
+
+  describe('queryStaffOrders and queryAdminOrders with multi-status', () => {
+    const setupPaginateMocks = () => {
+      mockOrderModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          skip: jest.fn().mockReturnValue({
+            limit: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue([mockOrder]),
+              }),
+            }),
+          }),
+        }),
+      });
+
+      mockOrderModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(1),
+      });
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      mockProductOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+    };
+
+    it('queryStaffOrders loc theo nhieu status', async () => {
+      setupPaginateMocks();
+
+      await service.queryStaffOrders({
+        status: 'CANCELLED,EXPIRED',
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+    });
+
+    it('queryAdminOrders loc theo nhieu status', async () => {
+      setupPaginateMocks();
+
+      await service.queryAdminOrders({
+        status: 'CANCELLED,EXPIRED',
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+    });
+  });
+
+  describe('QueryMyOrdersReq validation', () => {
+    it('hop le voi status don le', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, { status: 'CANCELLED' });
+      const errors = await validate(dto);
+      expect(errors).toHaveLength(0);
+    });
+
+    it('hop le voi status phan tach bang dau phay', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, {
+        status: 'CANCELLED,EXPIRED',
+      });
+      const errors = await validate(dto);
+      expect(errors).toHaveLength(0);
+    });
+
+    it('khong hop le voi status sai', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, {
+        status: 'INVALID_STATUS',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].constraints?.matches).toBeDefined();
+    });
+
+    it('khong hop le khi co status hop le kem status sai', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, {
+        status: 'CANCELLED,INVALID',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
     });
   });
 });

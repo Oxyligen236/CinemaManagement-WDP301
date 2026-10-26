@@ -47,6 +47,8 @@ export class PublicShowtimeItemResDto {
   genreNames?: string[];
   roomId!: string;
   roomName!: string;
+  branchId?: string;
+  branchName?: string;
   startTime!: Date;
   endTime!: Date;
   basePrice!: number;

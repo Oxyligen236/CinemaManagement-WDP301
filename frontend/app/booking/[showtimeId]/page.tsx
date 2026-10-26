@@ -47,7 +47,7 @@ export default function BookingSeatPage({
     try {
       const [seatsData, detailData] = await Promise.all([
         bookingApi.getShowtimeSeats(showtimeId),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/showtimes/${showtimeId}`)
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010'}/showtimes/${showtimeId}`)
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null),
       ]);
@@ -73,7 +73,7 @@ export default function BookingSeatPage({
       try {
         const [seatsData, detailData] = await Promise.all([
           bookingApi.getShowtimeSeats(showtimeId),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/showtimes/${showtimeId}`)
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010'}/showtimes/${showtimeId}`)
             .then((r) => (r.ok ? r.json() : null))
             .catch(() => null),
         ]);

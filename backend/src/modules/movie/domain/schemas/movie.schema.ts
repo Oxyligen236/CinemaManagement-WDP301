@@ -47,14 +47,10 @@ export class Movie {
   releaseDate?: Date;
 
   @Prop({
+    required: true,
     trim: true,
   })
-  posterKey?: string;
-
-  @Prop({
-    trim: true,
-  })
-  posterUrl?: string;
+  posterKey!: string;
 
   @Prop({
     trim: true,

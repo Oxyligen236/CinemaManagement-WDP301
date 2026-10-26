@@ -6,6 +6,8 @@ import { EventModule } from '../infra/event/event.module';
 import { PromotionAdminController } from './infra/controllers/promotion-admin.controller';
 import { PromotionAdminService } from './application/services/promotion-admin.service';
 import { PromotionPublicService } from './application/services/promotion-public.service';
+import { PROMOTION_CONTRACT } from './contracts/promotion.contract';
+import { PromotionContractImpl } from './contracts/promotion-contract.impl';
 
 @Module({
   imports: [
@@ -16,7 +18,15 @@ import { PromotionPublicService } from './application/services/promotion-public.
     EventModule,
   ],
   controllers: [PromotionAdminController],
-  providers: [PromotionAdminService, PromotionPublicService],
-  exports: [PromotionPublicService, PromotionAdminService],
+  providers: [
+    PromotionAdminService,
+    PromotionPublicService,
+    PromotionContractImpl,
+    {
+      provide: PROMOTION_CONTRACT,
+      useClass: PromotionContractImpl,
+    },
+  ],
+  exports: [PromotionPublicService, PromotionAdminService, PROMOTION_CONTRACT],
 })
 export class PromotionModule {}

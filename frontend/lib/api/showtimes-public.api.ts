@@ -15,6 +15,8 @@ export interface ShowtimeItem {
   genreNames?: string[];
   roomId: string;
   roomName?: string;
+  branchId?: string;
+  branchName?: string;
   startTime: string; // ISO string
   endTime: string;   // ISO string
   basePrice: number;
@@ -30,6 +32,7 @@ export interface PublicMovie {
   genreNames?: string[];
   description?: string;
   releaseDate?: string;
+  status?: 'NOW_SHOWING' | 'COMING_SOON' | 'ENDED';
 }
 
 export interface MovieShowtimeGroup {
@@ -41,7 +44,7 @@ export interface MovieShowtimeGroup {
   }[];
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
 
 /**
  * Lấy danh sách các rạp chiếu đang hoạt động công khai từ DB
@@ -100,15 +103,20 @@ function mapBranchItem(item: Record<string, unknown>): PublicBranch {
 }
 
 /**
- * Lấy danh sách suất chiếu thực tế từ database theo rạp và ngày
+ * Lấy danh sách suất chiếu thực tế từ database theo bộ lọc tùy chọn (branchId, movieId, date)
  */
-export async function getPublicShowtimes(
-  branchId: string,
-  dateStr: string
-): Promise<ShowtimeItem[]> {
-  if (!branchId) return [];
+export async function queryPublicShowtimes(params: {
+  branchId?: string;
+  movieId?: string;
+  date?: string;
+}): Promise<ShowtimeItem[]> {
+  const queryParams = new URLSearchParams();
+  if (params.branchId) queryParams.set('branchId', params.branchId);
+  if (params.movieId) queryParams.set('movieId', params.movieId);
+  if (params.date) queryParams.set('date', params.date);
+  queryParams.set('limit', '100');
 
-  const url = `${API_BASE_URL}/showtimes/public?branchId=${encodeURIComponent(branchId)}&date=${encodeURIComponent(dateStr)}&limit=100`;
+  const url = `${API_BASE_URL}/showtimes/public?${queryParams.toString()}`;
 
   let res = await fetch(url, {
     method: 'GET',
@@ -118,7 +126,7 @@ export async function getPublicShowtimes(
 
   if (!res.ok && res.status === 404) {
     // Fallback sang /showtimes
-    const fallbackUrl = `${API_BASE_URL}/showtimes?branchId=${encodeURIComponent(branchId)}&date=${encodeURIComponent(dateStr)}&limit=100`;
+    const fallbackUrl = `${API_BASE_URL}/showtimes?${queryParams.toString()}`;
     res = await fetch(fallbackUrl, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -150,6 +158,8 @@ export async function getPublicShowtimes(
     roomName:
       (item.roomName as string) ||
       (item.roomId ? `Phòng ${item.roomId}` : 'Cinema 01'),
+    branchId: (item.branchId as string) || undefined,
+    branchName: (item.branchName as string) || undefined,
     startTime: String(item.startTime || ''),
     endTime: String(item.endTime || ''),
     basePrice: Number(item.basePrice || 0),
@@ -158,6 +168,17 @@ export async function getPublicShowtimes(
     totalSeats:
       typeof item.totalSeats === 'number' ? item.totalSeats : undefined,
   }));
+}
+
+/**
+ * Lấy danh sách suất chiếu thực tế từ database theo rạp và ngày
+ */
+export async function getPublicShowtimes(
+  branchId: string,
+  dateStr: string
+): Promise<ShowtimeItem[]> {
+  if (!branchId) return [];
+  return queryPublicShowtimes({ branchId, date: dateStr });
 }
 
 /**
@@ -199,5 +220,6 @@ export async function getPublicMovies(): Promise<PublicMovie[]> {
       : ['Phim Chiếu Rạp'],
     description: (m.description as string) || '',
     releaseDate: (m.releaseDate as string) || undefined,
+    status: (m.status as PublicMovie['status']) || 'NOW_SHOWING',
   }));
 }

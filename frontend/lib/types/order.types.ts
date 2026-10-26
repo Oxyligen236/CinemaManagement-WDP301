@@ -63,7 +63,7 @@ export interface PaginatedResponse<T> {
 export interface QueryMyOrdersDto {
   page?: number;
   limit?: number;
-  status?: OrderStatus;
+  status?: OrderStatus | string;
 }
 
 export interface QueryStaffOrdersDto {

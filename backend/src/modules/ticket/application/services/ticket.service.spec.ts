@@ -3,7 +3,7 @@ import { Model } from 'mongoose';
 import { TicketService } from './ticket.service';
 import { TicketStatus } from '../../domain/enums/ticket-status.enum';
 import { TicketDocument } from '../../domain/schemas/ticket.schema';
-import { ShowtimeContract } from '../../contracts/showtime.contract';
+import { ShowtimeContract } from '../../../showtime/contracts/showtime.contract';
 import { InternalEventBus } from '../../../infra/event/application/internal-event-bus.interface';
 
 describe('TicketService', () => {

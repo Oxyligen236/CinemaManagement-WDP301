@@ -8,13 +8,13 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PageRequest } from '../../../../common/dto/page.dto';
-import { OrderStatus } from '../../domain/enums/order-status.enum';
 import { PaymentMethod } from '../../contracts/payment.contract';
 
 export class BookingProductReq {
@@ -44,14 +44,28 @@ export class ApplyPromotionReq {
 
 export class QueryMyOrdersReq extends PageRequest {
   @IsOptional()
-  @IsEnum(OrderStatus)
-  status?: OrderStatus;
+  @IsString()
+  @Matches(
+    /^(PENDING|PAID|CANCELLED|EXPIRED)(,(PENDING|PAID|CANCELLED|EXPIRED))*$/,
+    {
+      message:
+        'status phải là một hoặc nhiều OrderStatus hợp lệ phân tách bằng dấu phẩy (PENDING, PAID, CANCELLED, EXPIRED)',
+    },
+  )
+  status?: string;
 }
 
 export class QueryStaffOrdersReq extends PageRequest {
   @IsOptional()
-  @IsEnum(OrderStatus)
-  status?: OrderStatus;
+  @IsString()
+  @Matches(
+    /^(PENDING|PAID|CANCELLED|EXPIRED)(,(PENDING|PAID|CANCELLED|EXPIRED))*$/,
+    {
+      message:
+        'status phải là một hoặc nhiều OrderStatus hợp lệ phân tách bằng dấu phẩy (PENDING, PAID, CANCELLED, EXPIRED)',
+    },
+  )
+  status?: string;
 
   @IsOptional()
   date?: string;
@@ -62,8 +76,15 @@ export class QueryAdminOrdersReq extends PageRequest {
   userId?: string;
 
   @IsOptional()
-  @IsEnum(OrderStatus)
-  status?: OrderStatus;
+  @IsString()
+  @Matches(
+    /^(PENDING|PAID|CANCELLED|EXPIRED)(,(PENDING|PAID|CANCELLED|EXPIRED))*$/,
+    {
+      message:
+        'status phải là một hoặc nhiều OrderStatus hợp lệ phân tách bằng dấu phẩy (PENDING, PAID, CANCELLED, EXPIRED)',
+    },
+  )
+  status?: string;
 
   @IsOptional()
   fromDate?: string;

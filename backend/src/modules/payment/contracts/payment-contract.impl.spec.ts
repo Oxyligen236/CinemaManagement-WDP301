@@ -2,24 +2,16 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PaymentContractImpl } from './payment-contract.impl';
-import { Payment } from '../../payment/domain/schemas/payment.schema';
-import { PaymentMethod } from '../../payment/domain/enums/payment-method.enum';
-import { PaymentStatus } from '../../payment/domain/enums/payment-status.enum';
+import { Payment } from '../domain/schemas/payment.schema';
+import { PaymentMethod } from '../domain/enums/payment-method.enum';
+import { PaymentStatus } from '../domain/enums/payment-status.enum';
 
 describe('PaymentContractImpl', () => {
   let contract: PaymentContractImpl;
 
-  const mockSavedPayment = {
-    paymentId: 'pay-001',
-    orderId: 'ord-001',
-    amount: 100000,
-    method: PaymentMethod.CASH,
-    status: PaymentStatus.SUCCESS,
-    transactionId: 'CASH-1234',
-    save: jest.fn(),
-  };
-
-  function MockPaymentConstructor(dto: any) {
+  function MockPaymentConstructor(dto: Partial<Payment>): {
+    save: () => Promise<Partial<Payment>>;
+  } & Partial<Payment> {
     return {
       ...dto,
       save: jest.fn().mockResolvedValue({
