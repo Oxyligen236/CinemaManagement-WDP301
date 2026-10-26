@@ -69,97 +69,59 @@ export function SelectShowtimeModal({
 
   const selectedDate = dates[selectedDateIndex]?.yyyyMmDd || '';
 
-  // Fetch showtimes from backend or fallback to realistic showtimes
+  // Fetch showtimes from backend API /showtimes/public
   useEffect(() => {
     if (!isOpen || !movie) return;
 
     let isMounted = true;
     const fetchShowtimes = async () => {
       setLoading(true);
+      setShowtimes([]);
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-        const res = await fetch(`${apiUrl}/showtimes?movieId=${encodeURIComponent(movie.id)}`);
-        if (res.ok) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
+        const params = new URLSearchParams({
+          movieId: movie.id,
+        });
+        if (selectedDate) {
+          params.append('date', selectedDate);
+        }
+
+        const res = await fetch(`${apiUrl}/showtimes/public?${params.toString()}`);
+        if (res.ok && isMounted) {
           const data = await res.json();
           const items = Array.isArray(data) ? data : data.items || [];
-          if (items.length > 0 && isMounted) {
-            setShowtimes(
-              items.map((item: RawShowtimeApiItem) => {
-                const sDate = new Date(item.startTime);
-                return {
-                  showtimeId: item.showtimeId || item.id || item._id || `st-${movie.id}`,
-                  movieId: item.movieId || movie.id,
-                  roomName: item.roomName || 'Cinema 01',
-                  startTime: item.startTime,
-                  timeFormatted: sDate.toLocaleTimeString('vi-VN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false,
-                  }),
-                  price: item.basePrice || 90000,
-                  format: '2D Phụ Đề',
-                };
-              }),
-            );
-            return;
-          }
+          setShowtimes(
+            items.map((item: RawShowtimeApiItem) => {
+              const sDate = new Date(item.startTime);
+              return {
+                showtimeId: item.showtimeId || item.id || item._id || '',
+                movieId: item.movieId || movie.id,
+                roomName: item.roomName || 'Cinema 01',
+                startTime: item.startTime,
+                timeFormatted: !isNaN(sDate.getTime())
+                  ? sDate.toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    })
+                  : '--:--',
+                price: item.basePrice || 90000,
+                format: '2D Digital',
+              };
+            }),
+          );
+        } else if (isMounted) {
+          setShowtimes([]);
         }
       } catch {
-        // Fallback below
+        if (isMounted) {
+          setShowtimes([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-
-      // Fallback realistic showtimes for seamless flow demo
-      if (isMounted) {
-        const fallbackShowtimes: ShowtimeOption[] = [
-          {
-            showtimeId: `st-${movie.id}-101`,
-            movieId: movie.id,
-            roomName: 'Screen 01 (Atmos)',
-            startTime: `${selectedDate}T09:30:00`,
-            timeFormatted: '09:30',
-            price: 85000,
-            format: '2D Lồng Tiếng',
-          },
-          {
-            showtimeId: `st-${movie.id}-102`,
-            movieId: movie.id,
-            roomName: 'Screen 02 (Laser)',
-            startTime: `${selectedDate}T13:45:00`,
-            timeFormatted: '13:45',
-            price: 95000,
-            format: '2D Phụ Đề',
-          },
-          {
-            showtimeId: `st-${movie.id}-103`,
-            movieId: movie.id,
-            roomName: 'Screen 01 (Atmos)',
-            startTime: `${selectedDate}T16:30:00`,
-            timeFormatted: '16:30',
-            price: 95000,
-            format: '2D Phụ Đề',
-          },
-          {
-            showtimeId: `st-${movie.id}-104`,
-            movieId: movie.id,
-            roomName: 'Screen 03 (Superplex)',
-            startTime: `${selectedDate}T19:15:00`,
-            timeFormatted: '19:15',
-            price: 110000,
-            format: '2D Phụ Đề',
-          },
-          {
-            showtimeId: `st-${movie.id}-105`,
-            movieId: movie.id,
-            roomName: 'Screen 02 (Laser)',
-            startTime: `${selectedDate}T21:45:00`,
-            timeFormatted: '21:45',
-            price: 95000,
-            format: '2D Phụ Đề',
-          },
-        ];
-        setShowtimes(fallbackShowtimes);
-      }
-      setLoading(false);
     };
 
     void fetchShowtimes();

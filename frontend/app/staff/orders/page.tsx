@@ -14,83 +14,8 @@ import {
   MonitorPlay,
   RotateCcw,
   Eye,
+  AlertCircle,
 } from 'lucide-react';
-
-const MOCK_STAFF_ORDERS: OrderSummary[] = [
-  {
-    orderId: 'ord-pos-001',
-    userId: 'staff-counter-01',
-    totalAmount: 320000,
-    status: 'PAID',
-    createdAt: new Date().toISOString(),
-    ticketCount: 2,
-    hasProducts: true,
-  },
-  {
-    orderId: 'ord-pos-002',
-    userId: 'staff-counter-01',
-    totalAmount: 110000,
-    status: 'PAID',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    ticketCount: 0,
-    hasProducts: true,
-  },
-  {
-    orderId: 'ord-pos-003',
-    userId: 'staff-counter-01',
-    totalAmount: 95000,
-    status: 'PAID',
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    ticketCount: 1,
-    hasProducts: false,
-  },
-];
-
-const MOCK_STAFF_DETAIL: OrderDetail = {
-  orderId: 'ord-pos-001',
-  userId: 'staff-counter-01',
-  totalAmount: 320000,
-  status: 'PAID',
-  createdAt: new Date().toISOString(),
-  tickets: [
-    {
-      ticketId: 't-201',
-      ticketCode: 'TK-POS-2026-A1',
-      price: 105000,
-      ticketStatus: 'VALID',
-      movieTitle: 'Kung Fu Panda 4',
-      roomName: 'Phòng 03 VIP',
-      seatLabel: 'G12',
-      startTime: new Date(Date.now() + 1800000).toISOString(),
-    },
-    {
-      ticketId: 't-202',
-      ticketCode: 'TK-POS-2026-A2',
-      price: 105000,
-      ticketStatus: 'VALID',
-      movieTitle: 'Kung Fu Panda 4',
-      roomName: 'Phòng 03 VIP',
-      seatLabel: 'G13',
-      startTime: new Date(Date.now() + 1800000).toISOString(),
-    },
-  ],
-  products: [
-    {
-      productId: 'p-pop-01',
-      productName: 'Bắp rang bơ phô mai lớn',
-      quantity: 1,
-      unitPrice: 65000,
-      subTotal: 65000,
-    },
-    {
-      productId: 'p-drk-01',
-      productName: 'Coca Cola tươi 32oz',
-      quantity: 2,
-      unitPrice: 22500,
-      subTotal: 45000,
-    },
-  ],
-};
 
 export default function StaffOrdersPage() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
@@ -100,6 +25,7 @@ export default function StaffOrdersPage() {
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Detail Modal
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<OrderDetail | null>(null);
@@ -110,6 +36,7 @@ export default function StaffOrdersPage() {
     let ignore = false;
     async function loadData() {
       setIsLoading(true);
+      setError(null);
       try {
         const res = await orderApi.getStaffOrders({
           page,
@@ -122,14 +49,15 @@ export default function StaffOrdersPage() {
           setTotal(res.total);
           setIsLoading(false);
         }
-      } catch {
+      } catch (err: unknown) {
         if (!ignore) {
-          let list = [...MOCK_STAFF_ORDERS];
-          if (status) {
-            list = list.filter((o) => o.status === status);
-          }
-          setOrders(list);
-          setTotal(list.length);
+          setOrders([]);
+          setTotal(0);
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Không thể kết nối đến máy chủ để tải đơn hàng. Vui lòng thử lại.'
+          );
           setIsLoading(false);
         }
       }
@@ -148,11 +76,7 @@ export default function StaffOrdersPage() {
       setSelectedOrderDetail(detail);
       setIsDetailOpen(true);
     } catch {
-      setSelectedOrderDetail({
-        ...MOCK_STAFF_DETAIL,
-        orderId,
-      });
-      setIsDetailOpen(true);
+      alert('Không thể tải chi tiết đơn hàng từ máy chủ.');
     } finally {
       setIsLoadingDetail(false);
     }
@@ -252,6 +176,14 @@ export default function StaffOrdersPage() {
           )}
         </div>
       </div>
+
+      {/* Error alert */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* 3. Table Orders */}
       {isLoading ? (
