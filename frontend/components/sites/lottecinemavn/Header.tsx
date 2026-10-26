@@ -159,7 +159,7 @@ export function Header() {
             onMouseEnter={() => setActiveMenu(1)}
           >
             <Link
-              href="/#movies-section"
+              href="/ticketing"
               className={`inline-block font-normal hover:font-bold ${activeMenu === 1 ? "font-bold" : "text-[#555]"}`}
             >
               MUA VÉ
@@ -169,7 +169,7 @@ export function Header() {
                 <ul className="w-[980px] mx-auto text-center h-[40px] flex items-center justify-center gap-6">
                   <li className="inline-block px-[20px] text-[14px]">
                     <Link
-                      href="/#movies-section"
+                      href="/ticketing"
                       onClick={() => setActiveMenu(null)}
                       className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block"
                     >
@@ -200,7 +200,7 @@ export function Header() {
             onMouseEnter={() => setActiveMenu(2)}
           >
             <Link
-              href="/#movies-section"
+              href="/movies?type=nowshowing"
               className={`inline-block font-normal hover:font-bold ${activeMenu === 2 ? "font-bold" : "text-[#555]"}`}
             >
               PHIM ĐANG CHIẾU
@@ -210,7 +210,7 @@ export function Header() {
                 <ul className="w-[980px] mx-auto text-center h-[40px] flex items-center justify-center gap-6">
                   <li className="inline-block px-[20px] text-[14px]">
                     <Link
-                      href="/#movies-section"
+                      href="/movies?type=nowshowing"
                       onClick={() => setActiveMenu(null)}
                       className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block"
                     >
