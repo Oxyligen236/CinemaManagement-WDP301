@@ -23,15 +23,36 @@ flowchart TD
         Home -->|Xem lịch sử mua vé| CustomerOrders
         CustomerOrders -->|Xem vé & QR| TicketQRModal
 
+        MovieList["/movies (Danh sách & Tìm kiếm phim: Tab Đang chiếu / Sắp chiếu)"]
+        MovieDetail["/movies/[movieId] (Chi tiết phim & Tab Lịch chiếu phim)"]
+        TrailerModal["[Modal] Xem Video Trailer"]
+        Ticketing["/ticketing (Đặt vé nhanh: Chọn Phim -> Ngày -> Rạp / Chọn Rạp -> Ngày -> Phim)"]
         Showtimes["/showtimes (Lịch chiếu phim Lotte Cinema)"]
         SelectShowtime["[Modal] Chọn Phim & Suất chiếu"]
         SelectSeats["/booking/[showtimeId] (Bước 1: Chọn ghế & Combo)"]
         BookingSummary["/booking/summary/[orderId] (Bước 2: Xác nhận đơn, Voucher & Đếm ngược 10p)"]
 
+        Home -->|"Header GNB: MUA VÉ"| Ticketing
+        Home -->|"Header GNB: PHIM ĐANG CHIẾU / Xem thêm"| MovieList
+        Home -->|"Click poster phim / Chi tiết"| MovieDetail
         Home -->|"Header GNB: Rạp chiếu phim / Lịch chiếu"| Showtimes
+        Home -->|Đặt vé nhanh tại trang chủ| SelectShowtime
+
+        MovieList -->|"Đổi tab NOW_SHOWING / COMING_SOON, Tìm kiếm tên/thể loại"| MovieList
+        MovieList -->|"Click Xem chi tiết phim"| MovieDetail
+        MovieList -->|"Click Mua vé phim này"| Ticketing
+
+        MovieDetail -->|Click Xem Trailer| TrailerModal
+        MovieDetail -->|"Tab Lịch chiếu: Chọn rạp & ngày -> Click suất chiếu"| SelectSeats
+        MovieDetail -->|Click Nút Mua vé ngay| Ticketing
+
+        Ticketing -->|"Chọn phim -> Ngày -> Rạp -> Suất chiếu"| SelectSeats
+        Ticketing -->|"Chọn rạp -> Ngày -> Phim -> Suất chiếu"| SelectSeats
+
         Showtimes -->|"Chọn rạp (?cinema=) / Chọn ngày"| Showtimes
         Showtimes -->|Click khung giờ chiếu| SelectSeats
-        Home -->|Đặt vé / Mua vé ngay| SelectShowtime
+        Showtimes -->|Click thông tin phim| MovieDetail
+
         SelectShowtime -->|Chọn khung giờ chiếu| SelectSeats
         SelectSeats -->|"Tiếp tục đặt vé (Tạo đơn PENDING totalAmount)"| BookingSummary
         BookingSummary -->|Áp dụng mã giảm giá / Voucher| BookingSummary
@@ -117,7 +138,7 @@ flowchart TD
     end
     %% Admin Portal
     AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
-    AdminMovies["/movies (Admin - Quản lý Phim)"]
+    AdminMovies["/admin/films (Admin - Quản lý Phim)"]
 
     Login -->|"Đăng nhập thành công (Admin)"| AdminPromotions
     Login -->|"Đăng nhập thành công (Admin)"| AdminMovies
