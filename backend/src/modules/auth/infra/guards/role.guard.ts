@@ -26,11 +26,13 @@ export class RoleGuard implements CanActivate {
 
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const normalizedUserRole =
-      (user?.role as string) === 'MANAGER'
-        ? Role.BRANCHMANAGER
-        : user?.role;
+      (user?.role as string) === 'MANAGER' ? Role.BRANCHMANAGER : user?.role;
 
-    if (!user || !normalizedUserRole || !requiredRoles.includes(normalizedUserRole)) {
+    if (
+      !user ||
+      !normalizedUserRole ||
+      !requiredRoles.includes(normalizedUserRole)
+    ) {
       throw new ForbiddenException(MSG_FORBIDDEN);
     }
 

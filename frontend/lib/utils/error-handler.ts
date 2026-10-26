@@ -36,13 +36,21 @@ export function getFriendlyErrorMessage(
     return 'Ghế này vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.';
   }
 
-  // 401 / 403: Hết phiên hoặc không có quyền
-  if (
-    status === 401 ||
-    status === 403 ||
-    /\b(401|403|unauthorized|forbidden)\b/i.test(message)
-  ) {
-    return 'Phiên đăng nhập đã hết hạn hoặc bạn không có quyền thực hiện thao tác này.';
+  // 403 Forbidden: Không có quyền hoặc thao tác sai chi nhánh
+  if (status === 403 || /\b403\b|forbidden/i.test(message)) {
+    if (
+      message &&
+      !/\b(403|forbidden|status code|error)\b/i.test(message) &&
+      /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(message)
+    ) {
+      return sanitizeErrorText(message);
+    }
+    return 'Bạn không có quyền thực hiện thao tác này hoặc thao tác ngoài chi nhánh phân công.';
+  }
+
+  // 401 Unauthorized: Hết phiên đăng nhập
+  if (status === 401 || /\b(401|unauthorized)\b/i.test(message)) {
+    return 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.';
   }
 
   // 404: Không tìm thấy

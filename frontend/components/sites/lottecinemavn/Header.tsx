@@ -178,7 +178,7 @@ export function Header() {
                   </li>
                   <li className="inline-block px-[20px] text-[14px]">
                     <Link
-                      href="/#movies-section"
+                      href="/showtimes"
                       onClick={() => setActiveMenu(null)}
                       className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block"
                     >
@@ -232,7 +232,7 @@ export function Header() {
             onMouseEnter={() => setActiveMenu(3)}
           >
             <Link
-              href="/#movies-section"
+              href="/showtimes"
               className={`inline-block font-normal hover:font-bold ${activeMenu === 3 ? "font-bold" : "text-[#555]"}`}
             >
               RẠP CHIẾU PHIM
@@ -276,7 +276,7 @@ export function Header() {
                     )?.cinemas.map((c) => (
                       <li key={c}>
                         <Link
-                          href="/#movies-section"
+                          href={`/showtimes?cinema=${encodeURIComponent(c)}`}
                           onClick={() => setActiveMenu(null)}
                           className="hover:text-white hover:underline"
                         >

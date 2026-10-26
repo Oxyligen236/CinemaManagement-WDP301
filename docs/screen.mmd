@@ -27,8 +27,8 @@ flowchart TD
         SelectSeats["/booking/[showtimeId] (Bước 1: Chọn ghế & Combo)"]
         BookingSummary["/booking/summary/[orderId] (Bước 2: Xác nhận đơn, Voucher & Đếm ngược 10p)"]
 
-        Home -->|Xem lịch chiếu phim| Showtimes
-        Showtimes -->|Chọn rạp / Chọn ngày| Showtimes
+        Home -->|"Header GNB: Rạp chiếu phim / Lịch chiếu"| Showtimes
+        Showtimes -->|"Chọn rạp (?cinema=) / Chọn ngày"| Showtimes
         Showtimes -->|Click khung giờ chiếu| SelectSeats
         Home -->|Đặt vé / Mua vé ngay| SelectShowtime
         SelectShowtime -->|Chọn khung giờ chiếu| SelectSeats

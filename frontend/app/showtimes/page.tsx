@@ -54,11 +54,33 @@ export default function ShowtimesPage() {
       setBranches(branchList);
       setMovies(movieList);
 
+      const urlParams =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search)
+          : null;
+      const cinemaParam = urlParams?.get('cinema')?.trim().toLowerCase();
+
+      const matchedBranch = cinemaParam
+        ? branchList.find(
+            (b) =>
+              b.branchName.toLowerCase().includes(cinemaParam) ||
+              b.branchId.toLowerCase().includes(cinemaParam)
+          )
+        : null;
+
       const savedId =
         typeof window !== 'undefined'
           ? localStorage.getItem('last_selected_branch_id')
           : null;
-      if (savedId && branchList.some((b) => b.branchId === savedId)) {
+
+      if (matchedBranch) {
+        setSelectedBranchId(matchedBranch.branchId);
+        try {
+          localStorage.setItem('last_selected_branch_id', matchedBranch.branchId);
+        } catch {
+          // ignore
+        }
+      } else if (savedId && branchList.some((b) => b.branchId === savedId)) {
         setSelectedBranchId(savedId);
       } else if (branchList.length > 0) {
         setSelectedBranchId(branchList[0].branchId);

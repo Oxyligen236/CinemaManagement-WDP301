@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Genre, GenreDocument } from '../../../movie/domain/schemas/genre.schema';
-import { Movie, MovieDocument } from '../../../movie/domain/schemas/movie.schema';
+import {
+  Genre,
+  GenreDocument,
+} from '../../../movie/domain/schemas/genre.schema';
+import {
+  Movie,
+  MovieDocument,
+} from '../../../movie/domain/schemas/movie.schema';
 import { RoomStatus } from '../../../room/domain/enums/room-status.enum';
 import { SeatStatus } from '../../../room/domain/enums/seat-status.enum';
 import { Room, RoomDocument } from '../../../room/domain/schemas/room.schema';
@@ -109,9 +115,7 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
       .exec();
     const movieMap = new Map(movies.map((m) => [m.movieId, m]));
 
-    const allGenreIds = [
-      ...new Set(movies.flatMap((m) => m.genreIds || [])),
-    ];
+    const allGenreIds = [...new Set(movies.flatMap((m) => m.genreIds || []))];
     let genreMap = new Map<string, string>();
     if (allGenreIds.length > 0) {
       const genres = await this.genreModel
@@ -181,8 +185,7 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
 
     return showtimes.map((st) => {
       const movie = movieMap.get(st.movieId);
-      const stats =
-        seatShowtimeStatsByShowtime.get(st.showtimeId) ||
+      const stats = seatShowtimeStatsByShowtime.get(st.showtimeId) ||
         roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
 
       const item = new PublicShowtimeItemResDto();

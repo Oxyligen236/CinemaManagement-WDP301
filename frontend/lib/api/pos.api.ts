@@ -2,7 +2,7 @@ import { ApiError } from "./order.api";
 import { getFriendlyErrorMessage } from "../utils/error-handler";
 import type { PromotionSummary } from "../types/order.types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8010";
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window === "undefined") return {};
@@ -234,18 +234,19 @@ export const posApi = {
   },
 
   // Lấy danh sách suất chiếu hôm nay
-  getTodayShowtimes: async (): Promise<PosShowtime[]> => {
+  getTodayShowtimes: async (branchId?: string): Promise<PosShowtime[]> => {
+    const branchQuery = branchId ? `&branchId=${encodeURIComponent(branchId)}` : "";
     try {
       const today = new Date().toISOString().split("T")[0];
       const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
-        `/showtimes?limit=50&date=${today}`,
+        `/showtimes?limit=50&date=${today}${branchQuery}`,
       );
       if (Array.isArray(res) && res.length > 0) return res;
       if (res && 'items' in res && Array.isArray(res.items) && res.items.length > 0) return res.items;
 
       // Fallback nếu ngày hôm nay chưa có suất chiếu
       const fallback = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
-        "/showtimes?limit=50",
+        `/showtimes?limit=50${branchQuery}`,
       );
       if (Array.isArray(fallback)) return fallback;
       if (fallback && 'items' in fallback && Array.isArray(fallback.items)) return fallback.items;
@@ -253,7 +254,7 @@ export const posApi = {
     } catch {
       // Fallback lấy toàn bộ suất chiếu
       const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
-        "/showtimes?limit=50",
+        `/showtimes?limit=50${branchQuery}`,
       );
       if (Array.isArray(res)) return res;
       if (res && 'items' in res && Array.isArray(res.items)) return res.items;
