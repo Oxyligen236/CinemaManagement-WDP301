@@ -10,7 +10,7 @@ import { Model } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { Page } from '../../../../common/dto/page.dto';
 import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
-import { Role } from '../../../user/domain/enums/role.enum';
+import { BRANCH_MANAGER_ROLE_VALUES } from '../../../user/domain/role.normalizer';
 import {
   Branch,
   BranchDocument,
@@ -290,7 +290,10 @@ export class ComboService
 
   private async resolveManagerBranchId(managerUserId: string): Promise<string> {
     const manager = await this.userModel
-      .findOne({ userId: managerUserId, role: Role.BRANCHMANAGER })
+      .findOne({
+        userId: managerUserId,
+        role: { $in: BRANCH_MANAGER_ROLE_VALUES },
+      })
       .select('branchId isActive')
       .lean()
       .exec();
