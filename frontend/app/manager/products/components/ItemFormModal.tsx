@@ -20,16 +20,16 @@ interface ItemFormModalProps {
 
 const CATEGORY_OPTIONS: { value: ItemCategory; label: string }[] = [
   { value: 'POPCORN', label: 'Bắp rang' },
-  { value: 'DRINK', label: 'Nước uống' },
+  { value: 'BEVERAGE', label: 'Nước uống' },
   { value: 'SNACK', label: 'Đồ ăn vặt' },
   { value: 'OTHER', label: 'Khác' },
 ];
 
 const SIZE_OPTIONS: { value: ItemSize; label: string }[] = [
-  { value: 'NONE', label: 'Tiêu chuẩn (Không chia size)' },
-  { value: 'S', label: 'Size S (Nhỏ)' },
-  { value: 'M', label: 'Size M (Vừa)' },
-  { value: 'L', label: 'Size L (Lớn)' },
+  { value: 'STANDARD', label: 'Tiêu chuẩn (Không chia size)' },
+  { value: 'MEDIUM', label: 'Size M (Vừa)' },
+  { value: 'LARGE', label: 'Size L (Lớn)' },
+  { value: 'EXTRA_LARGE', label: 'Size XL (Cực lớn)' },
 ];
 
 export default function ItemFormModal({
@@ -40,7 +40,7 @@ export default function ItemFormModal({
 }: ItemFormModalProps) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ItemCategory>('POPCORN');
-  const [size, setSize] = useState<ItemSize>('NONE');
+  const [size, setSize] = useState<ItemSize>('STANDARD');
   const [price, setPrice] = useState<number | ''>('');
   const [costPrice, setCostPrice] = useState<number | ''>(0);
   const [stockQuantity, setStockQuantity] = useState<number | ''>(0);
@@ -59,7 +59,7 @@ export default function ItemFormModal({
       if (itemToEdit) {
         setName(itemToEdit.name || '');
         setCategory(itemToEdit.category || 'POPCORN');
-        setSize(itemToEdit.size || 'NONE');
+        setSize(itemToEdit.size || 'STANDARD');
         setPrice(itemToEdit.price ?? '');
         setCostPrice(itemToEdit.costPrice ?? 0);
         setStockQuantity(itemToEdit.stockQuantity ?? 0);
@@ -70,7 +70,7 @@ export default function ItemFormModal({
       } else {
         setName('');
         setCategory('POPCORN');
-        setSize('NONE');
+        setSize('STANDARD');
         setPrice('');
         setCostPrice(0);
         setStockQuantity(0);

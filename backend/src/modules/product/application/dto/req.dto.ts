@@ -46,10 +46,20 @@ export class CreateItemReq {
   name!: string;
 
   @IsNotEmpty({ message: 'Danh mục không được để trống' })
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'DRINK' ? ItemCategory.BEVERAGE : value,
+  )
   @IsEnum(ItemCategory)
   category!: ItemCategory;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (!value || value === 'NONE' || value === '') return undefined;
+    if (value === 'S') return ItemSize.STANDARD;
+    if (value === 'M') return ItemSize.MEDIUM;
+    if (value === 'L') return ItemSize.LARGE;
+    return value;
+  })
   @IsEnum(ItemSize)
   size?: ItemSize;
 
@@ -97,10 +107,20 @@ export class UpdateItemReq {
   name?: string;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'DRINK' ? ItemCategory.BEVERAGE : value,
+  )
   @IsEnum(ItemCategory)
   category?: ItemCategory;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (!value || value === 'NONE' || value === '') return undefined;
+    if (value === 'S') return ItemSize.STANDARD;
+    if (value === 'M') return ItemSize.MEDIUM;
+    if (value === 'L') return ItemSize.LARGE;
+    return value;
+  })
   @IsEnum(ItemSize)
   size?: ItemSize;
 
