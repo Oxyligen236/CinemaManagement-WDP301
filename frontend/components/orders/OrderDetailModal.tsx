@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import { OrderDetail, OrderItemTicket } from '@/lib/types/order.types';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
@@ -13,6 +14,9 @@ import {
   Popcorn,
   Tag,
   ShieldCheck,
+  AlertCircle,
+  CreditCard,
+  ArrowRight,
 } from 'lucide-react';
 
 interface OrderDetailModalProps {
@@ -31,6 +35,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
   const [selectedTicket, setSelectedTicket] = useState<OrderItemTicket | null>(null);
 
   if (!isOpen || !order) return null;
+
+  const isPaid = order.status === 'PAID';
+  const isPending = order.status === 'PENDING';
 
   return (
     <>
@@ -88,6 +95,36 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               </div>
             </div>
 
+            {/* Unpaid Warning Banner & Payment Action */}
+            {!isPaid && (
+              <div className="p-4 bg-[#fffbeb] border border-[#fde68a] rounded-xs space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-[#b45309] shrink-0 mt-0.5" />
+                  <div className="text-[12px] text-[#92400e] leading-relaxed">
+                    <p className="font-bold text-[13px] text-[#78350f]">
+                      Đơn hàng chưa hoàn tất thanh toán
+                    </p>
+                    <p className="mt-0.5">
+                      Vé điện tử và mã QR sẽ khả dụng sau khi bạn hoàn tất thanh toán thành công.
+                    </p>
+                  </div>
+                </div>
+
+                {isPending && (
+                  <div className="pt-2 border-t border-[#fef3c7] flex justify-end">
+                    <Link
+                      href={`/booking/summary/${order.orderId}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#da291c] hover:bg-[#b82116] text-white text-[12px] font-bold uppercase tracking-wider transition-colors shadow-xs"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>Tiếp tục thanh toán</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Promotion section if available */}
             {order.promotion && (
               <div className="p-3 bg-[#fef2f2] border border-[#fecaca] flex items-center justify-between text-[12px]">
@@ -108,12 +145,12 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               </div>
             )}
 
-            {/* Tickets section */}
+            {/* Khu vực 1: Suất chiếu & ghế đã đặt (Tóm tắt đặt chỗ - không mã QR, không nút xem chi tiết lồng) */}
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <h4 className="text-[13px] font-bold uppercase tracking-wider text-[#231f20] flex items-center gap-2">
                   <Film className="w-4 h-4 text-[#da291c]" />
-                  Danh sách vé xem phim ({order.tickets?.length || 0})
+                  Suất chiếu & Ghế đã đặt ({order.tickets?.length || 0})
                 </h4>
               </div>
 
@@ -126,33 +163,25 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                   {order.tickets.map((t) => (
                     <div
                       key={t.ticketId}
-                      className="p-3.5 bg-white border border-[#dad2b4] hover:border-[#da291c] transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                      className="p-3.5 bg-white border border-[#dad2b4] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-[14px] text-[#231f20]">{t.movieTitle}</span>
-                          <TicketStatusBadge status={t.ticketStatus} />
                         </div>
                         <p className="text-[12px] text-[#6f6247]">
-                          Phòng: <strong className="text-[#231f20]">{t.roomName}</strong> | Ghế: <strong className="text-[#da291c]">{t.seatLabel}</strong> | Suất: {formatDateTime(t.startTime)}
+                          Phòng chiếu: <strong className="text-[#231f20]">{t.roomName}</strong> | Ghế: <strong className="text-[#da291c] font-black">{t.seatLabel}</strong>
                         </p>
-                        <p className="text-[11px] font-mono text-[#888]">
-                          Mã vé: <span className="font-bold text-[#231f20]">{t.ticketCode}</span>
+                        <p className="text-[12px] text-[#666]">
+                          Suất chiếu: <span className="font-semibold text-[#231f20]">{formatDateTime(t.startTime)}</span>
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-3 self-end sm:self-center">
-                        <span className="text-[13px] font-bold text-[#231f20]">
+                      <div className="text-right self-end sm:self-center">
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-[#6f6247]">Giá vé</p>
+                        <p className="text-[14px] font-black text-[#da291c]">
                           {formatCurrency(t.price)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedTicket(t)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] hover:bg-[#da291c] hover:text-white hover:border-[#da291c] text-[#6f6247] font-bold text-[12px] uppercase transition-colors cursor-pointer"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          <span>{mode === 'customer' ? 'Mã QR' : 'Soát vé'}</span>
-                        </button>
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -160,7 +189,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               )}
             </div>
 
-            {/* Products (F&B) section */}
+            {/* Khu vực 2: Hàng hóa/bắp nước */}
             <div>
               <h4 className="text-[13px] font-bold uppercase tracking-wider text-[#231f20] flex items-center gap-2 mb-2.5">
                 <Popcorn className="w-4 h-4 text-[#da291c]" />
@@ -196,6 +225,60 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Khu vực 3: Vé điện tử & Mã QR vào phòng chiếu (Chỉ hiển thị khi ĐÃ THANH TOÁN: order.status === 'PAID') */}
+            {isPaid && (
+              <div className="pt-2 border-t border-[#dad2b4] space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[13px] font-bold uppercase tracking-wider text-[#da291c] flex items-center gap-2">
+                    <QrCode className="w-4 h-4 text-[#da291c]" />
+                    Vé điện tử & Mã QR vào phòng chiếu
+                  </h4>
+                  <span className="text-[11px] text-[#6f6247] bg-[#efebdb] px-2 py-0.5 border border-[#dad2b4]">
+                    Quét tại cửa rạp
+                  </span>
+                </div>
+
+                {order.tickets?.length === 0 ? (
+                  <p className="text-[12px] text-[#666] italic p-3 bg-white border border-[#dad2b4] text-center">
+                    Không có vé điện tử cho đơn hàng này.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {order.tickets.map((t) => (
+                      <div
+                        key={t.ticketId}
+                        className="p-3.5 bg-white border border-[#dad2b4] hover:border-[#da291c] transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-[14px] text-[#231f20]">{t.movieTitle}</span>
+                            <TicketStatusBadge status={t.ticketStatus} />
+                          </div>
+                          <p className="text-[12px] text-[#6f6247]">
+                            Phòng: <strong className="text-[#231f20]">{t.roomName}</strong> | Ghế: <strong className="text-[#da291c]">{t.seatLabel}</strong>
+                          </p>
+                          <p className="text-[11px] font-mono text-[#888]">
+                            Mã vé: <span className="font-bold text-[#231f20]">{t.ticketCode}</span>
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3 self-end sm:self-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTicket(t)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] hover:bg-[#da291c] hover:text-white hover:border-[#da291c] text-[#6f6247] font-bold text-[12px] uppercase transition-colors cursor-pointer"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>{mode === 'customer' ? 'Mã QR' : 'Soát vé'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Modal Footer */}

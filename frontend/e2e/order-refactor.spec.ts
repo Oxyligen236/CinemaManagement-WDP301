@@ -248,7 +248,7 @@ async function runE2E() {
 
   // Bước 1.6: Xem chi tiết đơn hàng OrderDetailModal
   console.log('[1.6] Mở OrderDetailModal...');
-  const detailBtn = page.locator('button:has-text("Xem vé & QR")').first();
+  const detailBtn = page.locator('button:has-text("Chi tiết")').first();
   await detailBtn.click();
   await page.waitForSelector('text=LOTTE CINEMA • CHI TIẾT ĐƠN HÀNG', { timeout: 8000 });
   await page.waitForTimeout(1000);

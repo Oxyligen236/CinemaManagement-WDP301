@@ -11,7 +11,7 @@ import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
 import {
   Ticket,
-  QrCode,
+  Eye,
   ArrowLeft,
   Calendar,
   Popcorn,
@@ -296,8 +296,8 @@ export default function CustomerOrderHistoryPage() {
                     onClick={() => handleOpenDetail(order.orderId)}
                     className="inline-flex h-10 items-center justify-center gap-2 bg-[#da291c] hover:bg-[#b82116] px-4 text-[13px] font-bold uppercase tracking-wide text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    <QrCode className="w-4 h-4" />
-                    <span>{isLoadingDetail && selectedOrderDetail?.orderId === order.orderId ? 'Đang tải...' : 'Xem vé & QR'}</span>
+                    <Eye className="w-4 h-4" />
+                    <span>{isLoadingDetail && selectedOrderDetail?.orderId === order.orderId ? 'Đang tải...' : 'Chi tiết'}</span>
                   </button>
                 </div>
               </div>

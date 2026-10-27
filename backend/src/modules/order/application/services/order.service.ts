@@ -647,7 +647,7 @@ export class OrderService
       this.productOrderModel.find({ orderId }).lean().exec(),
     ]);
 
-    const tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
+    let tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
       OrderItemTicketRes.of(
         t.ticketId,
         t.ticketCode,
@@ -660,6 +660,36 @@ export class OrderService
         t.startTime,
       ),
     );
+
+    if (tickets.length === 0) {
+      const seatOrders = await this.seatOrderModel
+        .find({ orderId })
+        .lean()
+        .exec();
+      if (seatOrders.length > 0) {
+        const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+        const seatBookingDetails =
+          await this.showtimeBookingService.getSeatBookingDetails(
+            seatShowtimeIds,
+          );
+        tickets = seatBookingDetails.map((seat) => {
+          const matchedOrder = seatOrders.find(
+            (so) => so.seatShowtimeId === seat.seatShowtimeId,
+          );
+          return OrderItemTicketRes.of(
+            seat.seatShowtimeId,
+            '',
+            matchedOrder?.price ?? seat.basePrice,
+            order.status as any,
+            undefined,
+            seat.movieName,
+            seat.roomName,
+            `${seat.rowPosition}${seat.columnPosition}`,
+            seat.startTime,
+          );
+        });
+      }
+    }
 
     const productIds = productOrders.map((po) => po.productId);
     const productsMap =

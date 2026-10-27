@@ -594,6 +594,75 @@ describe('OrderService', () => {
         NotFoundException,
       );
     });
+
+    it('fallback sang seatOrder va showtimeBookingService khi don chua co ve (PENDING/CANCELLED/EXPIRED)', async () => {
+      mockOrderModel.findOne.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue({
+            ...mockOrder,
+            status: OrderStatus.PENDING,
+          }),
+        }),
+      });
+
+      (mockTicketContract.getTicketsByOrderId as jest.Mock).mockResolvedValue(
+        [],
+      );
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([
+            {
+              orderId: 'order-123',
+              seatShowtimeId: 'sst-1',
+              price: 100000,
+            },
+          ]),
+        }),
+      });
+
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          showtimeId: 'show-1',
+          seatId: 'seat-1',
+          rowPosition: 'F',
+          columnPosition: 8,
+          seatType: 'STANDARD',
+          seatStatus: 'RESERVED',
+          basePrice: 95000,
+          startTime: new Date('2026-03-30T14:00:00Z'),
+          endTime: new Date('2026-03-30T16:00:00Z'),
+          roomId: 'room-1',
+          roomName: 'Phòng 1',
+          movieId: 'movie-1',
+          movieName: 'Mai',
+        },
+      ]);
+
+      mockProductOrderModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const res = await service.getOrderDetail('order-123');
+
+      expect(res.orderId).toBe('order-123');
+      expect(res.tickets).toHaveLength(1);
+      expect(res.tickets[0].ticketId).toBe('sst-1');
+      expect(res.tickets[0].ticketCode).toBe('');
+      expect(res.tickets[0].price).toBe(100000);
+      expect(res.tickets[0].ticketStatus).toBe(OrderStatus.PENDING);
+      expect(res.tickets[0].movieTitle).toBe('Mai');
+      expect(res.tickets[0].roomName).toBe('Phòng 1');
+      expect(res.tickets[0].seatLabel).toBe('F8');
+      expect(mockShowtimeBooking.getSeatBookingDetails).toHaveBeenCalledWith([
+        'sst-1',
+      ]);
+    });
   });
 
   describe('applyPromotion', () => {
