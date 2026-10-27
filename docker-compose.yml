@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wdp-backend
+    restart: always
+    env_file:
+      - backend/.env
+    ports:
+      - "8010:8010"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: wdp-frontend
+    restart: always
+    env_file:
+      - frontend/.env
+    ports:
+      - "3000:3000"
