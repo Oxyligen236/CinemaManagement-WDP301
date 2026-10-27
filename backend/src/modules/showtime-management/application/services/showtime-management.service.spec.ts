@@ -30,8 +30,18 @@ const MANAGER: AuthenticatedUser = {
 };
 const BRANCH = 'b-1';
 const ROOMS = [
-  { roomId: 'r-1', roomName: 'Room 1', roomStatus: 'AVAILABLE', branchId: BRANCH },
-  { roomId: 'r-2', roomName: 'Room 2', roomStatus: 'MAINTENANCE', branchId: BRANCH },
+  {
+    roomId: 'r-1',
+    roomName: 'Room 1',
+    roomStatus: 'AVAILABLE',
+    branchId: BRANCH,
+  },
+  {
+    roomId: 'r-2',
+    roomName: 'Room 2',
+    roomStatus: 'MAINTENANCE',
+    branchId: BRANCH,
+  },
 ];
 const MOVIE = {
   movieId: 'm-1',
@@ -170,8 +180,10 @@ describe('ShowtimeManagementService', () => {
         limit: 10,
         date: '2026-10-25',
       });
-      const filter = showtimeQuery.searchShowtimesByRooms.mock
-        .calls[0][1] as { from: Date; to: Date };
+      const filter = showtimeQuery.searchShowtimesByRooms.mock.calls[0][1] as {
+        from: Date;
+        to: Date;
+      };
       expect(filter.from.toISOString()).toBe('2026-10-24T17:00:00.000Z');
       expect(filter.to.toISOString()).toBe('2026-10-25T17:00:00.000Z');
     });
@@ -185,8 +197,9 @@ describe('ShowtimeManagementService', () => {
         limit: 10,
         includePast: true,
       });
-      const filter = showtimeQuery.searchShowtimesByRooms.mock
-        .calls[0][1] as { from?: Date };
+      const filter = showtimeQuery.searchShowtimesByRooms.mock.calls[0][1] as {
+        from?: Date;
+      };
       expect(filter.from).toBeUndefined();
     });
 
@@ -206,18 +219,18 @@ describe('ShowtimeManagementService', () => {
       showtimeQuery.getShowtimeDetail.mockResolvedValue(
         showtimeRes({ roomId: 'r-other' }),
       );
-      await expect(
-        service.getShowtime(MANAGER, 'st-1'),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.getShowtime(MANAGER, 'st-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('404 khi suất không tồn tại', async () => {
       showtimeQuery.getShowtimeDetail.mockRejectedValue(
         new NotFoundException('Showtime not found'),
       );
-      await expect(
-        service.getShowtime(MANAGER, 'nope'),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.getShowtime(MANAGER, 'nope')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -267,20 +280,14 @@ describe('ShowtimeManagementService', () => {
 
     it('400 khi giờ bắt đầu ở quá khứ', async () => {
       await expect(
-        service.createShowtime(
-          MANAGER,
-          body({ screeningDate: '2020-01-01' }),
-        ),
+        service.createShowtime(MANAGER, body({ screeningDate: '2020-01-01' })),
       ).rejects.toBeInstanceOf(BadRequestException);
       expect(schedule.createShowtime).not.toHaveBeenCalled();
     });
 
     it('400 khi ngày không tồn tại trên lịch', async () => {
       await expect(
-        service.createShowtime(
-          MANAGER,
-          body({ screeningDate: '2030-02-30' }),
-        ),
+        service.createShowtime(MANAGER, body({ screeningDate: '2030-02-30' })),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 

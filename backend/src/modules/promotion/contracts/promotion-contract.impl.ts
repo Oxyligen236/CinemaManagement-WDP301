@@ -38,4 +38,12 @@ export class PromotionContractImpl implements PromotionContract {
   }): Promise<ValidatePromotionResultDto> {
     return this.promotionPublicService.validatePromotionCode(params);
   }
+
+  async recordPromotionUsage(params: {
+    promotionId: string;
+    userId: string;
+    orderId: string;
+  }): Promise<void> {
+    return this.promotionPublicService.recordPromotionUsage(params);
+  }
 }

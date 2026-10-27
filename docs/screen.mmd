@@ -18,10 +18,11 @@ flowchart TD
     %% Customer Experience Flow
     subgraph CustomerFlow [Customer Experience - Online Booking Flow]
         CustomerOrders["/profile/orders (Lịch sử đặt vé cá nhân)"]
-        TicketQRModal["[Modal] Chi tiết vé & Mã QR"]
+        OrderDetailModal["[Modal] Chi tiết đơn hàng & Vé"]
 
         Home -->|Xem lịch sử mua vé| CustomerOrders
-        CustomerOrders -->|Xem vé & QR| TicketQRModal
+        CustomerOrders -->|Chi tiết| OrderDetailModal
+        CustomerOrders -->|"Thanh toán ngay (Đơn PENDING)"| BookingSummary
 
         MovieList["/movies (Danh sách & Tìm kiếm phim: Tab Đang chiếu / Sắp chiếu)"]
         MovieDetail["/movies/[movieId] (Chi tiết phim & Tab Lịch chiếu phim)"]
