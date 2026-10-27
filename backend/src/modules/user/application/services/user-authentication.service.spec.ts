@@ -81,10 +81,8 @@ describe('UserAuthenticationService.login', () => {
     );
   });
 
-  it('normalizes a legacy Branch Manager role in the token and the response', async () => {
-    const { service, signAsync } = buildService(
-      buildUser({ role: 'BRANCHMANAGER' }),
-    );
+  it('puts the stored role into the token and the response', async () => {
+    const { service, signAsync } = buildService(buildUser());
 
     const result = await service.login('manager@cinema.local', PASSWORD);
 

@@ -4,7 +4,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../domain/schemas/user.schema';
-import { normalizeRole } from '../../domain/role.normalizer';
 import { AUTH_MESSAGES } from '../../domain/constants/auth-message.constants';
 
 @Injectable()
@@ -33,11 +32,10 @@ export class UserAuthenticationService {
       throw new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED);
     }
 
-    const role = normalizeRole(user.role) ?? user.role;
     const payload = {
       sub: user.userId,
       email: user.email,
-      role,
+      role: user.role,
       tokenVersion: user.tokenVersion ?? 0,
     };
 
@@ -48,7 +46,7 @@ export class UserAuthenticationService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role,
+        role: user.role,
       },
     };
   }
