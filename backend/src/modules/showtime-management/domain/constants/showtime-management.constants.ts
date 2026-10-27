@@ -19,6 +19,11 @@ export const MSG_INVALID_ROOM = 'Selected screening room is invalid.';
 export const MSG_ROOM_NOT_ACTIVE = 'Selected screening room is not active.';
 export const MSG_NO_BRANCH = 'Your account is not assigned to a branch.';
 export const MSG_NOT_FOUND = 'Showtime not found.';
+export const MSG_STARTED_EDIT =
+  'Cannot edit a showtime that has already started or ended.';
+export const MSG_STARTED_DELETE =
+  'Cannot delete a showtime that has already started or ended.';
+export const CODE_SHOWTIME_STARTED = 'SHOWTIME_STARTED';
 export const MSG_SAVE_FAILED =
   'Unable to save showtime due to system failure. Please try again later.';
 export const MSG_LOAD_FAILED = 'Unable to load showtimes.';

@@ -338,21 +338,20 @@ describe('ShowtimeManagementService', () => {
       expect(priceRule.resolvePriceSelections).toHaveBeenCalledWith([]);
     });
 
-    it('chỉ kiểm tra quá khứ khi giờ hoặc phòng thay đổi', async () => {
-      const past = new Date('2020-01-01T02:00:00.000Z');
+    it('409 SHOWTIME_STARTED khi suất đã/đang chiếu', async () => {
       showtimeQuery.getShowtimeDetail.mockResolvedValue(
-        showtimeRes({ startTime: past }),
+        showtimeRes({ startTime: new Date('2020-01-01T02:00:00.000Z') }),
       );
-      schedule.updateShowtime.mockResolvedValue(showtimeRes());
+      const promise = service.updateShowtime(MANAGER, 'st-1', body());
+      await expect(promise).rejects.toBeInstanceOf(ConflictException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SHOWTIME_STARTED' },
+      });
+      expect(schedule.hasSoldTickets).not.toHaveBeenCalled();
+      expect(schedule.updateShowtime).not.toHaveBeenCalled();
+    });
 
-      await expect(
-        service.updateShowtime(
-          MANAGER,
-          'st-1',
-          body({ screeningDate: '2020-01-01' }),
-        ),
-      ).resolves.toMatchObject({ message: MSG02 });
-
+    it('400 khi dời suất chưa chiếu sang thời điểm quá khứ', async () => {
       await expect(
         service.updateShowtime(
           MANAGER,
@@ -360,6 +359,7 @@ describe('ShowtimeManagementService', () => {
           body({ screeningDate: '2020-01-02' }),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
+      expect(schedule.updateShowtime).not.toHaveBeenCalled();
     });
   });
 
@@ -382,6 +382,18 @@ describe('ShowtimeManagementService', () => {
       await expect(
         service.deleteShowtime(MANAGER, 'st-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(schedule.deleteShowtime).not.toHaveBeenCalled();
+    });
+
+    it('409 SHOWTIME_STARTED và không xóa khi suất đã/đang chiếu', async () => {
+      showtimeQuery.getShowtimeDetail.mockResolvedValue(
+        showtimeRes({ startTime: new Date('2020-01-01T02:00:00.000Z') }),
+      );
+      const promise = service.deleteShowtime(MANAGER, 'st-1');
+      await expect(promise).rejects.toBeInstanceOf(ConflictException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'SHOWTIME_STARTED' },
+      });
       expect(schedule.deleteShowtime).not.toHaveBeenCalled();
     });
 

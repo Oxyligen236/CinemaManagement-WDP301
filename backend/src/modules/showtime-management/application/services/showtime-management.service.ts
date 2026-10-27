@@ -33,6 +33,7 @@ import { ShowtimeQueryService } from '../../../showtime/application/services/sho
 import { ShowtimeScheduleService } from '../../../showtime/application/services/showtime-schedule.service';
 import { UserBranchQueryService } from '../../../user/application/services/user-branch-query.service';
 import {
+  CODE_SHOWTIME_STARTED,
   DEFAULT_BASE_PRICE,
   MSG02,
   MSG_INVALID_DATE,
@@ -44,6 +45,8 @@ import {
   MSG_PAST_START,
   MSG_ROOM_NOT_ACTIVE,
   MSG_SAVE_FAILED,
+  MSG_STARTED_DELETE,
+  MSG_STARTED_EDIT,
 } from '../../domain/constants/showtime-management.constants';
 import { buildShowtimeValidationException } from '../../infra/save-showtime-validation.exception-factory';
 import {
@@ -219,6 +222,9 @@ export class ShowtimeManagementService {
       const rooms = await this.roomOptionQuery.listRoomsByBranch(branchId);
       const existing = await this.findOwnedShowtime(showtimeId, rooms);
 
+      if (this.hasStarted(existing)) {
+        throw this.startedConflict(MSG_STARTED_EDIT);
+      }
       if (await this.scheduleService.hasSoldTickets(showtimeId)) {
         throw this.soldConflict(SHOWTIME_SCHEDULE_MESSAGES.MSG04);
       }
@@ -269,7 +275,11 @@ export class ShowtimeManagementService {
     try {
       const branchId = await this.resolveBranchId(user);
       const rooms = await this.roomOptionQuery.listRoomsByBranch(branchId);
-      await this.findOwnedShowtime(showtimeId, rooms);
+      const existing = await this.findOwnedShowtime(showtimeId, rooms);
+
+      if (this.hasStarted(existing)) {
+        throw this.startedConflict(MSG_STARTED_DELETE);
+      }
 
       const deleted = await this.scheduleService.deleteShowtime(showtimeId);
       const movieInfo = await this.movieOptionQuery.getMovieSchedulingInfo(
@@ -442,6 +452,19 @@ export class ShowtimeManagementService {
 
   private unknownMovie(): MovieInfo {
     return { movieName: '', duration: 0 };
+  }
+
+  private hasStarted(showtime: ShowtimeResDto): boolean {
+    return new Date(showtime.startTime).getTime() <= Date.now();
+  }
+
+  private startedConflict(message: string): ConflictException {
+    return new ConflictException({
+      statusCode: 409,
+      message,
+      error: 'Conflict',
+      code: CODE_SHOWTIME_STARTED,
+    });
   }
 
   private soldConflict(message: string): ConflictException {

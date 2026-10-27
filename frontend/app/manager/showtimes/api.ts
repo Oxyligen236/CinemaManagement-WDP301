@@ -93,6 +93,7 @@ export interface SaveShowtimePayload {
   screeningDate: string;
   startTime: string;
   roomId: string;
+  basePrice?: number;
   priceSelections?: PriceSelectionPayload[];
 }
 
@@ -136,6 +137,11 @@ export const MSG_NO_PERMISSION = "Bạn không có quyền thực hiện thao t�
 
 export const CODE_ROOM_CONFLICT = "ROOM_CONFLICT";
 export const CODE_SHOWTIME_SOLD = "SHOWTIME_SOLD";
+export const CODE_SHOWTIME_STARTED = "SHOWTIME_STARTED";
+export const MSG_STARTED_EDIT =
+  "Cannot edit a showtime that has already started or ended.";
+export const MSG_STARTED_DELETE =
+  "Cannot delete a showtime that has already started or ended.";
 
 export const CINEMA_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const CINEMA_UTC_OFFSET_MINUTES = 420;
@@ -210,17 +216,103 @@ export function previewEndTime(
   return { time: parts.time, nextDay: parts.date !== screeningDate };
 }
 
+/** Cinema-local `YYYY-MM-DD` + `HH:mm` -> the real instant (Asia/Ho_Chi_Minh, UTC+7). */
+export function toInstant(
+  screeningDate: string,
+  startTime: string,
+): Date | null {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(screeningDate);
+  const t = /^(\d{2}):(\d{2})$/.exec(startTime);
+  if (!d || !t) return null;
+  const ms =
+    Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2])) -
+    CINEMA_UTC_OFFSET_MINUTES * 60_000;
+  return Number.isNaN(ms) ? null : new Date(ms);
+}
+
+/** Adds calendar days to a `YYYY-MM-DD` string without any timezone drift. */
+export function addDaysToDate(date: string, days: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return date;
+  const next = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days));
+  const mm = String(next.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(next.getUTCDate()).padStart(2, "0");
+  return `${next.getUTCFullYear()}-${mm}-${dd}`;
+}
+
 export const formatMultiplier = (value: number): string =>
   String(Number(value.toFixed(2)));
 
 export function describeError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
-    if (err.status === 403) return err.message || MSG_NO_PERMISSION;
+    if (err.status === 403) return viMessage(err.message) || MSG_NO_PERMISSION;
     if (err.status >= 500) return fallback;
-    return err.message || fallback;
+    return viMessage(err.message) || fallback;
   }
   return fallback;
 }
+
+/** Vietnamese labels for the backend's English messages, keyed by the exact BE text. */
+const VI_MESSAGES: Record<string, string> = {
+  [MSG02]: "Lưu thay đổi thành công.",
+  [MSG03]:
+    "Phòng chiếu đã có suất chiếu khác trùng trong khung giờ này. Vui lòng chọn phòng hoặc khung giờ khác.",
+  [MSG04]: "Phim đã bán vé, không thể sửa.",
+  [MSG05]: "Phim đã bán vé, không thể xóa.",
+  [MSG_STARTED_EDIT]: "Phim đã/đang chiếu, không thể sửa.",
+  [MSG_STARTED_DELETE]: "Phim đã/đang chiếu, không thể xóa.",
+  [MSG_NOT_FOUND]: "Không tìm thấy suất chiếu trong chi nhánh của bạn.",
+  [MSG_SAVE_FAILED]:
+    "Không thể lưu suất chiếu do lỗi hệ thống. Vui lòng thử lại sau.",
+  [MSG_LOAD_FAILED]: "Không thể tải danh sách suất chiếu.",
+  [MSG_OPTIONS_FAILED]: "Không thể tải dữ liệu cho biểu mẫu.",
+  "Your account is not assigned to a branch.":
+    "Tài khoản của bạn chưa được phân công chi nhánh.",
+  "Start time must be in the future.":
+    "Giờ bắt đầu phải lớn hơn thời điểm hiện tại.",
+  "Start time is invalid. Use HH:mm.": "Giờ bắt đầu không hợp lệ.",
+  "Screening date is invalid.": "Ngày chiếu không hợp lệ.",
+  "Selected movie is invalid or no longer available.":
+    "Bộ phim đã chọn không hợp lệ hoặc không còn khả dụng.",
+  "Selected screening room is invalid.": "Phòng chiếu đã chọn không hợp lệ.",
+  "Selected screening room is not active.":
+    "Phòng chiếu đã chọn không ở trạng thái hoạt động.",
+  "Selected price value is invalid or no longer available.":
+    "Hệ số giá đã chọn không hợp lệ hoặc không còn khả dụng.",
+  "Unable to load pricing configurations.": "Không thể tải cấu hình hệ số giá.",
+  "Validation failed": "Dữ liệu nhập chưa hợp lệ.",
+};
+
+const REQUIRED_VI: Record<string, string> = {
+  Movie: "Vui lòng chọn bộ phim chiếu.",
+  Date: "Vui lòng chọn ngày chiếu.",
+  "Start time": "Vui lòng chọn giờ bắt đầu.",
+  "Screening room": "Vui lòng chọn phòng chiếu.",
+};
+
+/** Translates a BE message; unknown text is returned unchanged. */
+export function viMessage(message: string): string {
+  const exact = VI_MESSAGES[message];
+  if (exact) return exact;
+  const required = /^The (.+) field is required\.$/.exec(message);
+  if (required && REQUIRED_VI[required[1]]) return REQUIRED_VI[required[1]];
+  return message;
+}
+
+export type ShowtimePhase = "UPCOMING" | "ONGOING" | "ENDED";
+
+/** Derives the timing phase from the showtime's own start/end (cinema-agnostic, instant based). */
+export function showtimePhase(
+  showtime: Pick<ManagedShowtime, "startTime" | "endTime">,
+  nowMs: number,
+): ShowtimePhase {
+  if (nowMs <= 0) return "UPCOMING";
+  if (new Date(showtime.endTime).getTime() <= nowMs) return "ENDED";
+  if (new Date(showtime.startTime).getTime() <= nowMs) return "ONGOING";
+  return "UPCOMING";
+}
+
+export const DEFAULT_BASE_PRICE = 75000;
 
 function authHeaders(): Record<string, string> {
   try {
@@ -238,12 +330,32 @@ function isFieldError(value: unknown): value is FieldError {
   return typeof item.message === "string" && typeof item.field === "string";
 }
 
+export function hasAccessToken(): boolean {
+  try {
+    return Boolean(localStorage.getItem("cinema_access_token"));
+  } catch {
+    return false;
+  }
+}
+
+/** Clears the stored session and sends the user back to the login page. */
+export function redirectToLogin(): void {
+  try {
+    localStorage.removeItem("cinema_access_token");
+    localStorage.removeItem("cinema_user");
+  } catch {
+    // localStorage unavailable
+  }
+  if (typeof window !== "undefined") window.location.replace("/login");
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
   const headers: Record<string, string> = { ...authHeaders() };
   if (init.body !== undefined) headers["Content-Type"] = "application/json";
   const response = await fetch(`${apiUrl}${path}`, { ...init, headers });
   const body = await response.json().catch(() => null);
+  if (response.status === 401) redirectToLogin();
   if (!response.ok) {
     const message = Array.isArray(body?.message)
       ? body.message.join(", ")
