@@ -11,6 +11,8 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
@@ -32,6 +34,7 @@ import {
 @Controller('manager/combos')
 @UseGuards(JwtGuard, RoleGuard)
 @Roles(Role.BRANCHMANAGER)
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class ComboManagerController {
   constructor(private readonly comboService: ComboService) {}
 

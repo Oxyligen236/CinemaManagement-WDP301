@@ -57,4 +57,4 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     SHOWTIME_CONTRACT,
   ],
 })
-export class ShowtimeModule { }
+export class ShowtimeModule {}

@@ -436,7 +436,7 @@ export default function ManagerProductsPage() {
               >
                 <option value="">Tất cả danh mục</option>
                 <option value="POPCORN">Bắp rang</option>
-                <option value="DRINK">Nước uống</option>
+                <option value="BEVERAGE">Nước uống</option>
                 <option value="SNACK">Đồ ăn vặt</option>
                 <option value="OTHER">Khác</option>
               </select>

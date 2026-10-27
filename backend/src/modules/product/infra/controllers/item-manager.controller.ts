@@ -12,6 +12,8 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -36,6 +38,7 @@ import {
 @Controller('manager/items')
 @UseGuards(JwtGuard, RoleGuard)
 @Roles(Role.BRANCHMANAGER)
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class ItemManagerController {
   constructor(private readonly itemService: ItemService) {}
 

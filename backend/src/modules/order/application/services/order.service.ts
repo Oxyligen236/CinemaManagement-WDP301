@@ -254,31 +254,30 @@ export class OrderService
     let appliedPromotion: PromotionSummaryRes | undefined;
 
     if (request.promotionCode) {
-      try {
-        const promo = await this.promotionContract.getPromotionById(
-          request.promotionCode,
+      const originalSubtotal = ticketSubtotal + productSubtotal;
+      const validationResult =
+        await this.promotionContract.validatePromotionCode({
+          code: request.promotionCode,
+          orderAmount: originalSubtotal,
+          userId,
+        });
+
+      if (!validationResult.isValid) {
+        await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds);
+        throw new BadRequestException(
+          validationResult.reason || 'Mã giảm giá không hợp lệ',
         );
-        if (promo && promo.isActive) {
-          appliedPromotionId = promo.promotionId;
-          const originalSubtotal = ticketSubtotal + productSubtotal;
-          if (promo.discountType === 'PERCENTAGE') {
-            discountAmount = Math.round(
-              (originalSubtotal * promo.discountValue) / 100,
-            );
-          } else {
-            discountAmount = Math.min(originalSubtotal, promo.discountValue);
-          }
-          appliedPromotion = PromotionSummaryRes.of(
-            promo.promotionId,
-            promo.promotionCode,
-            promo.discountType,
-            promo.discountValue,
-            discountAmount,
-          );
-        }
-      } catch {
-        discountAmount = 0;
       }
+
+      appliedPromotionId = validationResult.promotionId;
+      discountAmount = Math.max(0, validationResult.discountAmount);
+      appliedPromotion = PromotionSummaryRes.of(
+        validationResult.promotionId || '',
+        validationResult.promotionCode || request.promotionCode,
+        validationResult.discountType || 'PERCENTAGE',
+        validationResult.discountValue || 0,
+        discountAmount,
+      );
     }
 
     const totalAmount = Math.max(
@@ -713,7 +712,7 @@ export class OrderService
       this.productOrderModel.find({ orderId }).lean().exec(),
     ]);
 
-    const tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
+    let tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
       OrderItemTicketRes.of(
         t.ticketId,
         t.ticketCode,
@@ -726,6 +725,36 @@ export class OrderService
         t.startTime,
       ),
     );
+
+    if (tickets.length === 0) {
+      const seatOrders = await this.seatOrderModel
+        .find({ orderId })
+        .lean()
+        .exec();
+      if (seatOrders.length > 0) {
+        const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+        const seatBookingDetails =
+          await this.showtimeBookingService.getSeatBookingDetails(
+            seatShowtimeIds,
+          );
+        tickets = seatBookingDetails.map((seat) => {
+          const matchedOrder = seatOrders.find(
+            (so) => so.seatShowtimeId === seat.seatShowtimeId,
+          );
+          return OrderItemTicketRes.of(
+            seat.seatShowtimeId,
+            '',
+            matchedOrder?.price ?? seat.basePrice,
+            String(order.status),
+            undefined,
+            seat.movieName,
+            seat.roomName,
+            `${seat.rowPosition}${seat.columnPosition}`,
+            seat.startTime,
+          );
+        });
+      }
+    }
 
     const productIds = productOrders.map((po) => po.productId);
     const productsMap =
