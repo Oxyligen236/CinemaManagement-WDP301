@@ -33,6 +33,13 @@ export interface PaymentStatusSummaryDto {
   transactionId?: string;
 }
 
+export interface VnpayPaymentUrlDto {
+  paymentId: string;
+  orderId: string;
+  paymentUrl: string;
+  status: PaymentStatus;
+}
+
 export const PAYMENT_CONTRACT = Symbol('PAYMENT_CONTRACT');
 
 export interface PaymentContract {
@@ -50,4 +57,24 @@ export interface PaymentContract {
   }): Promise<QrPaymentSummaryDto>;
 
   checkPaymentStatus(identifier: string): Promise<PaymentStatusSummaryDto>;
+
+  createVnpayPayment(params: {
+    orderId: string;
+    amount: number;
+    ipAddr: string;
+    returnUrl: string;
+  }): Promise<VnpayPaymentUrlDto>;
+
+  verifyVnpayReturn(query: Record<string, string | string[]>): Promise<{
+    isSuccess: boolean;
+    orderId: string;
+    message: string;
+  }>;
+  verifyVnpayIpn(query: Record<string, string | string[]>): Promise<{
+    RspCode: string;
+    Message: string;
+    orderId?: string;
+    isSuccess?: boolean;
+  }>;
+  getVnpayPaymentStatus(orderId: string): Promise<{ isSuccess: boolean }>;
 }
