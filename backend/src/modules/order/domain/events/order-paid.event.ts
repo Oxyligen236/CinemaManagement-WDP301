@@ -8,6 +8,8 @@ export class OrderPaidEvent extends DomainEvent {
     public readonly totalAmount: number,
     public readonly paymentMethod: string,
     public readonly paidAt: Date,
+    public readonly promotionId?: string,
+    public readonly userId?: string,
   ) {
     super();
   }

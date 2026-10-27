@@ -188,31 +188,30 @@ export class OrderService
     let appliedPromotion: PromotionSummaryRes | undefined;
 
     if (request.promotionCode) {
-      try {
-        const promo = await this.promotionContract.getPromotionById(
-          request.promotionCode,
+      const originalSubtotal = ticketSubtotal + productSubtotal;
+      const validationResult =
+        await this.promotionContract.validatePromotionCode({
+          code: request.promotionCode,
+          orderAmount: originalSubtotal,
+          userId,
+        });
+
+      if (!validationResult.isValid) {
+        await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds);
+        throw new BadRequestException(
+          validationResult.reason || 'Mã giảm giá không hợp lệ',
         );
-        if (promo && promo.isActive) {
-          appliedPromotionId = promo.promotionId;
-          const originalSubtotal = ticketSubtotal + productSubtotal;
-          if (promo.discountType === 'PERCENTAGE') {
-            discountAmount = Math.round(
-              (originalSubtotal * promo.discountValue) / 100,
-            );
-          } else {
-            discountAmount = Math.min(originalSubtotal, promo.discountValue);
-          }
-          appliedPromotion = PromotionSummaryRes.of(
-            promo.promotionId,
-            promo.promotionCode,
-            promo.discountType,
-            promo.discountValue,
-            discountAmount,
-          );
-        }
-      } catch {
-        discountAmount = 0;
       }
+
+      appliedPromotionId = validationResult.promotionId;
+      discountAmount = Math.max(0, validationResult.discountAmount);
+      appliedPromotion = PromotionSummaryRes.of(
+        validationResult.promotionId || '',
+        validationResult.promotionCode || request.promotionCode,
+        validationResult.discountType || 'PERCENTAGE',
+        validationResult.discountValue || 0,
+        discountAmount,
+      );
     }
 
     const totalAmount = Math.max(
@@ -680,7 +679,7 @@ export class OrderService
             seat.seatShowtimeId,
             '',
             matchedOrder?.price ?? seat.basePrice,
-            order.status as any,
+            String(order.status),
             undefined,
             seat.movieName,
             seat.roomName,

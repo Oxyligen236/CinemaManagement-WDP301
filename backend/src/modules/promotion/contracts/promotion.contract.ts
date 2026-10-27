@@ -33,4 +33,9 @@ export interface PromotionContract {
     orderAmount: number;
     userId: string;
   }): Promise<ValidatePromotionResultDto>;
+  recordPromotionUsage(params: {
+    promotionId: string;
+    userId: string;
+    orderId: string;
+  }): Promise<void>;
 }

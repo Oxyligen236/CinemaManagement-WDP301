@@ -6,12 +6,14 @@ describe('PromotionContractImpl', () => {
   let mockPromotionPublicService: {
     getPromotionById: jest.Mock;
     validatePromotionCode: jest.Mock;
+    recordPromotionUsage: jest.Mock;
   };
 
   beforeEach(() => {
     mockPromotionPublicService = {
       getPromotionById: jest.fn(),
       validatePromotionCode: jest.fn(),
+      recordPromotionUsage: jest.fn(),
     };
     contract = new PromotionContractImpl(
       mockPromotionPublicService as unknown as PromotionPublicService,
@@ -56,5 +58,25 @@ describe('PromotionContractImpl', () => {
     });
     expect(result.isValid).toBe(true);
     expect(result.discountAmount).toBe(10000);
+  });
+
+  it('ghi nhận sử dụng mã khuyến mãi', async () => {
+    mockPromotionPublicService.recordPromotionUsage.mockResolvedValue(
+      undefined,
+    );
+
+    await contract.recordPromotionUsage({
+      promotionId: 'pro-1',
+      userId: 'u-1',
+      orderId: 'ord-1',
+    });
+
+    expect(
+      mockPromotionPublicService.recordPromotionUsage,
+    ).toHaveBeenCalledWith({
+      promotionId: 'pro-1',
+      userId: 'u-1',
+      orderId: 'ord-1',
+    });
   });
 });

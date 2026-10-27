@@ -418,6 +418,8 @@ export class PosOrderService
           amountToPay,
           'CASH',
           new Date(),
+          order.promotionId,
+          order.userId,
         ),
       );
     } catch (eventError) {
@@ -545,6 +547,8 @@ export class PosOrderService
             amountToPay,
             paymentMethod,
             new Date(),
+            order.promotionId,
+            order.userId,
           ),
         );
       } catch (eventError) {
