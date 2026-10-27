@@ -390,7 +390,7 @@ export default function MovieDetailPage({
   // Render 404
   if (notFound) {
     return (
-      <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-['Arial',sans-serif]">
+      <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-sans">
         <Header />
         <main className="flex-1 max-w-[1120px] w-full mx-auto px-4 py-16 flex flex-col items-center justify-center text-center">
           <div className="w-20 h-20 bg-[#fee2e2] text-[#dc2626] rounded-full flex items-center justify-center mb-5">
@@ -417,7 +417,7 @@ export default function MovieDetailPage({
   // Render loading skeleton
   if (loading) {
     return (
-      <div className="w-full bg-[#f8fafc] min-h-screen flex flex-col font-['Arial',sans-serif]">
+      <div className="w-full bg-[#f8fafc] min-h-screen flex flex-col font-sans">
         <Header />
         <div className="max-w-[1120px] w-full mx-auto px-4 py-8 flex-1 animate-pulse space-y-8">
           <div className="h-6 bg-slate-200 rounded w-1/4" />
@@ -442,7 +442,7 @@ export default function MovieDetailPage({
 
   if (error || !movie) {
     return (
-      <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-['Arial',sans-serif]">
+      <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-sans">
         <Header />
         <main className="flex-1 max-w-[1120px] w-full mx-auto px-4 py-16 text-center">
           <AlertCircle className="w-12 h-12 text-[#dc2626] mx-auto mb-3" />
@@ -468,7 +468,7 @@ export default function MovieDetailPage({
       : 'Phim Chiếu Rạp';
 
   return (
-    <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-['Arial',sans-serif]">
+    <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-sans">
       <Header />
 
       {/* Breadcrumb */}
@@ -534,7 +534,7 @@ export default function MovieDetailPage({
             <div className="flex-1 flex flex-col justify-between self-stretch">
               <div>
                 {/* Title */}
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold uppercase tracking-tight text-[#111827] leading-tight">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold uppercase tracking-tight text-[#111827] leading-tight">
                   {movie.movieName}
                 </h1>
 
