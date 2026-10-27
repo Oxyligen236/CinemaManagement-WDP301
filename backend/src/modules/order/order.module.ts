@@ -19,6 +19,7 @@ import { OrderService } from './application/services/order.service';
 import { PosOrderService } from './application/services/pos-order.service';
 import { OrderExpirationConsumer } from './application/handlers/order-expiration.consumer';
 import { OrderController } from './infra/controllers/order.controller';
+import { VnpayReturnController } from './infra/controllers/vnpay-return.controller';
 import { OrderStaffController } from './infra/controllers/order-staff.controller';
 import { OrderAdminController } from './infra/controllers/order-admin.controller';
 import { PosStaffController } from './infra/controllers/pos-staff.controller';
@@ -44,6 +45,7 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
   ],
   controllers: [
     OrderController,
+    VnpayReturnController,
     OrderStaffController,
     OrderAdminController,
     PosStaffController,

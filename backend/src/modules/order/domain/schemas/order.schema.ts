@@ -42,6 +42,7 @@ export class Order {
     required: true,
   })
   status!: OrderStatus;
+
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

@@ -52,7 +52,7 @@ export default function BookingSummaryPage({
     "VNPAY",
   );
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const paymentSuccess = false;
 
   const isExpired = summary?.status === "EXPIRED";
 
@@ -193,13 +193,10 @@ export default function BookingSummaryPage({
   const handleProceedPayment = async () => {
     setIsProcessingPayment(true);
     try {
-      // Giả lập giao tiếp xác thực bảo mật với cổng thanh toán đối tác
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setPaymentSuccess(true);
-      setTimeout(() => {
-        router.push("/profile/orders");
-      }, 1200);
-    } catch {
+      const { paymentUrl } = await bookingApi.createVnpayPayment(orderId);
+      window.location.assign(paymentUrl);
+    } catch (err) {
+      setError(getFriendlyErrorMessage(err, "Không thể khởi tạo thanh toán VNPay"));
       setIsProcessingPayment(false);
     }
   };
