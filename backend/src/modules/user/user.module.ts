@@ -50,6 +50,6 @@ import { UserBranchQueryService } from './application/services/user-branch-query
     PasswordResetService,
     UserBranchQueryService,
   ],
-  exports: [MongooseModule],
+  exports: [MongooseModule, UserBranchQueryService],
 })
 export class UserModule {}
