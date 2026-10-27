@@ -25,6 +25,12 @@ export class Ticket {
 
   @Prop({
     required: true,
+    trim: true,
+  })
+  seatShowtimeId!: string;
+
+  @Prop({
+    required: true,
     unique: true,
     trim: true,
   })
@@ -46,10 +52,16 @@ export class Ticket {
 
   @Prop()
   usedAt?: Date;
+
+  @Prop({
+    trim: true,
+  })
+  scannedBy?: string;
 }
 
 export const TicketSchema = SchemaFactory.createForClass(Ticket);
 
 TicketSchema.index({ ticketCode: 1 }, { unique: true });
 TicketSchema.index({ orderId: 1 });
+TicketSchema.index({ seatShowtimeId: 1 });
 TicketSchema.index({ ticketStatus: 1 });

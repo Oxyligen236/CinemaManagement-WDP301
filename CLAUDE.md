@@ -38,8 +38,8 @@
 ## DTO & Pagination Rule (Bắt buộc)
 
 - **Cấu trúc file DTO trong module**: Chia làm 2 file đặt tại `application/dto/`:
-  - `req.dto.ts`: Chứa toàn bộ Request DTO (giá trị đầu vào), bắt buộc có validation decorators (`class-validator`, `class-transformer`).
-  - `res.dto.ts`: Chứa toàn bộ Response DTO (giá trị đầu ra), **không chứa validator**.
+  - `req.dto.ts`: Chứa toàn bộ Request DTO (giá trị đầu vào), bắt buộc có validation decorators (`class-validator`, `class-transformer`). Tên class Request DTO bắt buộc có hậu tố `Req` (ví dụ: `CreatePromotionReq`, `QueryPromotionsReq`, cấm dùng `CreatePromotionDto`).
+  - `res.dto.ts`: Chứa toàn bộ Response DTO (giá trị đầu ra), **không chứa validator**. Tên class Response DTO bắt buộc có hậu tố `Res` (ví dụ: `PromotionRes`, `OrderDetailRes`, cấm dùng `PromotionResponseDto`).
 - **Phân trang**:
   - DTO Request phân trang: Đặt trong `req.dto.ts` và bắt buộc `extends PageRequest` (từ `src/common/dto/page.dto`).
   - Response phân trang: Bắt buộc trả về `Page<T>` (sử dụng `Page.from(...)` từ `src/common/dto/page.dto`), không tự định nghĩa class response phân trang riêng lẻ cho từng module.
@@ -53,3 +53,9 @@
 - Khi triển khai hoặc cập nhật UI Frontend (`frontend/`), bắt buộc phải cập nhật sơ đồ màn hình vào `docs/screen.mmd`.
 - Biểu diễn các màn hình có trong hệ thống và cách chuyển từ màn hình này sang màn hình khác (trigger/action điều hướng).
 - Thông tin ngắn gọn, súc tích, hạn chế chi tiết (chỉ ghi route/tên màn hình và action chuyển tiếp, dùng Mermaid `flowchart` hoặc `stateDiagram-v2`).
+
+## Mock Data Rule (Bắt buộc)
+
+- **Frontend (`frontend/`)**: Cấm tuyệt đối sử dụng mock data, fake data hoặc fallback mock array trong source code (API client, hooks, components, pages). Toàn bộ dữ liệu hiển thị phải gọi trực tiếp từ API backend thật.
+- **Backend (`backend/`)**: Chỉ được phép dùng mock cho các contract / interface chưa được triển khai (chờ module phụ thuộc hoàn thành). Khi contract đã triển khai xong, bắt buộc kết nối dữ liệu thật từ database (Mongoose Model).
+

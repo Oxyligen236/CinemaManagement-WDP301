@@ -8,6 +8,7 @@ import { TempModule } from './modules/temp/temp.module';
 import { DatabaseModule } from './modules/infra/database/database.module';
 import { EventModule } from './modules/infra/event/event.module';
 import { MailModule } from './modules/infra/mail/mail.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { BranchModule } from './modules/branch/branch.module';
 import { RoomModule } from './modules/room/room.module';
@@ -19,6 +20,8 @@ import { MovieModule } from './modules/movie/movie.module';
 import { ShowtimeModule } from './modules/showtime/showtime.module';
 import { PriceRuleModule } from './modules/pricerule/pricerule.module';
 import { WorkModule } from './modules/work/work.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { StaffModule } from './modules/staff/staff.module';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -48,7 +51,9 @@ import { WorkModule } from './modules/work/work.module';
     DatabaseModule,
     EventModule,
     MailModule,
+    AuthModule,
     UserModule,
+    AdminModule,
     TempModule,
     PaymentModule,
     BranchModule,
@@ -61,6 +66,7 @@ import { WorkModule } from './modules/work/work.module';
     ShowtimeModule,
     PriceRuleModule,
     WorkModule,
+    StaffModule,
   ],
   controllers: [AppController],
   providers: [AppService],

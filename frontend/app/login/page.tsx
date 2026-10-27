@@ -1,43 +1,127 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2, LogIn } from "lucide-react";
+import {
+  AuthShell,
+  AuthErrorBanner,
+  AUTH_PRIMARY_BUTTON_CLASS,
+} from "@/components/auth/auth-shell";
+import { AuthField } from "@/components/auth/auth-field";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+import { useFormErrors, type FieldErrors } from "@/lib/utils/use-form-errors";
+import { validateEmail, validatePassword } from "@/lib/utils/auth-validation";
+
+type LoginForm = {
+  email: string;
+  password: string;
+};
+
+function getRedirectPathByRole(role?: string): string {
+  const normalizedRole = role?.toUpperCase();
+  if (normalizedRole === "ADMIN") return "/admin/dashboard";
+  if (
+    normalizedRole === "BRANCHMANAGER" ||
+    normalizedRole === "MANAGER" ||
+    normalizedRole === "BRANCH_MANAGER"
+  ) {
+    return "/manager";
+  }
+  if (normalizedRole === "STAFF") return "/staff/pos";
+  return "/";
+}
+
+/**
+ * Khớp với ràng buộc `LoginDto` của backend.
+ * `LoginDto` không có `@MaxLength`, nên không chặn mật khẩu dài.
+ */
+function validateLoginForm(form: LoginForm): FieldErrors<LoginForm> {
+  const errors: FieldErrors<LoginForm> = {};
+
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  const password = validatePassword(form.password, {
+    enforceMaxLength: false,
+  });
+  if (password) errors.password = password;
+
+  return errors;
+}
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState(searchParams.get("email") ?? "");
-  const [password, setPassword] = useState("");
+  const [form, setForm] = useState<LoginForm>({
+    email: searchParams.get("email") ?? "",
+    password: "",
+  });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { fieldErrors, clearFieldError, validateField, validateAll } =
+    useFormErrors<LoginForm>(
+      useCallback((values: LoginForm) => validateLoginForm(values), []),
+    );
+
+  useEffect(() => {
+    const token = localStorage.getItem("cinema_access_token");
+    const rawUser = localStorage.getItem("cinema_user");
+    if (token && rawUser) {
+      try {
+        const user = JSON.parse(rawUser) as { role?: string };
+        router.replace(getRedirectPathByRole(user.role));
+      } catch {
+        localStorage.removeItem("cinema_access_token");
+        localStorage.removeItem("cinema_user");
+      }
+    }
+  }, [router]);
+
+  function updateField(field: keyof LoginForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    clearFieldError(field);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (!validateAll(form)) return;
+
     setIsSubmitting(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: form.email.trim(),
+          password: form.password,
+        }),
       });
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(result.message ?? "Unable to sign in.");
+        throw new Error(
+          getFriendlyErrorMessage(
+            { status: response.status, message: result.message },
+            "Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.",
+          ),
+        );
       }
 
       localStorage.setItem("cinema_access_token", result.accessToken);
       localStorage.setItem("cinema_user", JSON.stringify(result.user));
-      router.push("/");
+      router.replace(getRedirectPathByRole(result.user?.role));
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Unable to sign in. Please try again.",
+        getFriendlyErrorMessage(
+          submitError,
+          "Không thể đăng nhập. Vui lòng thử lại sau.",
+        ),
       );
     } finally {
       setIsSubmitting(false);
@@ -45,61 +129,71 @@ function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl shadow-slate-200 sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-          Cinema Management
-        </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">Welcome back</h1>
-        <p className="mt-2 text-slate-500">
-          Your account is verified. Sign in to continue.
-        </p>
-
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Email</span>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">Password</span>
-            <input
-              required
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-
-          {error && (
-            <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
+    <AuthShell
+      eyebrow="ĐĂNG NHẬP HỆ THỐNG"
+      title="Chào mừng trở lại"
+      panelTitle="Thông tin Đăng nhập"
+      panelAside="Bắt buộc"
+      icon={LogIn}
+      footerSlot={
+        <p className="text-center text-[13px] text-[#666]">
+          Chưa có tài khoản?{" "}
+          <Link
+            href="/register"
+            className="font-bold text-[#da291c] hover:underline"
           >
-            {isSubmitting ? "Signing in..." : "Sign in"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Need an account?{" "}
-          <Link href="/register" className="font-semibold text-indigo-600 hover:text-indigo-700">
-            Create one
+            Đăng ký ngay
           </Link>
         </p>
-      </section>
-    </main>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        <AuthField
+          id="login-email"
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={(value) => updateField("email", value)}
+          onBlur={() => validateField(form, "email")}
+          placeholder="you@example.com"
+          autoComplete="email"
+          error={fieldErrors.email}
+        />
+
+        <AuthField
+          id="login-password"
+          label="Mật khẩu"
+          type="password"
+          value={form.password}
+          onChange={(value) => updateField("password", value)}
+          onBlur={() => validateField(form, "password")}
+          autoComplete="current-password"
+          error={fieldErrors.password}
+        >
+          <div className="mt-2 flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-[12px] font-bold text-[#da291c] hover:underline"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
+        </AuthField>
+
+        {error && <AuthErrorBanner message={error} />}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className={AUTH_PRIMARY_BUTTON_CLASS}
+        >
+          {isSubmitting && (
+            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+          )}
+          {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 

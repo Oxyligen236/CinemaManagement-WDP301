@@ -42,3 +42,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# images & static media assets
+/public/sites/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.avif
+!e2e-evidence/**/*.png
+

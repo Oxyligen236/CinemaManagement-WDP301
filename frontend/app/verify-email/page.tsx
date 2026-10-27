@@ -1,50 +1,102 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Loader2, MailCheck } from "lucide-react";
+import {
+  AUTH_PRIMARY_BUTTON_CLASS,
+  AUTH_SECONDARY_BUTTON_CLASS,
+  AuthErrorBanner,
+  AuthShell,
+} from "@/components/auth/auth-shell";
+import { AuthField } from "@/components/auth/auth-field";
+import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+import { useFormErrors, type FieldErrors } from "@/lib/utils/use-form-errors";
+import {
+  VERIFICATION_CODE_LENGTH,
+  validateEmail,
+  validateVerificationCode,
+} from "@/lib/utils/auth-validation";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
 type VerifyResponse = {
   message?: string;
 };
 
+type VerifyForm = {
+  email: string;
+  code: string;
+};
+
+/** Khớp với ràng buộc `VerifyEmailDto` của backend. */
+function validateVerifyForm(form: VerifyForm): FieldErrors<VerifyForm> {
+  const errors: FieldErrors<VerifyForm> = {};
+
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  const code = validateVerificationCode(form.code);
+  if (code) errors.code = code;
+
+  return errors;
+}
+
 function VerifyEmailForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState(searchParams.get("email") ?? "");
-  const [code, setCode] = useState("");
+  const [form, setForm] = useState<VerifyForm>({
+    email: searchParams.get("email") ?? "",
+    code: "",
+  });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const { fieldErrors, clearFieldError, validateField, validateAll } =
+    useFormErrors<VerifyForm>(
+      useCallback((values: VerifyForm) => validateVerifyForm(values), []),
+    );
+
+  function updateField(field: keyof VerifyForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    clearFieldError(field);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (!validateAll(form)) return;
+
     setSubmitting(true);
 
     try {
       const response = await fetch(`${apiUrl}/auth/verify-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({
+          email: form.email.trim(),
+          code: form.code.trim(),
+        }),
       });
       const data = (await response.json().catch(() => ({}))) as VerifyResponse;
 
       if (!response.ok) {
         throw new Error(
-          typeof data.message === "string"
-            ? data.message
-            : "The verification code is invalid or expired.",
+          getFriendlyErrorMessage(
+            { status: response.status, message: data.message },
+            "Mã xác thực không hợp lệ hoặc đã hết hạn.",
+          ),
         );
       }
 
-      router.push(`/login?email=${encodeURIComponent(email)}`);
+      router.push(`/login?email=${encodeURIComponent(form.email.trim())}`);
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Unable to connect to the server.",
+        getFriendlyErrorMessage(
+          submitError,
+          "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
+        ),
       );
     } finally {
       setSubmitting(false);
@@ -52,76 +104,62 @@ function VerifyEmailForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl shadow-slate-200 sm:p-10">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-2xl">
-          ✉
-        </div>
-        <p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-          Verify your email
-        </p>
-        <h1 className="mt-3 text-3xl font-bold text-slate-900">
-          Check your inbox
-        </h1>
-        <p className="mt-3 text-slate-500">
-          Enter the 6-digit code sent to your email. The code expires in 5
-          minutes.
-        </p>
-
-        <form className="mt-8 space-y-5 text-left" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">
-              Email
-            </span>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-slate-700">
-              Verification code
-            </span>
-            <input
-              required
-              minLength={6}
-              maxLength={6}
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              value={code}
-              onChange={(event) =>
-                setCode(event.target.value.replace(/\D/g, ""))
-              }
-              placeholder="000000"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-center text-2xl tracking-[0.5em] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-            />
-          </label>
-
-          {error && (
-            <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Verifying..." : "Verify email"}
-          </button>
-        </form>
-
-        <Link
-          href="/login"
-          className="mt-6 inline-block text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-        >
-          Back to login
+    <AuthShell
+      eyebrow="XÁC THỰC EMAIL"
+      title="Kiểm tra hộp thư của bạn"
+      description={`Nhập mã ${VERIFICATION_CODE_LENGTH} chữ số đã được gửi đến email của bạn. Mã có hiệu lực trong 5 phút.`}
+      panelTitle="Nhập Mã Xác thực"
+      panelAside="Hiệu lực 5 phút"
+      icon={MailCheck}
+      footerSlot={
+        <Link href="/login" className={AUTH_SECONDARY_BUTTON_CLASS}>
+          <ArrowLeft className="h-4 w-4" />
+          Quay lại Đăng nhập
         </Link>
-      </section>
-    </main>
+      }
+    >
+      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
+        <AuthField
+          id="verify-email"
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={(value) => updateField("email", value)}
+          onBlur={() => validateField(form, "email")}
+          placeholder="you@example.com"
+          autoComplete="email"
+          error={fieldErrors.email}
+        />
+
+        <AuthField
+          id="verify-code"
+          label="Mã xác thực"
+          value={form.code}
+          onChange={(value) => updateField("code", value.replace(/\D/g, ""))}
+          onBlur={() => validateField(form, "code")}
+          maxLength={VERIFICATION_CODE_LENGTH}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="000000"
+          inputClassName="text-center text-[20px] font-bold tracking-[0.4em]"
+          hint={`Gồm đúng ${VERIFICATION_CODE_LENGTH} chữ số, không chứa khoảng trắng.`}
+          error={fieldErrors.code}
+        />
+
+        {error && <AuthErrorBanner message={error} />}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className={AUTH_PRIMARY_BUTTON_CLASS}
+        >
+          {submitting && (
+            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+          )}
+          {submitting ? "Đang xác thực..." : "Xác thực Email"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 

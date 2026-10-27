@@ -1,78 +1,63 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-
-type User = {
-  email: string;
-  firstName: string;
-  lastName: string;
-};
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Header } from "@/components/sites/lottecinemavn/Header";
+import { KeyVisual } from "@/components/sites/lottecinemavn/KeyVisual";
+import { MoviePosterSlider } from "@/components/sites/lottecinemavn/MoviePosterSlider";
+import { Footer } from "@/components/sites/lottecinemavn/Footer";
 
 export default function Home() {
-  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const storedUser = localStorage.getItem("cinema_user");
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser) as User);
+        const user = JSON.parse(storedUser) as { role?: string };
+        const role = user.role?.toUpperCase();
+        if (role === "ADMIN") {
+          router.replace("/admin/dashboard");
+        } else if (
+          role === "BRANCHMANAGER" ||
+          role === "MANAGER" ||
+          role === "BRANCH_MANAGER"
+        ) {
+          router.replace("/manager");
+        }
       } catch {
         localStorage.removeItem("cinema_user");
         localStorage.removeItem("cinema_access_token");
       }
     }
-  }, []);
-
-  function logout() {
-    localStorage.removeItem("cinema_user");
-    localStorage.removeItem("cinema_access_token");
-    setUser(null);
-  }
+  }, [router]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl shadow-slate-200">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-indigo-600">
-          Cinema Management
-        </p>
-        {user ? (
-          <>
-            <h1 className="text-3xl font-bold text-slate-900">
-              Welcome, {user.firstName} {user.lastName}
-            </h1>
-            <p className="mt-3 text-slate-500">
-              You are signed in as {user.email}.
-            </p>
-            <button
-              type="button"
-              onClick={logout}
-              className="mt-8 w-full rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600"
-            >
-              Sign out
-            </button>
-          </>
-        ) : (
-          <>
-            <h1 className="text-3xl font-bold text-slate-900">Welcome back</h1>
-            <p className="mt-3 text-slate-500">
-              Create an account to start using the cinema management system.
-            </p>
-            <Link
-              href="/register"
-              className="mt-8 block rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700"
-            >
-              Create an account
-            </Link>
-            <Link
-              href="/login"
-              className="mt-3 block rounded-xl border border-slate-200 px-5 py-3 font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-600"
-            >
-              Sign in
-            </Link>
-          </>
-        )}
-      </section>
-    </main>
+    <div
+      id="wrap"
+      className="w-full min-w-[980px] bg-white relative font-sans text-[#555]"
+    >
+      {/* Skip Navigation for Accessibility */}
+      <div id="skipNavi" className="sr-only focus-within:not-sr-only">
+        <a href="#container" className="block p-2 bg-[#da291c] text-white">
+          Chuyển đến phần thân
+        </a>
+      </div>
+
+      {/* Main Header */}
+      <Header />
+
+      {/* Main Content Area */}
+      <main id="container" className="main">
+        {/* Hero Key Visual slider */}
+        <KeyVisual />
+
+        {/* Movie Poster Carousel */}
+        <MoviePosterSlider />
+      </main>
+
+      {/* Global Footer & Notice Bar */}
+      <Footer />
+    </div>
   );
 }

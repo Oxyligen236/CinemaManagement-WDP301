@@ -1,12 +1,11 @@
-import {
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../domain/schemas/user.schema';
+import { normalizeRole } from '../../domain/role.normalizer';
+import { AUTH_MESSAGES } from '../../domain/constants/auth-message.constants';
 
 @Injectable()
 export class UserAuthenticationService {
@@ -22,14 +21,24 @@ export class UserAuthenticationService {
       .select('+password')
       .exec();
 
-    if (!user || !user.isActive || !(await bcrypt.compare(password, user.password))) {
-      throw new UnauthorizedException('Invalid email or password');
+    // Sai email hoặc sai mật khẩu đều trả về cùng một lỗi để không tiết lộ
+    // email nào đang tồn tại trong hệ thống.
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_CREDENTIALS);
     }
 
+    // Đúng mật khẩu nhưng tài khoản bị vô hiệu hóa: thông báo riêng, vì người
+    // dùng có nhập lại bao nhiêu lần cũng không đăng nhập được.
+    if (!user.isActive) {
+      throw new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED);
+    }
+
+    const role = normalizeRole(user.role) ?? user.role;
     const payload = {
       sub: user.userId,
       email: user.email,
-      role: user.role,
+      role,
+      tokenVersion: user.tokenVersion ?? 0,
     };
 
     return {
@@ -39,7 +48,7 @@ export class UserAuthenticationService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        role,
       },
     };
   }
