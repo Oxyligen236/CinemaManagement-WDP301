@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { ScanTicketUsecase } from '../usecase/scan-ticket.usecase';
 import { GetTicketDetailUsecase } from '../usecase/get-ticket-detail.usecase';
@@ -175,8 +175,10 @@ export class TicketService
     );
   }
 
-  async getTicketsByOrderId(orderId: string): Promise<TicketItemSummaryDto[]> {
-    const tickets = await this.ticketModel.find({ orderId }).exec();
+  async getTicketsByOrderId(orderId: string, session?: ClientSession): Promise<TicketItemSummaryDto[]> {
+    const ticketQuery = this.ticketModel.find({ orderId });
+    if (session) ticketQuery.session(session);
+    const tickets = await ticketQuery.exec();
     if (!tickets || tickets.length === 0) {
       return [];
     }
@@ -226,7 +228,7 @@ export class TicketService
   async createTicketsForOrder(params: {
     orderId: string;
     seatShowtimeIds: string[];
-  }): Promise<TicketItemSummaryDto[]> {
+  }, session?: ClientSession): Promise<TicketItemSummaryDto[]> {
     const { orderId, seatShowtimeIds } = params;
     if (!orderId) {
       throw new BadRequestException('Mã đơn hàng không được để trống');
@@ -268,7 +270,7 @@ export class TicketService
       });
     }
 
-    await this.ticketModel.insertMany(ticketsToCreate);
-    return this.getTicketsByOrderId(orderId);
+    await this.ticketModel.insertMany(ticketsToCreate, { session });
+    return this.getTicketsByOrderId(orderId, session);
   }
 }

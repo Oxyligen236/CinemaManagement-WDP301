@@ -47,8 +47,8 @@ describe('ProductContractImpl', () => {
   it('gọi deductConcessionStock từ ProductService', async () => {
     mockProductService.deductConcessionStock.mockResolvedValue(undefined);
     await contract.deductConcessionStock([{ productId: 'p-1', quantity: 2 }]);
-    expect(mockProductService.deductConcessionStock).toHaveBeenCalledWith([
-      { productId: 'p-1', quantity: 2 },
-    ]);
+    expect(mockProductService.deductConcessionStock).toHaveBeenCalledWith(
+      [{ productId: 'p-1', quantity: 2 }], undefined,
+    );
   });
 });

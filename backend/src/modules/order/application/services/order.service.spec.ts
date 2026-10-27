@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { getConnectionToken } from '@nestjs/mongoose';
 import {
   BadRequestException,
   ConflictException,
@@ -46,6 +47,7 @@ import {
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { QueryMyOrdersReq } from '../dto/req.dto';
+import { PAYMENT_CONTRACT } from '../../contracts/payment.contract';
 
 describe('OrderService', () => {
   let service: OrderService;
@@ -159,6 +161,8 @@ describe('OrderService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrderService,
+        { provide: getConnectionToken(), useValue: { startSession: jest.fn() } },
+        { provide: PAYMENT_CONTRACT, useValue: { createVnpayPayment: jest.fn(), verifyVnpayReturn: jest.fn() } },
         {
           provide: getModelToken(Order.name),
           useValue: mockOrderModel,

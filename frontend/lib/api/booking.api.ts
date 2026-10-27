@@ -43,4 +43,6 @@ export const bookingApi = {
       method: 'POST',
       body: JSON.stringify({ promotionCode }),
     }),
+  createVnpayPayment: (orderId: string) =>
+    request<{ paymentUrl: string }>(`/orders/${encodeURIComponent(orderId)}/vnpay`, { method: 'POST' }),
 };

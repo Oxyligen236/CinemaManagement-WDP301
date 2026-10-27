@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { ClientSession } from 'mongoose';
 import { Item, ItemDocument } from '../../domain/schemas/item.schema';
 import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
 import {
@@ -145,6 +146,7 @@ export class ProductService
 
   async deductConcessionStock(
     items: Array<{ productId: string; quantity: number }>,
+    session?: ClientSession,
   ): Promise<void> {
     if (!items || items.length === 0) return;
 
@@ -197,16 +199,14 @@ export class ProductService
           {
             $inc: { stockQuantity: -qty },
           },
-          { new: true },
+          { new: true, session },
         )
         .exec();
 
       if (!updated) {
-        const current = await this.itemModel
-          .findOne({ itemId })
-          .select('name stockQuantity')
-          .lean()
-          .exec();
+        const currentQuery = this.itemModel.findOne({ itemId }).select('name stockQuantity').lean();
+        if (session) currentQuery.session(session);
+        const current = await currentQuery.exec();
         const itemName = current?.name || itemId;
         throw new ConflictException(
           `Sản phẩm "${itemName}" không đủ tồn kho để khấu trừ (yêu cầu: ${qty}, hiện có: ${current?.stockQuantity ?? 0})`,
@@ -217,9 +217,8 @@ export class ProductService
         updated.stockQuantity === 0 &&
         updated.status === ItemStatus.AVAILABLE
       ) {
-        await this.itemModel
-          .updateOne({ itemId }, { $set: { status: ItemStatus.OUT_OF_STOCK } })
-          .exec();
+        const statusUpdate = this.itemModel.updateOne({ itemId }, { $set: { status: ItemStatus.OUT_OF_STOCK } }, session ? { session } : {});
+        await statusUpdate.exec();
       }
     }
   }

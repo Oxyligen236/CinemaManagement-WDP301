@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import {
   Movie,
   MovieDocument,
@@ -141,7 +141,7 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
    * @returns Số lượng ghế thực tế đã chuyển sang BOOKED
    * @throws ConflictException khi số ghế cập nhật không khớp số lượng yêu cầu
    */
-  async confirmSeats(seatShowtimeIds: string[]): Promise<number> {
+  async confirmSeats(seatShowtimeIds: string[], session?: ClientSession): Promise<number> {
     if (!seatShowtimeIds.length) return 0;
     const result = await this.seatShowtimeModel
       .updateMany(
@@ -150,6 +150,7 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
           seatStatus: SeatShowtimeStatus.RESERVED,
         },
         { $set: { seatStatus: SeatShowtimeStatus.BOOKED } },
+        ...(session ? [{ session }] : []),
       )
       .exec();
     if (result.modifiedCount !== seatShowtimeIds.length) {

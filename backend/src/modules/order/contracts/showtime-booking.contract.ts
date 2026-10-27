@@ -20,5 +20,6 @@ export interface ShowtimeBookingContract {
   reserveSeats(ids: string[]): Promise<SeatBookingDetail[]>;
   releaseSeats(ids: string[]): Promise<number>;
   getSeatBookingDetails(ids: string[]): Promise<SeatBookingDetail[]>;
-  confirmSeats(ids: string[]): Promise<number>;
+  confirmSeats(ids: string[], session?: ClientSession): Promise<number>;
 }
+import { ClientSession } from 'mongoose';
