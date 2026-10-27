@@ -10,7 +10,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
-import { isBranchManagerRole } from '../../user/domain/role.normalizer';
+import { Role } from '../../user/domain/enums/role.enum';
 import {
   Branch,
   BranchDocument,
@@ -662,7 +662,7 @@ export class BranchRoomService {
         .lean()
         .exec();
 
-      const isManagerRole = isBranchManagerRole(manager?.role);
+      const isManagerRole = manager?.role === Role.BRANCHMANAGER;
       if (manager && (!manager.isActive || !isManagerRole)) {
         throw new ForbiddenException(
           'Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.',

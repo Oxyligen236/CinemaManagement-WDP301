@@ -56,16 +56,6 @@ describe('RoleGuard', () => {
     expect(guard.canActivate(buildContext({ role: Role.ADMIN }))).toBe(true);
   });
 
-  // Regression: token/DB cũ còn giữ value 'BRANCHMANAGER' cho vai trò Quản lý
-  // Chi nhánh, trước đây bị 403 khi vào trang quản lý nhân viên chi nhánh.
-  it.each(['BRANCHMANAGER', 'BRANCH_MANAGER', 'manager'])(
-    'allows legacy Branch Manager value %s when MANAGER is required',
-    (role) => {
-      getAllAndOverride.mockReturnValue([Role.BRANCHMANAGER]);
-      expect(guard.canActivate(buildContext({ role }))).toBe(true);
-    },
-  );
-
   it('forbids an unknown role when MANAGER is required', () => {
     getAllAndOverride.mockReturnValue([Role.BRANCHMANAGER]);
     expect(() =>

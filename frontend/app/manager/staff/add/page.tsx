@@ -32,7 +32,8 @@ const EMPTY_FORM: CreateForm = {
   password: "",
   firstName: "",
   lastName: "",
-  jobPosition: "",
+  // Branch Manager chỉ cấp tài khoản Nhân viên Bán vé nên chọn sẵn vị trí này.
+  jobPosition: "TICKET_SELLER",
   employmentStatus: "ACTIVE",
 };
 
@@ -257,7 +258,6 @@ export default function AddBranchStaffPage() {
                 }
                 className={INPUT_CLASS}
               >
-                <option value="">Chọn vị trí</option>
                 {positions.map((position) => (
                   <option key={position} value={position}>
                     {POSITION_LABELS[position]}

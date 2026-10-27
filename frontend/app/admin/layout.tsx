@@ -73,11 +73,7 @@ export default function SystemAdminLayout({
       const user = JSON.parse(rawUser) as { email?: string; role?: string };
       const role = user.role?.toUpperCase();
       setAdminEmail(user.email ?? "");
-      if (
-        role === "BRANCHMANAGER" ||
-        role === "MANAGER" ||
-        role === "BRANCH_MANAGER"
-      ) {
+      if (role === "MANAGER") {
         router.replace("/manager");
       } else if (role && role !== "ADMIN") {
         router.replace("/");

@@ -87,12 +87,7 @@ export default function BranchManagerLayout({
       const role = user.role?.toUpperCase();
       if (role === 'ADMIN') {
         router.replace('/admin/dashboard');
-      } else if (
-        role &&
-        role !== 'BRANCHMANAGER' &&
-        role !== 'MANAGER' &&
-        role !== 'BRANCH_MANAGER'
-      ) {
+      } else if (role && role !== 'MANAGER') {
         router.replace('/');
       }
     } catch {

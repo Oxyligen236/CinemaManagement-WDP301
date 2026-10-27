@@ -18,6 +18,7 @@ import { TicketModule } from './modules/ticket/ticket.module';
 import { PromotionModule } from './modules/promotion/promotion.module';
 import { MovieModule } from './modules/movie/movie.module';
 import { ShowtimeModule } from './modules/showtime/showtime.module';
+import { ShowtimeManagementModule } from './modules/showtime-management/showtime-management.module';
 import { PriceRuleModule } from './modules/pricerule/pricerule.module';
 import { WorkModule } from './modules/work/work.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -64,6 +65,7 @@ import { StaffModule } from './modules/staff/staff.module';
     PromotionModule,
     MovieModule,
     ShowtimeModule,
+    ShowtimeManagementModule,
     PriceRuleModule,
     WorkModule,
     StaffModule,

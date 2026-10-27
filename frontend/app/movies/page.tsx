@@ -146,7 +146,7 @@ function MovieListContent() {
   };
 
   return (
-    <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-['Arial',sans-serif]">
+    <div className="w-full bg-[#f8fafc] text-[#111827] min-h-screen flex flex-col font-sans">
       <Header />
 
       {/* Breadcrumb Bar */}

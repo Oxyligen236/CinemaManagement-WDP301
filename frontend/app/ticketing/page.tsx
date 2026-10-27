@@ -80,6 +80,10 @@ function TicketingContent() {
   const [movies, setMovies] = useState<PublicMovie[]>([]);
   const [branches, setBranches] = useState<PublicBranch[]>([]);
   const [showtimes, setShowtimes] = useState<ShowtimeItem[]>([]);
+  const [movieShowtimes, setMovieShowtimes] = useState<ShowtimeItem[] | null>(null);
+  const [branchShowtimes, setBranchShowtimes] = useState<ShowtimeItem[] | null>(null);
+  const [loadingMovieShowtimes, setLoadingMovieShowtimes] = useState<boolean>(false);
+  const [loadingBranchShowtimes, setLoadingBranchShowtimes] = useState<boolean>(false);
 
   // Selection states
   const [selectedMovieId, setSelectedMovieId] = useState<string>('');
@@ -189,6 +193,110 @@ function TicketingContent() {
     }
   }, [fetchShowtimes, loadingInitial]);
 
+  // Fetch showtimes for selected movie across all branches & dates
+  useEffect(() => {
+    if (!selectedMovieId) {
+      setMovieShowtimes(null);
+      setLoadingMovieShowtimes(false);
+      return;
+    }
+    let isMounted = true;
+    setLoadingMovieShowtimes(true);
+    setMovieShowtimes(null);
+    queryPublicShowtimes({ movieId: selectedMovieId })
+      .then((items) => {
+        if (isMounted) {
+          setMovieShowtimes(items);
+          setLoadingMovieShowtimes(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setMovieShowtimes([]);
+          setLoadingMovieShowtimes(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedMovieId]);
+
+  // Fetch showtimes for selected branch across all movies & dates
+  useEffect(() => {
+    if (!selectedBranchId) {
+      setBranchShowtimes(null);
+      setLoadingBranchShowtimes(false);
+      return;
+    }
+    let isMounted = true;
+    setLoadingBranchShowtimes(true);
+    setBranchShowtimes(null);
+    queryPublicShowtimes({ branchId: selectedBranchId })
+      .then((items) => {
+        if (isMounted) {
+          setBranchShowtimes(items);
+          setLoadingBranchShowtimes(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setBranchShowtimes([]);
+          setLoadingBranchShowtimes(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBranchId]);
+
+  // Set of branch IDs that have showtimes for the selected movie
+  const availableBranchIds = useMemo(() => {
+    if (!selectedMovieId || loadingMovieShowtimes || movieShowtimes === null) return null;
+    return new Set(movieShowtimes.map((st) => st.branchId).filter(Boolean));
+  }, [selectedMovieId, loadingMovieShowtimes, movieShowtimes]);
+
+  // Set of movie IDs that have showtimes for the selected branch
+  const availableMovieIds = useMemo(() => {
+    if (!selectedBranchId || loadingBranchShowtimes || branchShowtimes === null) return null;
+    return new Set(branchShowtimes.map((st) => st.movieId).filter(Boolean));
+  }, [selectedBranchId, loadingBranchShowtimes, branchShowtimes]);
+
+  // Set of date keys (YYYY-MM-DD) that have showtimes for the active selection
+  const availableDateKeys = useMemo(() => {
+    if (!selectedMovieId && !selectedBranchId) return null;
+    if (selectedMovieId && (loadingMovieShowtimes || movieShowtimes === null)) return null;
+    if (selectedBranchId && (loadingBranchShowtimes || branchShowtimes === null)) return null;
+
+    let relevant: ShowtimeItem[] = [];
+    if (selectedMovieId && selectedBranchId) {
+      relevant = (movieShowtimes || []).filter((st) => st.branchId === selectedBranchId);
+    } else if (selectedMovieId) {
+      relevant = movieShowtimes || [];
+    } else if (selectedBranchId) {
+      relevant = branchShowtimes || [];
+    }
+
+    const set = new Set<string>();
+    for (const st of relevant) {
+      if (st.startTime) {
+        const dStr = st.startTime.split('T')[0];
+        if (dStr) set.add(dStr);
+      }
+    }
+    return set;
+  }, [selectedMovieId, selectedBranchId, loadingMovieShowtimes, loadingBranchShowtimes, movieShowtimes, branchShowtimes]);
+
+  // Auto-switch to the first date that has showtimes if currently selected date is empty
+  useEffect(() => {
+    if (!availableDateKeys || availableDateKeys.size === 0) return;
+    if (selectedDate && !availableDateKeys.has(selectedDate)) {
+      const firstAvailable = availableDates.find((d) => availableDateKeys.has(d.key));
+      if (firstAvailable) {
+        setSelectedDate(firstAvailable.key);
+      }
+    }
+  }, [availableDateKeys, selectedDate, availableDates]);
+
   // Filtered movies
   const filteredMovies = useMemo(() => {
     return movies.filter((m) => {
@@ -233,6 +341,10 @@ function TicketingContent() {
     setMovieSearch('');
     setBranchSearch('');
     setShowtimes([]);
+    setMovieShowtimes(null);
+    setBranchShowtimes(null);
+    setLoadingMovieShowtimes(false);
+    setLoadingBranchShowtimes(false);
   };
 
   const handleSelectSlot = (showtimeId: string) => {
@@ -240,7 +352,7 @@ function TicketingContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fcfbfa] text-[#231f20] font-['Arial',sans-serif]">
+    <div className="min-h-screen flex flex-col bg-[#fcfbfa] text-[#231f20] font-sans">
       <Header />
 
       {/* Main Container */}
@@ -306,8 +418,11 @@ function TicketingContent() {
                 <Film className="h-4 w-4 text-[#da291c]" />
                 <span>1. CHỌN PHIM</span>
               </div>
-              <span className="text-[11px] font-bold text-[#6f6247]">
-                ({filteredMovies.length})
+              <span className="text-[11px] font-bold text-[#6f6247] flex items-center gap-1.5">
+                {selectedBranchId && loadingBranchShowtimes && (
+                  <span className="inline-block w-3 h-3 border-2 border-[#da291c] border-t-transparent rounded-full animate-spin" />
+                )}
+                <span>{loadingInitial ? '...' : `(${filteredMovies.length})`}</span>
               </span>
             </div>
 
@@ -373,6 +488,7 @@ function TicketingContent() {
               ) : (
                 filteredMovies.map((movie) => {
                   const isSelected = selectedMovieId === movie.movieId;
+                  const hasShowtimes = availableMovieIds ? availableMovieIds.has(movie.movieId) : true;
                   return (
                     <button
                       key={movie.movieId}
@@ -383,13 +499,22 @@ function TicketingContent() {
                       className={`w-full text-left px-3 py-2.5 transition-all flex items-start justify-between gap-2 cursor-pointer ${
                         isSelected
                           ? 'bg-[#da291c] text-white font-bold'
+                          : !hasShowtimes
+                          ? 'opacity-40 bg-[#f9fafb] text-[#888] hover:opacity-75'
                           : 'hover:bg-[#fbf9f4] text-[#231f20]'
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] leading-[18px] line-clamp-2">
-                          {movie.movieName}
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-[13px] leading-[18px] line-clamp-2">
+                            {movie.movieName}
+                          </p>
+                          {!hasShowtimes && (
+                            <span className="text-[10px] text-[#9ca3af] shrink-0 font-normal">
+                              (Chưa có suất)
+                            </span>
+                          )}
+                        </div>
                         <div
                           className={`text-[11px] mt-1 flex items-center gap-1.5 ${
                             isSelected ? 'text-[#fecaca]' : 'text-[#6f6247]'
@@ -424,8 +549,11 @@ function TicketingContent() {
                 <MapPin className="h-4 w-4 text-[#da291c]" />
                 <span>2. CHỌN RẠP</span>
               </div>
-              <span className="text-[11px] font-bold text-[#6f6247]">
-                ({filteredBranches.length})
+              <span className="text-[11px] font-bold text-[#6f6247] flex items-center gap-1.5">
+                {selectedMovieId && loadingMovieShowtimes && (
+                  <span className="inline-block w-3 h-3 border-2 border-[#da291c] border-t-transparent rounded-full animate-spin" />
+                )}
+                <span>{loadingInitial ? '...' : `(${filteredBranches.length})`}</span>
               </span>
             </div>
 
@@ -454,6 +582,12 @@ function TicketingContent() {
               ) : (
                 filteredBranches.map((branch) => {
                   const isSelected = selectedBranchId === branch.branchId;
+                  const cleanBranchName = branch.branchName
+                    .replace(/\s*\([A-Z0-9_-]*UC\d+[A-Z0-9_-]*\)/gi, '')
+                    .trim();
+                  const hasShowtimes = availableBranchIds
+                    ? availableBranchIds.has(branch.branchId)
+                    : true;
                   return (
                     <button
                       key={branch.branchId}
@@ -466,13 +600,22 @@ function TicketingContent() {
                       className={`w-full text-left px-3 py-2.5 transition-all flex items-start justify-between gap-2 cursor-pointer ${
                         isSelected
                           ? 'bg-[#da291c] text-white font-bold'
+                          : !hasShowtimes
+                          ? 'opacity-40 bg-[#f9fafb] text-[#888] hover:opacity-75'
                           : 'hover:bg-[#fbf9f4] text-[#231f20]'
                       }`}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] leading-[18px]">
-                          {branch.branchName}
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-[13px] leading-[18px]">
+                            {cleanBranchName}
+                          </p>
+                          {!hasShowtimes && (
+                            <span className="text-[10px] text-[#9ca3af] shrink-0 font-normal">
+                              (Chưa có suất)
+                            </span>
+                          )}
+                        </div>
                         {branch.address && (
                           <p
                             className={`text-[11px] mt-0.5 line-clamp-1 ${
@@ -499,17 +642,23 @@ function TicketingContent() {
 
           {/* CỘT 3: CHỌN NGÀY CHIẾU (col-span-2) */}
           <section className="md:col-span-2 border-b md:border-b-0 md:border-r border-[#dad2b4] flex flex-col min-h-[460px]">
-            <div className="bg-[#efebdb] px-3.5 py-2.5 border-b border-[#dad2b4]">
+            <div className="bg-[#efebdb] px-3.5 py-2.5 border-b border-[#dad2b4] flex items-center justify-between">
               <div className="flex items-center gap-1.5 font-bold text-[14px] text-[#231f20]">
                 <Calendar className="h-4 w-4 text-[#da291c]" />
                 <span>3. CHỌN NGÀY</span>
               </div>
+              {(loadingMovieShowtimes || loadingBranchShowtimes) && (
+                <span className="inline-block w-3 h-3 border-2 border-[#da291c] border-t-transparent rounded-full animate-spin" />
+              )}
             </div>
 
             {/* Date List */}
             <div className="flex-1 overflow-y-auto max-h-[550px] divide-y divide-[#f0eee4]">
               {availableDates.map((d) => {
                 const isSelected = selectedDate === d.key;
+                const hasShowtimes = availableDateKeys
+                  ? availableDateKeys.has(d.key)
+                  : true;
                 return (
                   <button
                     key={d.key}
@@ -518,6 +667,8 @@ function TicketingContent() {
                     className={`w-full text-left px-3 py-2.5 transition-all flex items-center justify-between cursor-pointer ${
                       isSelected
                         ? 'bg-[#da291c] text-white font-bold'
+                        : !hasShowtimes
+                        ? 'opacity-35 bg-[#f9fafb] text-[#999] hover:opacity-70'
                         : 'hover:bg-[#fbf9f4] text-[#231f20]'
                     }`}
                   >
@@ -525,7 +676,14 @@ function TicketingContent() {
                       <p className="text-[11px] uppercase tracking-wider">
                         {d.weekday}
                       </p>
-                      <p className="text-[13px] font-bold">{d.dayMonth}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[13px] font-bold">{d.dayMonth}</p>
+                        {!hasShowtimes && (
+                          <span className="text-[10px] font-normal text-[#9ca3af]">
+                            (Hết suất)
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {isSelected && (
                       <div className="w-2 h-2 rounded-full bg-white shrink-0" />
@@ -544,7 +702,9 @@ function TicketingContent() {
                 <span>4. SUẤT CHIẾU KHẢ DỤNG</span>
               </div>
               <span className="text-[11px] font-bold text-[#6f6247]">
-                ({showtimes.length})
+                {loadingShowtimes || (selectedMovieId && loadingMovieShowtimes) || (selectedBranchId && loadingBranchShowtimes)
+                  ? '...'
+                  : `(${showtimes.length})`}
               </span>
             </div>
 
@@ -562,7 +722,7 @@ function TicketingContent() {
                     Bạn có thể chọn Phim trước hoặc Rạp chiếu trước để xem danh sách suất chiếu phù hợp.
                   </p>
                 </div>
-              ) : loadingShowtimes ? (
+              ) : loadingShowtimes || (selectedMovieId && loadingMovieShowtimes) || (selectedBranchId && loadingBranchShowtimes) ? (
                 <div className="py-16 text-center text-[13px] text-[#666]">
                   <div className="inline-block w-6 h-6 border-2 border-[#da291c] border-t-transparent rounded-full animate-spin mb-2" />
                   <p>Đang tìm suất chiếu khả dụng...</p>
@@ -672,7 +832,7 @@ export default function TicketingPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#fcfbfa] text-[#666] font-['Arial',sans-serif]">
+        <div className="min-h-screen flex items-center justify-center bg-[#fcfbfa] text-[#666] font-sans">
           Đang tải trang đặt vé...
         </div>
       }

@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
-import { CINEMA_REGIONS } from "./data";
 
 type User = {
   email: string;
@@ -13,8 +12,6 @@ type User = {
 };
 
 export function Header() {
-  const [activeMenu, setActiveMenu] = useState<number | null>(null);
-  const [activeRegion, setActiveRegion] = useState<string>("TPHCM");
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -38,7 +35,7 @@ export function Header() {
   }
 
   return (
-    <header className="relative w-full h-[180px] select-none bg-white font-['Arial',sans-serif]">
+    <header className="relative w-full h-[180px] select-none bg-white font-sans">
       {/* Top utility launcher bar */}
       <div className="w-full h-[30px] bg-[#efebdb] leading-[12px]">
         <ul className="float-right pr-[15px] flex items-center text-[12px]">
@@ -67,9 +64,7 @@ export function Header() {
                   </Link>
                 </li>
               )}
-              {(user.role === "BRANCHMANAGER" ||
-                user.role === "MANAGER" ||
-                user.role === "BRANCH_MANAGER") && (
+              {user.role === "MANAGER" && (
                 <li className="pt-[9px] pl-[16px]">
                   <Link
                     href="/manager"
@@ -150,44 +145,16 @@ export function Header() {
       <nav
         className="clear-both relative w-full h-[71px] mt-[79px] pt-[27px] bg-repeat-x bg-top"
         style={{ backgroundImage: "url('/sites/lottecinemavn/ui/bg_gnb.gif')" }}
-        onMouseLeave={() => setActiveMenu(null)}
       >
         <ul className="text-center flex justify-center items-center">
           {/* Item 1: MUA VÉ */}
-          <li
-            className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px]"
-            onMouseEnter={() => setActiveMenu(1)}
-          >
+          <li className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px]">
             <Link
               href="/ticketing"
-              className={`inline-block font-normal hover:font-bold ${activeMenu === 1 ? "font-bold" : "text-[#555]"}`}
+              className="inline-block font-normal hover:font-bold hover:text-[#da291c] text-[#555] transition-colors"
             >
               MUA VÉ
             </Link>
-            {activeMenu === 1 && (
-              <div className="absolute top-[59px] left-0 w-full h-[40px] bg-[#dad2b4] z-[1000] shadow-sm">
-                <ul className="w-[980px] mx-auto text-center h-[40px] flex items-center justify-center gap-6">
-                  <li className="inline-block px-[20px] text-[14px]">
-                    <Link
-                      href="/ticketing"
-                      onClick={() => setActiveMenu(null)}
-                      className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block"
-                    >
-                      MUA VÉ XEM PHIM
-                    </Link>
-                  </li>
-                  <li className="inline-block px-[20px] text-[14px]">
-                    <Link
-                      href="/showtimes"
-                      onClick={() => setActiveMenu(null)}
-                      className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block"
-                    >
-                      LỊCH CHIẾU PHIM
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            )}
           </li>
 
           {/* Item 2: PHIM ĐANG CHIẾU */}
@@ -197,117 +164,32 @@ export function Header() {
               backgroundImage:
                 "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
             }}
-            onMouseEnter={() => setActiveMenu(2)}
           >
             <Link
               href="/movies?type=nowshowing"
-              className={`inline-block font-normal hover:font-bold ${activeMenu === 2 ? "font-bold" : "text-[#555]"}`}
+              className="inline-block font-normal hover:font-bold hover:text-[#da291c] text-[#555] transition-colors"
             >
               PHIM ĐANG CHIẾU
             </Link>
-            {activeMenu === 2 && (
-              <div className="absolute top-[59px] left-0 w-full h-[40px] bg-[#dad2b4] z-[1000] shadow-sm">
-                <ul className="w-[980px] mx-auto text-center h-[40px] flex items-center justify-center gap-6">
-                  <li className="inline-block px-[20px] text-[14px]">
-                    <Link
-                      href="/movies?type=nowshowing"
-                      onClick={() => setActiveMenu(null)}
-                      className="text-[#000] hover:font-bold hover:border-b-2 hover:border-[#6f6247] h-[40px] leading-[40px] inline-block"
-                    >
-                      PHIM HOT TẠI RẠP
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            )}
           </li>
 
-          {/* Item 3: RẠP CHIẾU PHIM (Multi-level cinema picker) */}
+          {/* Item 3: RẠP CHIẾU PHIM */}
           <li
             className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px] bg-no-repeat bg-left-top"
             style={{
               backgroundImage:
                 "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
             }}
-            onMouseEnter={() => setActiveMenu(3)}
           >
             <Link
               href="/showtimes"
-              className={`inline-block font-normal hover:font-bold ${activeMenu === 3 ? "font-bold" : "text-[#555]"}`}
+              className="inline-block font-normal hover:font-bold hover:text-[#da291c] text-[#555] transition-colors"
             >
               RẠP CHIẾU PHIM
             </Link>
-            {activeMenu === 3 && (
-              <div className="absolute top-[59px] left-0 w-full z-[1000] shadow-md">
-                {/* Level 2: Regions */}
-                <div className="w-full h-[40px] bg-[#dad2b4]">
-                  <ul className="w-[980px] mx-auto text-center h-[40px] flex items-center justify-center gap-2">
-                    {CINEMA_REGIONS.map((item) => (
-                      <li
-                        key={item.region}
-                        className="inline-block px-[10px] text-[13px]"
-                      >
-                        <button
-                          type="button"
-                          onMouseEnter={() => setActiveRegion(item.region)}
-                          className={`h-[40px] leading-[40px] cursor-pointer ${
-                            activeRegion === item.region
-                              ? "font-bold text-[#da291c] border-b-2 border-[#da291c]"
-                              : "text-[#000] hover:font-bold"
-                          }`}
-                        >
-                          {item.region}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {/* Level 3: Cinema list per region */}
-                <div
-                  className="w-full bg-[rgba(34,34,34,0.95)] text-white py-[12px]"
-                  style={{
-                    backgroundImage:
-                      "url('/sites/lottecinemavn/ui/bg_m_mask.png')",
-                  }}
-                >
-                  <ul className="w-[980px] mx-auto flex flex-wrap justify-center gap-x-6 gap-y-2 text-[12px] text-[#c5c5c5]">
-                    {CINEMA_REGIONS.find(
-                      (r) => r.region === activeRegion,
-                    )?.cinemas.map((c) => (
-                      <li key={c}>
-                        <Link
-                          href={`/showtimes?cinema=${encodeURIComponent(c)}`}
-                          onClick={() => setActiveMenu(null)}
-                          className="hover:text-white hover:underline"
-                        >
-                          {c}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
           </li>
 
-          {/* Item 4: TIN MỚI & ƯU ĐÃI */}
-          <li
-            className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px] bg-no-repeat bg-left-top"
-            style={{
-              backgroundImage:
-                "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
-            }}
-            onMouseEnter={() => setActiveMenu(null)}
-          >
-            <Link
-              href="/#events"
-              className="inline-block font-normal hover:font-bold text-[#555]"
-            >
-              TIN MỚI & ƯU ĐÃI
-            </Link>
-          </li>
-
-          {/* Item 5: VÉ CỦA TÔI (chỉ hiện khi đã đăng nhập) */}
+          {/* Item 4: VÉ CỦA TÔI (chỉ hiện khi đã đăng nhập) */}
           {user && (
             <li
               className="inline-block px-[20px] pb-[16px] text-[16px] leading-[16px] bg-no-repeat bg-left-top"
@@ -315,11 +197,10 @@ export function Header() {
                 backgroundImage:
                   "url('/sites/lottecinemavn/ui/bg_gnb_menuBar.gif')",
               }}
-              onMouseEnter={() => setActiveMenu(null)}
             >
               <Link
                 href="/profile/orders"
-                className="inline-block font-normal hover:font-bold text-[#555]"
+                className="inline-block font-normal hover:font-bold hover:text-[#da291c] text-[#555] transition-colors"
               >
                 VÉ CỦA TÔI
               </Link>
