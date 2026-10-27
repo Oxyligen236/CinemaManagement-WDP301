@@ -662,9 +662,7 @@ export class BranchRoomService {
         .lean()
         .exec();
 
-      const isManagerRole =
-        manager?.role === Role.BRANCHMANAGER ||
-        (manager?.role as string) === 'MANAGER';
+      const isManagerRole = manager?.role === Role.BRANCHMANAGER;
       if (manager && (!manager.isActive || !isManagerRole)) {
         throw new ForbiddenException(
           'Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.',

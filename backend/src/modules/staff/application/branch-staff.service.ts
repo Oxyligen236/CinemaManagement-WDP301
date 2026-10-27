@@ -246,9 +246,7 @@ export class BranchStaffService {
       .exec();
 
     if (!manager || !manager.isActive || manager.role !== Role.BRANCHMANAGER) {
-      throw new ForbiddenException(
-        'You do not have permission to access this resource',
-      );
+      throw new ForbiddenException(STAFF_MESSAGES.FORBIDDEN);
     }
     if (!manager.branchId) {
       throw new ForbiddenException(STAFF_MESSAGES.NO_BRANCH);

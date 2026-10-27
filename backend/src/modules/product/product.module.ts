@@ -13,6 +13,8 @@ import { ProductService } from './application/services/product.service';
 import { ItemManagerController } from './infra/controllers/item-manager.controller';
 import { ComboManagerController } from './infra/controllers/combo-manager.controller';
 import { StaffProductController } from './infra/controllers/staff-product.controller';
+import { PRODUCT_CONTRACT } from './contracts/product.contract';
+import { ProductContractImpl } from './contracts/product-contract.impl';
 
 @Module({
   imports: [
@@ -31,7 +33,22 @@ import { StaffProductController } from './infra/controllers/staff-product.contro
     ComboManagerController,
     StaffProductController,
   ],
-  providers: [ItemService, ComboService, ProductService],
-  exports: [MongooseModule, ItemService, ComboService, ProductService],
+  providers: [
+    ItemService,
+    ComboService,
+    ProductService,
+    ProductContractImpl,
+    {
+      provide: PRODUCT_CONTRACT,
+      useClass: ProductContractImpl,
+    },
+  ],
+  exports: [
+    MongooseModule,
+    ItemService,
+    ComboService,
+    ProductService,
+    PRODUCT_CONTRACT,
+  ],
 })
 export class ProductModule {}

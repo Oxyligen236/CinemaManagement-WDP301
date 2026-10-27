@@ -33,7 +33,7 @@ type Status = "checking" | "ready" | "error";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Quản trị viên",
-  BRANCHMANAGER: "Quản lý Chi nhánh",
+  MANAGER: "Quản lý Chi nhánh",
   STAFF: "Nhân viên",
   USER: "Khách hàng",
 };

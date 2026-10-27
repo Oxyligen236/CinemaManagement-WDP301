@@ -37,6 +37,11 @@ export class MovieController {
     return this.movieService.getGenres();
   }
 
+  @Get(':id')
+  getMovieDetail(@Param('id') id: string) {
+    return this.movieService.getMovieDetail(id);
+  }
+
   // Multer chặn file lớn hơn 5MB + 1 byte; file vượt đúng 5MB do service kiểm tra (MSG09).
   @Post('assets/upload')
   @UseFilters(MulterFileSizeExceptionFilter)

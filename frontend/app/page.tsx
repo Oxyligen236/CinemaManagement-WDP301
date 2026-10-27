@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Header } from "@/components/sites/lottecinemavn/Header";
 import { KeyVisual } from "@/components/sites/lottecinemavn/KeyVisual";
 import { MoviePosterSlider } from "@/components/sites/lottecinemavn/MoviePosterSlider";
-import { EventSection } from "@/components/sites/lottecinemavn/EventSection";
 import { Footer } from "@/components/sites/lottecinemavn/Footer";
 
 export default function Home() {
@@ -19,11 +18,7 @@ export default function Home() {
         const role = user.role?.toUpperCase();
         if (role === "ADMIN") {
           router.replace("/admin/dashboard");
-        } else if (
-          role === "BRANCHMANAGER" ||
-          role === "MANAGER" ||
-          role === "BRANCH_MANAGER"
-        ) {
+        } else if (role === "MANAGER") {
           router.replace("/manager");
         }
       } catch {
@@ -36,7 +31,7 @@ export default function Home() {
   return (
     <div
       id="wrap"
-      className="w-full min-w-[980px] bg-white relative font-['Arial',sans-serif] text-[#555]"
+      className="w-full min-w-[980px] bg-white relative font-sans text-[#555]"
     >
       {/* Skip Navigation for Accessibility */}
       <div id="skipNavi" className="sr-only focus-within:not-sr-only">
@@ -50,14 +45,11 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main id="container" className="main">
-        {/* Hero 3-panel Key Visual slider */}
+        {/* Hero Key Visual slider */}
         <KeyVisual />
 
-        {/* 5-in-a-row Movie Poster Carousel */}
+        {/* Movie Poster Carousel */}
         <MoviePosterSlider />
-
-        {/* 6-box Event Promotion Grid */}
-        <EventSection />
       </main>
 
       {/* Global Footer & Notice Bar */}

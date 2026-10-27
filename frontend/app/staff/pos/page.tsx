@@ -37,7 +37,15 @@ import {
   AlertCircle,
   X,
   Armchair,
+  MapPin,
 } from "lucide-react";
+
+const BRANCH_NAMES: Record<string, string> = {
+  "branch-cantavil": "Lotte Cinema Cantavil",
+  "branch-govap": "Lotte Cinema Gò Vấp",
+  "branch-nam-sai-gon": "Lotte Cinema Nam Sài Gòn",
+  "branch-landmark": "Lotte Cinema Landmark Hà Nội",
+};
 
 type ActiveTab = "showtimes" | "seats" | "concessions";
 type PaymentMethod = "CASH" | "QR";
@@ -132,13 +140,48 @@ export default function StaffPosPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Thông tin tài khoản nhân viên & chi nhánh
+  const [staffUser, setStaffUser] = useState<{
+    branchId?: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+  } | null>(null);
+
+  // Đọc thông tin nhân viên từ localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cinema_user");
+      if (raw) {
+        setStaffUser(JSON.parse(raw));
+      }
+    } catch {
+      // Ignore parse error
+    }
+  }, []);
+
   // Tải danh sách suất chiếu & bắp nước ban đầu
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     setErrorBanner(null);
+
+    let branchId: string | undefined;
+    try {
+      const raw = localStorage.getItem("cinema_user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.branchId) {
+          branchId = parsed.branchId;
+          setStaffUser(parsed);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
     try {
       const [showtimesRes, catalogRes] = await Promise.all([
-        posApi.getTodayShowtimes(),
+        posApi.getTodayShowtimes(branchId),
         posApi.getStaffProducts().catch(() => null),
       ]);
       setShowtimes(showtimesRes);
@@ -593,14 +636,31 @@ export default function StaffPosPage() {
       {/* 1. Header Banner & Utility Bar */}
       <div className="border-b-2 border-[#231f20] pb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            LOTTE CINEMA • ĐIỂM BÁN VÉ TẠI QUẦY (POS)
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
+              LOTTE CINEMA • ĐIỂM BÁN VÉ TẠI QUẦY (POS)
+            </p>
+            {staffUser?.branchId && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-[#da291c] text-white">
+                <MapPin className="h-3 w-3" />
+                <span>{BRANCH_NAMES[staffUser.branchId] || staffUser.branchId}</span>
+              </span>
+            )}
+          </div>
           <h1 className="mt-1 text-[22px] font-bold text-[#231f20] uppercase flex items-center gap-2.5">
             <MonitorPlay className="h-6 w-6 text-[#da291c]" />
             <span>Hệ thống bán vé & Bắp nước tại quầy</span>
           </h1>
           <p className="mt-0.5 text-[12px] text-[#666]">
+            {staffUser?.branchId ? (
+              <>
+                Chi nhánh trực thuộc:{" "}
+                <strong className="text-[#231f20]">
+                  {BRANCH_NAMES[staffUser.branchId] || staffUser.branchId}
+                </strong>
+                {" • "}
+              </>
+            ) : null}
             Chọn suất chiếu, đặt ghế phòng rạp, chọn combo F&B và in hóa đơn
             nhiệt cho khách hàng.
           </p>

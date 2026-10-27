@@ -29,7 +29,9 @@ import { Genre, GenreDocument } from '../../domain/schemas/genre.schema';
 import { Movie, MovieDocument } from '../../domain/schemas/movie.schema';
 import { CreateMovieReqDto, SearchMovieReqDto } from '../dto/req.dto';
 import {
+  GenreItemResDto,
   GenreResDto,
+  MovieDetailResDto,
   MovieResDto,
   UploadMovieAssetResDto,
 } from '../dto/res.dto';
@@ -37,6 +39,7 @@ import { sanitizeFileName } from '../helpers/sanitize-file-name.helper';
 import { CreateMovieUsecase } from '../usecase/create-movie.usecase';
 import { DeactivateMovieUsecase } from '../usecase/deactivate-movie.usecase';
 import { GetGenresUsecase } from '../usecase/get-genres.usecase';
+import { GetMovieDetailUsecase } from '../usecase/get-movie-detail.usecase';
 import { SearchMoviesUsecase } from '../usecase/search-movies.usecase';
 import { UploadMovieAssetUsecase } from '../usecase/upload-movie-asset.usecase';
 
@@ -47,7 +50,8 @@ export class MovieService
     SearchMoviesUsecase,
     DeactivateMovieUsecase,
     GetGenresUsecase,
-    UploadMovieAssetUsecase
+    UploadMovieAssetUsecase,
+    GetMovieDetailUsecase
 {
   constructor(
     @InjectModel(Movie.name) private readonly movieModel: Model<MovieDocument>,
@@ -92,11 +96,9 @@ export class MovieService
   }
 
   async createMovie(dto: CreateMovieReqDto): Promise<MovieResDto> {
-    if (dto.posterKey) {
-      const posterExists = await this.storageService.exists(dto.posterKey);
-      if (!posterExists) {
-        throw new BadRequestException(MSG_INVALID_POSTER_KEY);
-      }
+    const posterExists = await this.storageService.exists(dto.posterKey);
+    if (!posterExists) {
+      throw new BadRequestException(MSG_INVALID_POSTER_KEY);
     }
 
     const created = await this.movieModel.create({
@@ -182,14 +184,57 @@ export class MovieService
     }));
   }
 
-  private resolvePosterUrl(doc: MovieDocument): string | undefined {
+  async getMovieDetail(movieId: string): Promise<MovieDetailResDto> {
+    const movie = await this.movieModel
+      .findOne({ movieId, isActive: true })
+      .lean()
+      .exec();
+    if (!movie) {
+      throw new NotFoundException(
+        `Không tìm thấy phim với mã định danh: ${movieId}`,
+      );
+    }
+
+    let genres: GenreItemResDto[] = [];
+    if (movie.genreIds && movie.genreIds.length > 0) {
+      const genreDocs = await this.genreModel
+        .find({ genreId: { $in: movie.genreIds } })
+        .select('genreId genreName')
+        .lean()
+        .exec();
+      genres = genreDocs.map((g) => ({
+        genreId: g.genreId,
+        genreName: g.genreName,
+      }));
+    }
+
+    return {
+      movieId: movie.movieId,
+      movieName: movie.movieName,
+      duration: movie.duration,
+      status: movie.status,
+      posterUrl: this.resolvePosterUrl(movie),
+      trailerUrl: movie.trailerUrl,
+      description: movie.description,
+      releaseDate: movie.releaseDate
+        ? new Date(movie.releaseDate).toISOString()
+        : undefined,
+      isActive: movie.isActive,
+      genreIds: movie.genreIds,
+      genres,
+      createdAt: (movie as any).createdAt,
+      updatedAt: (movie as any).updatedAt,
+    };
+  }
+
+  private resolvePosterUrl(doc: { posterKey?: string }): string | undefined {
     if (!doc.posterKey) {
-      return doc.posterUrl;
+      return undefined;
     }
     try {
       return this.storageService.getPublicUrl(doc.posterKey);
     } catch {
-      return doc.posterUrl;
+      return undefined;
     }
   }
 

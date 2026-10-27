@@ -42,7 +42,8 @@ export class JwtGuard implements CanActivate {
       ) {
         throw new UnauthorizedException('Account access has been revoked');
       }
-      request.user = user;
+      // Role trong database là nguồn sự thật cho downstream (RoleGuard, service).
+      request.user = { ...user, role: account.role };
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Invalid or expired access token');

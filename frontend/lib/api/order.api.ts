@@ -11,7 +11,7 @@ import {
 import type { BookingSummary, CreateBookingReq } from '../types/booking.types';
 import { getFriendlyErrorMessage } from '../utils/error-handler';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {};

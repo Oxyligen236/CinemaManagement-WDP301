@@ -371,7 +371,10 @@ export class OrderService
           order.promotionId,
         );
         if (promoInfo) {
-          const ticketSubtotal = bookingSeats.reduce((sum, s) => sum + s.price, 0);
+          const ticketSubtotal = bookingSeats.reduce(
+            (sum, s) => sum + s.price,
+            0,
+          );
           const productSubtotal = bookingProducts.reduce(
             (sum, p) => sum + p.quantity * p.unitPrice,
             0,
@@ -570,7 +573,12 @@ export class OrderService
   ): Promise<Page<OrderSummaryRes>> {
     const filter: Record<string, unknown> = { userId };
     if (query.status) {
-      filter.status = query.status;
+      const statuses = query.status.split(',').filter(Boolean);
+      if (statuses.length === 1) {
+        filter.status = statuses[0];
+      } else if (statuses.length > 1) {
+        filter.status = { $in: statuses };
+      }
     }
 
     return this.paginateOrders(filter, query.page, query.limit);
@@ -581,7 +589,12 @@ export class OrderService
   ): Promise<Page<OrderSummaryRes>> {
     const filter: Record<string, unknown> = {};
     if (query.status) {
-      filter.status = query.status;
+      const statuses = query.status.split(',').filter(Boolean);
+      if (statuses.length === 1) {
+        filter.status = statuses[0];
+      } else if (statuses.length > 1) {
+        filter.status = { $in: statuses };
+      }
     }
     if (query.date) {
       const start = new Date(query.date);
@@ -602,7 +615,12 @@ export class OrderService
       filter.userId = query.userId;
     }
     if (query.status) {
-      filter.status = query.status;
+      const statuses = query.status.split(',').filter(Boolean);
+      if (statuses.length === 1) {
+        filter.status = statuses[0];
+      } else if (statuses.length > 1) {
+        filter.status = { $in: statuses };
+      }
     }
     if (query.fromDate || query.toDate) {
       const dateFilter: { $gte?: Date; $lte?: Date } = {};

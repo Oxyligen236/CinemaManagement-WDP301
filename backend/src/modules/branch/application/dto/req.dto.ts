@@ -1,13 +1,10 @@
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
-  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
-  Max,
   MaxLength,
-  Min,
 } from 'class-validator';
 import { PageRequest } from '../../../../common/dto/page.dto';
 import { BranchStatus } from '../../domain/enums/branch-status.enum';
@@ -86,4 +83,13 @@ export class UpdateBranchDto {
   @IsOptional()
   @IsEnum(BranchStatus)
   branchStatus?: BranchStatus;
+}
+
+export class GetPublicBranchesReqDto {
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  search?: string;
 }

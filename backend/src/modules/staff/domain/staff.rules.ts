@@ -8,30 +8,32 @@ import { EmploymentStatus } from '../../user/domain/enums/employment-status.enum
  */
 export const STAFF_MESSAGES = {
   /** MSG01 - thông tin không hợp lệ / thiếu trường bắt buộc (AF-1, AF-2). */
-  MSG01: 'Invalid information. Please check the required fields and try again.',
+  MSG01:
+    'Thông tin không hợp lệ. Vui lòng kiểm tra lại các trường bắt buộc và thử lại.',
   /** MSG26 - lưu thành công (Main flow bước 5). */
-  MSG26: 'Employee information has been saved successfully.',
+  MSG26: 'Đã lưu thông tin nhân viên thành công.',
   /** AF-3 - tài khoản đã tồn tại. */
-  ACCOUNT_EXISTS: 'An account with this email already exists.',
-  NO_BRANCH: 'Your account is not assigned to any branch.',
+  ACCOUNT_EXISTS: 'Email này đã được sử dụng cho một tài khoản khác.',
+  /** Pre-condition 2: tài khoản Quản lý chưa được Admin phân công chi nhánh. */
+  NO_BRANCH:
+    'Tài khoản Quản lý của bạn chưa được phân công chi nhánh. Vui lòng liên hệ Quản trị viên để được gán chi nhánh.',
+  /** Chỉ sai quyền thực sự (không phải vai trò Quản lý Chi nhánh). */
+  FORBIDDEN:
+    'Bạn không có quyền truy cập chức năng Quản lý Nhân viên chi nhánh.',
   BRANCH_NOT_ACTIVE:
-    'Your branch is not active. New employee accounts cannot be created.',
-  STAFF_NOT_FOUND: 'Employee not found in your branch.',
+    'Chi nhánh của bạn đang không hoạt động, không thể tạo tài khoản nhân viên mới.',
+  STAFF_NOT_FOUND: 'Không tìm thấy nhân viên này trong chi nhánh của bạn.',
   SERVICE_UNAVAILABLE:
-    'The service is temporarily unavailable. Please try again later.',
+    'Hệ thống tạm thời không khả dụng. Vui lòng thử lại sau.',
 } as const;
 
 /**
  * BR-BRM-14: vị trí công việc mà Branch Manager được phép gán cho nhân viên
- * thuộc chi nhánh của mình. Vị trí nằm ngoài danh sách này → MSG01 (AF-2).
+ * thuộc chi nhánh của mình — chỉ có Nhân viên Bán vé. Vị trí nằm ngoài danh
+ * sách này → MSG01 (AF-2).
  */
 export const BRANCH_ASSIGNABLE_POSITIONS: readonly JobPosition[] = [
   JobPosition.TICKET_SELLER,
-  JobPosition.CONCESSION_STAFF,
-  JobPosition.USHER,
-  JobPosition.PROJECTIONIST,
-  JobPosition.CLEANER,
-  JobPosition.SHIFT_SUPERVISOR,
 ];
 
 /**

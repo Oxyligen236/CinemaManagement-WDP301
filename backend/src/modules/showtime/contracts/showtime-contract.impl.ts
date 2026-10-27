@@ -4,11 +4,8 @@ import { Model } from 'mongoose';
 import {
   SeatShowtime,
   SeatShowtimeDocument,
-} from '../../showtime/domain/schemas/seat-showtime.schema';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../../showtime/domain/schemas/showtime.schema';
+} from '../domain/schemas/seat-showtime.schema';
+import { Showtime, ShowtimeDocument } from '../domain/schemas/showtime.schema';
 import { Movie, MovieDocument } from '../../movie/domain/schemas/movie.schema';
 import { Room, RoomDocument } from '../../room/domain/schemas/room.schema';
 import { Seat, SeatDocument } from '../../room/domain/schemas/seat.schema';

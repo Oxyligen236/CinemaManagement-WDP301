@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../domain/schemas/user.schema';
+import { AUTH_MESSAGES } from '../../domain/constants/auth-message.constants';
 
 @Injectable()
 export class UserAuthenticationService {
@@ -19,12 +20,16 @@ export class UserAuthenticationService {
       .select('+password')
       .exec();
 
-    if (
-      !user ||
-      !user.isActive ||
-      !(await bcrypt.compare(password, user.password))
-    ) {
-      throw new UnauthorizedException('Invalid email or password');
+    // Sai email hoặc sai mật khẩu đều trả về cùng một lỗi để không tiết lộ
+    // email nào đang tồn tại trong hệ thống.
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      throw new UnauthorizedException(AUTH_MESSAGES.INVALID_CREDENTIALS);
+    }
+
+    // Đúng mật khẩu nhưng tài khoản bị vô hiệu hóa: thông báo riêng, vì người
+    // dùng có nhập lại bao nhiêu lần cũng không đăng nhập được.
+    if (!user.isActive) {
+      throw new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED);
     }
 
     const payload = {

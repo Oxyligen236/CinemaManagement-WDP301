@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { RoleGuard } from './role.guard';
 import { Role, Roles } from '../decorators/role.decorator';
 
-const buildContext = (user?: { role: Role }) =>
+const buildContext = (user?: { role: Role | string }) =>
   ({
     getHandler: () => undefined,
     getClass: () => undefined,
@@ -54,6 +54,13 @@ describe('RoleGuard', () => {
       true,
     );
     expect(guard.canActivate(buildContext({ role: Role.ADMIN }))).toBe(true);
+  });
+
+  it('forbids an unknown role when MANAGER is required', () => {
+    getAllAndOverride.mockReturnValue([Role.BRANCHMANAGER]);
+    expect(() =>
+      guard.canActivate(buildContext({ role: 'SOMETHING_ELSE' })),
+    ).toThrow(ForbiddenException);
   });
 
   it.each([Role.STAFF, Role.USER])(

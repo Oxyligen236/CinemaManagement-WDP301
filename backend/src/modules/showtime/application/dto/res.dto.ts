@@ -37,3 +37,21 @@ export class SeatShowtimeResDto {
   columnPosition!: number;
   seatType!: SeatType;
 }
+
+export class PublicShowtimeItemResDto {
+  showtimeId!: string;
+  movieId!: string;
+  movieName!: string;
+  duration!: number;
+  posterUrl?: string;
+  genreNames?: string[];
+  roomId!: string;
+  roomName!: string;
+  branchId?: string;
+  branchName?: string;
+  startTime!: Date;
+  endTime!: Date;
+  basePrice!: number;
+  availableSeats?: number;
+  totalSeats?: number;
+}

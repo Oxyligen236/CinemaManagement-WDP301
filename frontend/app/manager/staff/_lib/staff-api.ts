@@ -9,13 +9,7 @@ export const USER_KEY = "cinema_user";
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
-export type JobPosition =
-  | "TICKET_SELLER"
-  | "CONCESSION_STAFF"
-  | "USHER"
-  | "PROJECTIONIST"
-  | "CLEANER"
-  | "SHIFT_SUPERVISOR";
+export type JobPosition = "TICKET_SELLER";
 
 export type EmploymentStatus = "ACTIVE" | "INACTIVE" | "RESIGNED";
 
@@ -48,11 +42,6 @@ export type StaffOptions = {
 
 export const POSITION_LABELS: Record<JobPosition, string> = {
   TICKET_SELLER: "Nhân viên Bán vé",
-  CONCESSION_STAFF: "Nhân viên Quầy bắp nước",
-  USHER: "Nhân viên Soát vé / Hướng dẫn",
-  PROJECTIONIST: "Kỹ thuật viên Máy chiếu",
-  CLEANER: "Nhân viên Vệ sinh",
-  SHIFT_SUPERVISOR: "Trưởng ca",
 };
 
 export const STATUS_LABELS: Record<EmploymentStatus, string> = {
@@ -91,7 +80,7 @@ export function getErrorMessage(error: unknown) {
 
 /**
  * Kiểm tra phiên đăng nhập của Branch Manager và cung cấp hàm gọi API.
- * `ready` = true khi đã xác nhận người dùng là BRANCHMANAGER.
+ * `ready` = true khi đã xác nhận người dùng là MANAGER.
  */
 export function useManagerApi() {
   const router = useRouter();
@@ -106,8 +95,7 @@ export function useManagerApi() {
     }
     try {
       const user = JSON.parse(rawUser) as { role?: string };
-      const role = user.role?.toUpperCase();
-      if (role !== "BRANCHMANAGER" && role !== "MANAGER") {
+      if (user.role?.toUpperCase() !== "MANAGER") {
         router.replace("/");
         return;
       }

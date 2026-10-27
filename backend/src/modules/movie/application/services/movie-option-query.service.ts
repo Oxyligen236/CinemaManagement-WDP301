@@ -14,13 +14,7 @@ import { SearchMovieOptionsUsecase } from '../usecase/search-movie-options.useca
 
 type MovieLean = Pick<
   Movie,
-  | 'movieId'
-  | 'movieName'
-  | 'duration'
-  | 'status'
-  | 'isActive'
-  | 'posterKey'
-  | 'posterUrl'
+  'movieId' | 'movieName' | 'duration' | 'status' | 'isActive' | 'posterKey'
 >;
 
 @Injectable()
@@ -90,12 +84,12 @@ export class MovieOptionQueryService
 
   private resolvePosterUrl(doc: MovieLean): string | undefined {
     if (!doc.posterKey) {
-      return doc.posterUrl;
+      return undefined;
     }
     try {
       return this.storageService.getPublicUrl(doc.posterKey);
     } catch {
-      return doc.posterUrl;
+      return undefined;
     }
   }
 
