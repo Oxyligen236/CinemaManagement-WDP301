@@ -67,9 +67,7 @@ export function Header() {
                   </Link>
                 </li>
               )}
-              {(user.role === "BRANCHMANAGER" ||
-                user.role === "MANAGER" ||
-                user.role === "BRANCH_MANAGER") && (
+              {user.role === "MANAGER" && (
                 <li className="pt-[9px] pl-[16px]">
                   <Link
                     href="/manager"

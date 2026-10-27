@@ -22,13 +22,7 @@ type LoginForm = {
 function getRedirectPathByRole(role?: string): string {
   const normalizedRole = role?.toUpperCase();
   if (normalizedRole === "ADMIN") return "/admin/dashboard";
-  if (
-    normalizedRole === "BRANCHMANAGER" ||
-    normalizedRole === "MANAGER" ||
-    normalizedRole === "BRANCH_MANAGER"
-  ) {
-    return "/manager";
-  }
+  if (normalizedRole === "MANAGER") return "/manager";
   if (normalizedRole === "STAFF") return "/staff/pos";
   return "/";
 }

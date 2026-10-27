@@ -19,11 +19,7 @@ export default function Home() {
         const role = user.role?.toUpperCase();
         if (role === "ADMIN") {
           router.replace("/admin/dashboard");
-        } else if (
-          role === "BRANCHMANAGER" ||
-          role === "MANAGER" ||
-          role === "BRANCH_MANAGER"
-        ) {
+        } else if (role === "MANAGER") {
           router.replace("/manager");
         }
       } catch {
