@@ -9,7 +9,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { AuthenticatedRequest, AuthUser } from '../../domain/auth-user';
 import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
-import { normalizeRole } from '../../../user/domain/role.normalizer';
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -38,14 +37,13 @@ export class JwtGuard implements CanActivate {
       if (
         !account ||
         !account.isActive ||
-        normalizeRole(account.role) !== normalizeRole(user.role) ||
+        account.role !== user.role ||
         (account.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)
       ) {
         throw new UnauthorizedException('Account access has been revoked');
       }
-      // Role trong database là nguồn sự thật; chuẩn hóa để downstream (RoleGuard,
-      // service) không phải xử lý các value cũ của vai trò Quản lý Chi nhánh.
-      request.user = { ...user, role: normalizeRole(account.role)! };
+      // Role trong database là nguồn sự thật cho downstream (RoleGuard, service).
+      request.user = { ...user, role: account.role };
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Invalid or expired access token');

@@ -5,6 +5,7 @@ import { UserDocument } from '../../user/domain/schemas/user.schema';
 import { BranchDocument } from '../../branch/domain/schemas/branch.schema';
 import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
 import { Role } from '../../user/domain/enums/role.enum';
+import { JobPosition } from '../../user/domain/enums/job-position.enum';
 import { STAFF_MESSAGES } from '../domain/staff.rules';
 
 type ManagerRow = {
@@ -45,20 +46,18 @@ const buildService = (manager: ManagerRow | null, branch: unknown = BRANCH) => {
 };
 
 describe('BranchStaffService.getOptions - quyền truy cập', () => {
-  it.each(['MANAGER', 'BRANCHMANAGER', 'BRANCH_MANAGER'])(
-    'cho phép Branch Manager có chi nhánh với role value %s',
-    async (role) => {
-      const service = buildService({
-        role,
-        isActive: true,
-        branchId: BRANCH.branchId,
-      });
+  it('cho phép Branch Manager đã được phân công chi nhánh', async () => {
+    const service = buildService({
+      role: Role.BRANCHMANAGER,
+      isActive: true,
+      branchId: BRANCH.branchId,
+    });
 
-      await expect(service.getOptions('mgr-1')).resolves.toMatchObject({
-        branch: { branchId: BRANCH.branchId },
-      });
-    },
-  );
+    await expect(service.getOptions('mgr-1')).resolves.toMatchObject({
+      branch: { branchId: BRANCH.branchId },
+      jobPositions: [JobPosition.TICKET_SELLER],
+    });
+  });
 
   // Đây là nguyên nhân thật của 403 trên dữ liệu hiện tại: role đã đúng,
   // nhưng tài khoản chưa được Admin phân công chi nhánh.

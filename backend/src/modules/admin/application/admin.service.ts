@@ -11,7 +11,6 @@ import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { Role } from '../../user/domain/enums/role.enum';
-import { isBranchManagerRole } from '../../user/domain/role.normalizer';
 import { AuthUser } from '../../auth/domain/auth-user';
 import { Branch, BranchDocument } from '../../branch/domain/schemas/branch.schema';
 import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
@@ -158,7 +157,7 @@ export class AdminService {
           'Cannot assign branch to an inactive account',
         );
       }
-      if (!isBranchManagerRole(user.role) && user.role !== Role.STAFF) {
+      if (user.role !== Role.BRANCHMANAGER && user.role !== Role.STAFF) {
         throw new BadRequestException(
           'Only Branch Manager or Staff accounts can be assigned to a branch',
         );
@@ -203,7 +202,7 @@ export class AdminService {
     if (input.branchId) {
       if (
         input.isActive === false ||
-        (!isBranchManagerRole(input.role) && input.role !== Role.STAFF)
+        (input.role !== Role.BRANCHMANAGER && input.role !== Role.STAFF)
       ) {
         throw new BadRequestException(
           'Only Branch Manager or Staff accounts can be assigned to a branch',
