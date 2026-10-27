@@ -218,7 +218,7 @@ export default function ShowtimesPage() {
   return (
     <div
       id="wrap"
-      className="w-full min-w-[980px] bg-bg-app relative font-['Arial',sans-serif] text-text-main min-h-screen flex flex-col"
+      className="w-full min-w-[980px] bg-bg-app relative font-sans text-text-main min-h-screen flex flex-col"
     >
       {/* Header Lotte Cinema */}
       <Header />

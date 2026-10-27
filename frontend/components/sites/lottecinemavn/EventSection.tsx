@@ -30,7 +30,7 @@ export function EventSection() {
             {/* Sub-col 1 (315px wide) */}
             <ul className="w-[315px] m-0 p-0 list-none">
               <li className="pb-[20px]">
-                <Link href="#event-1" className="block overflow-hidden shadow-sm hover:opacity-95">
+                <Link href="/ticketing" className="block overflow-hidden shadow-sm hover:opacity-95">
                   <Image
                     src="/sites/lottecinemavn/events/661fe46e894748bfbfbdff864789fd4a.png"
                     alt="Quyền Lợi Thành Viên 2026"
@@ -41,7 +41,7 @@ export function EventSection() {
                 </Link>
               </li>
               <li>
-                <Link href="#event-2" className="block overflow-hidden shadow-sm hover:opacity-95">
+                <Link href="/ticketing" className="block overflow-hidden shadow-sm hover:opacity-95">
                   <Image
                     src="/sites/lottecinemavn/events/2038a3fb521448598fbd495bfe501fc0.jpg"
                     alt="Family Day Thứ 4 Ưu Đãi"
@@ -56,7 +56,7 @@ export function EventSection() {
             {/* Sub-col 2 (315px wide) */}
             <ul className="w-[315px] m-0 p-0 list-none">
               <li className="pb-[20px]">
-                <Link href="#event-3" className="block overflow-hidden shadow-sm hover:opacity-95">
+                <Link href="/ticketing" className="block overflow-hidden shadow-sm hover:opacity-95">
                   <Image
                     src="/sites/lottecinemavn/events/34b1a121f2cc4c5995a17e19e77b47d9.jpg"
                     alt="Thứ 2 Ưu Đãi"
@@ -67,7 +67,7 @@ export function EventSection() {
                 </Link>
               </li>
               <li>
-                <Link href="#event-4" className="block overflow-hidden shadow-sm hover:opacity-95">
+                <Link href="/ticketing" className="block overflow-hidden shadow-sm hover:opacity-95">
                   <Image
                     src="/sites/lottecinemavn/events/2554633691be4e729fa8242bafe8b4f4.jpg"
                     alt="HDBank Ưu Đãi 95K"
@@ -82,7 +82,7 @@ export function EventSection() {
 
           {/* Bottom wide banner (650x205px) */}
           <div className="mt-[20px]">
-            <Link href="#event-wide" className="block overflow-hidden shadow-sm hover:opacity-95">
+            <Link href="/showtimes" className="block overflow-hidden shadow-sm hover:opacity-95">
               <Image
                 src="/sites/lottecinemavn/events/f353e37e868a425ea171d41d9a9bab0b.png"
                 alt="Liên Hệ Thuê Rạp Mua Vé Nhóm"
@@ -97,7 +97,7 @@ export function EventSection() {
         {/* Right container: width 310px (2 stacked banners) */}
         <ul className="w-[310px] m-0 p-0 list-none shrink-0">
           <li className="pb-[20px]">
-            <Link href="#event-right-1" className="block overflow-hidden shadow-sm hover:opacity-95">
+            <Link href="/ticketing" className="block overflow-hidden shadow-sm hover:opacity-95">
               <Image
                 src="/sites/lottecinemavn/events/37e5a5752970420da83814e4eb5252cf.jpg"
                 alt="Tặng 4 vé xem phim 2D VIB"
@@ -108,7 +108,7 @@ export function EventSection() {
             </Link>
           </li>
           <li>
-            <Link href="#event-right-2" className="block overflow-hidden shadow-sm hover:opacity-95">
+            <Link href="/movies" className="block overflow-hidden shadow-sm hover:opacity-95">
               <Image
                 src="/sites/lottecinemavn/events/ce0f734fb0fe4361b355895d1b1eb92a.jpg"
                 alt="One Piece Collection"
