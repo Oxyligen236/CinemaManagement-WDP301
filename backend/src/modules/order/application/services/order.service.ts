@@ -133,14 +133,20 @@ export class OrderService
   async handleVnpayReturn(query: Record<string, string | string[]>) {
     const result = await this.paymentContract.verifyVnpayReturn(query);
     if (!result.isSuccess) return result;
-    const paymentStatus = await this.paymentContract.getVnpayPaymentStatus(result.orderId);
-    return { ...result, isSuccess: paymentStatus.isSuccess };
+    // Return URL is the completion path when VNPay IPN is unavailable.
+    await this.fulfillVnpayOrder(result.orderId);
+    return result;
   }
 
   async handleVnpayIpn(query: Record<string, string | string[]>) {
     const result = await this.paymentContract.verifyVnpayIpn(query);
     if (result.RspCode !== '00' || !result.isSuccess || !result.orderId) return result;
-    const order = await this.orderModel.findOne({ orderId: result.orderId }).exec();
+    await this.fulfillVnpayOrder(result.orderId);
+    return { RspCode: '00', Message: 'Confirm Success' };
+  }
+
+  private async fulfillVnpayOrder(orderId: string) {
+    const order = await this.orderModel.findOne({ orderId }).exec();
     if (!order) {
       return { RspCode: '01', Message: 'Order not found' };
     }
@@ -176,7 +182,6 @@ export class OrderService
     } catch (err) {
       this.logger.warn(`Failed to publish OrderPaidEvent for order ${order.orderId}: ${(err as Error).message}`);
     }
-    return { RspCode: '00', Message: 'Confirm Success' };
   }
 
   async createBookingOrder(

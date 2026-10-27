@@ -69,6 +69,7 @@ export interface PaymentContract {
     isSuccess: boolean;
     orderId: string;
     message: string;
+    responseCode?: string;
   }>;
   verifyVnpayIpn(query: Record<string, string | string[]>): Promise<{
     RspCode: string;

@@ -80,12 +80,12 @@ export class PaymentContractImpl implements PaymentContract {
     const paymentId = typeof query.vnp_TxnRef === 'string' ? query.vnp_TxnRef : '';
     const payment = await this.paymentModel.findOne({ paymentId, method: PaymentMethod.VNPAY }).exec();
     if (!payment) throw new NotFoundException('Không tìm thấy giao dịch VNPay');
-    const returnedAmount = Number(query.vnp_Amount);
-    if (!result.isVerified || !Number.isSafeInteger(returnedAmount) || returnedAmount !== payment.amount * 100) throw new BadRequestException('Thông tin giao dịch VNPay không hợp lệ');
+    if (!result.isVerified || Number(result.vnp_Amount) !== payment.amount) throw new BadRequestException('Thông tin giao dịch VNPay không hợp lệ');
     return {
       isSuccess: result.isVerified && result.isSuccess,
       orderId: payment.orderId,
       message: result.message,
+      responseCode: String(query.vnp_ResponseCode || ''),
     };
   }
 
@@ -98,7 +98,8 @@ export class PaymentContractImpl implements PaymentContract {
     if (!result.isVerified) return { RspCode: '97', Message: 'Invalid checksum' };
     const payment = await this.paymentModel.findOne({ paymentId: result.vnp_TxnRef, method: PaymentMethod.VNPAY }).exec();
     if (!payment) return { RspCode: '01', Message: 'Order not found' };
-    if (Number(result.vnp_Amount) !== payment.amount * 100) return { RspCode: '04', Message: 'Invalid amount' };
+    // vnpay SDK normalizes vnp_Amount back to VND after verification.
+    if (Number(result.vnp_Amount) !== payment.amount) return { RspCode: '04', Message: 'Invalid amount' };
     if (payment.status !== PaymentStatus.PENDING) {
       return payment.status === PaymentStatus.SUCCESS
         ? { RspCode: '00', Message: 'Confirm Success', orderId: payment.orderId, isSuccess: true }

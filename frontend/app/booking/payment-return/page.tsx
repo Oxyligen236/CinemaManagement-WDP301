@@ -9,6 +9,8 @@ function PaymentReturnContent() {
   const params = useSearchParams();
   const orderId = params.get('orderId') || '';
   const gatewayStatus = params.get('status');
+  const errorCode = params.get('code') || 'UNKNOWN';
+  const errorMessage = params.get('message') || 'Thanh toán không thành công';
   const [polledStatus, setStatus] = useState<'SUCCESS' | 'FAILED' | 'PENDING' | null>(null);
   const status = !orderId || gatewayStatus !== 'success' ? 'FAILED' : polledStatus || 'WAITING';
 
@@ -26,7 +28,7 @@ function PaymentReturnContent() {
           setStatus('SUCCESS');
           return;
         }
-        if (summary.status === 'FAILED' || summary.status === 'CANCELLED' || summary.status === 'EXPIRED') {
+        if (summary.status === 'CANCELLED' || summary.status === 'EXPIRED') {
           setStatus('FAILED');
           return;
         }
@@ -54,9 +56,12 @@ function PaymentReturnContent() {
   }[status];
 
   return (
-    <main className="mx-auto max-w-xl p-10 text-center" aria-live="polite">
-      <h1 className="text-2xl font-bold">{message}</h1>
-      <p className="my-4">Mã đơn: {orderId || 'Không xác định'}</p>
+     <main className="mx-auto max-w-xl p-10 text-center" aria-live="polite">
+     <h1 className="text-2xl font-bold">{message}</h1>
+     <p className="my-4">Mã đơn: {orderId || 'Không xác định'}</p>
+      {status === 'FAILED' && errorCode !== 'SYSTEM_ERROR' && (
+        <p className="text-red-700">Mã lỗi: {errorCode}<br />Chi tiết: {errorMessage}</p>
+      )}
       {status !== 'WAITING' && <Link className="text-blue-700 underline" href="/profile/orders">Xem đơn hàng</Link>}
     </main>
   );
