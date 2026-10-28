@@ -7,7 +7,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-// eslint-disable-next-line prettier/prettier
+
 import {
   RegisterDto,
   ResendVerificationDto,

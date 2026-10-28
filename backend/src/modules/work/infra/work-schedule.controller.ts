@@ -11,6 +11,10 @@ import { CreateWorkScheduleDto } from '../application/dto/create-work-schedule.d
 @Roles(Role.ADMIN)
 export class WorkScheduleController {
   constructor(private readonly service: WorkScheduleService) {}
-  @Get() list(@Query('branchId') branchId?: string) { return this.service.list(branchId); }
-  @Post() create(@Body() input: CreateWorkScheduleDto) { return this.service.create(input); }
+  @Get() list(@Query('branchId') branchId?: string) {
+    return this.service.list(branchId);
+  }
+  @Post() create(@Body() input: CreateWorkScheduleDto) {
+    return this.service.create(input);
+  }
 }

@@ -199,7 +199,7 @@ describe('ProductService', () => {
 
   describe('deductConcessionStock', () => {
     it('không thực hiện gì khi danh sách sản phẩm rỗng', async () => {
-      await service.deductConcessionStock( []);
+      await service.deductConcessionStock([]);
       expect(mockItemModel.find).not.toHaveBeenCalled();
     });
 
@@ -230,7 +230,7 @@ describe('ProductService', () => {
         }),
       });
 
-      await service.deductConcessionStock( [
+      await service.deductConcessionStock([
         { productId: 'ITEM-1', quantity: 2 },
       ]);
 
@@ -273,7 +273,7 @@ describe('ProductService', () => {
         exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       });
 
-      await service.deductConcessionStock( [
+      await service.deductConcessionStock([
         { productId: 'ITEM-1', quantity: 2 },
       ]);
 
@@ -313,7 +313,7 @@ describe('ProductService', () => {
       });
 
       // Mua 2 combo: ITEM-POPCORN cần trừ 2*2=4, ITEM-COKE cần trừ 1*2=2
-      await service.deductConcessionStock( [
+      await service.deductConcessionStock([
         { productId: 'COMBO-1', quantity: 2 },
       ]);
 
@@ -343,7 +343,7 @@ describe('ProductService', () => {
       });
 
       await expect(
-        service.deductConcessionStock( [
+        service.deductConcessionStock([
           { productId: 'UNKNOWN-ID', quantity: 1 },
         ]),
       ).rejects.toThrow(NotFoundException);
@@ -383,7 +383,7 @@ describe('ProductService', () => {
       });
 
       await expect(
-        service.deductConcessionStock( [{ productId: 'ITEM-1', quantity: 5 }]),
+        service.deductConcessionStock([{ productId: 'ITEM-1', quantity: 5 }]),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -399,5 +399,3 @@ describe('ProductService', () => {
     });
   });
 });
-
-

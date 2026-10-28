@@ -204,7 +204,10 @@ export class ProductService
         .exec();
 
       if (!updated) {
-        const currentQuery = this.itemModel.findOne({ itemId }).select('name stockQuantity').lean();
+        const currentQuery = this.itemModel
+          .findOne({ itemId })
+          .select('name stockQuantity')
+          .lean();
         if (session) currentQuery.session(session);
         const current = await currentQuery.exec();
         const itemName = current?.name || itemId;
@@ -217,7 +220,11 @@ export class ProductService
         updated.stockQuantity === 0 &&
         updated.status === ItemStatus.AVAILABLE
       ) {
-        const statusUpdate = this.itemModel.updateOne({ itemId }, { $set: { status: ItemStatus.OUT_OF_STOCK } }, session ? { session } : {});
+        const statusUpdate = this.itemModel.updateOne(
+          { itemId },
+          { $set: { status: ItemStatus.OUT_OF_STOCK } },
+          session ? { session } : {},
+        );
         await statusUpdate.exec();
       }
     }

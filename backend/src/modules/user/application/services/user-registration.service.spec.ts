@@ -163,8 +163,9 @@ describe('UserRegistrationService (email verification flow)', () => {
       const firstCode = codeOfCall(0);
       skipCooldown(harness);
 
-      const result =
-        await harness.service.resendVerificationCode(REGISTER_INPUT.email);
+      const result = await harness.service.resendVerificationCode(
+        REGISTER_INPUT.email,
+      );
 
       expect(result.verificationExpiresInSeconds).toBe(300);
       expect(sendMail).toHaveBeenCalledTimes(2);
