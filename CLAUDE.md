@@ -59,3 +59,9 @@
 - **Frontend (`frontend/`)**: Cấm tuyệt đối sử dụng mock data, fake data hoặc fallback mock array trong source code (API client, hooks, components, pages). Toàn bộ dữ liệu hiển thị phải gọi trực tiếp từ API backend thật.
 - **Backend (`backend/`)**: Chỉ được phép dùng mock cho các contract / interface chưa được triển khai (chờ module phụ thuộc hoàn thành). Khi contract đã triển khai xong, bắt buộc kết nối dữ liệu thật từ database (Mongoose Model).
 
+## Subagent Investigation Rule (Bắt buộc)
+
+- **Bắt buộc dùng subagent khi khảo sát**: Mọi tác vụ khảo sát, tìm kiếm, đọc hiểu codebase hoặc phân tích yêu cầu phải được ủy quyền qua các subagent con (`Explore`, `general-purpose`, v.v.), không khảo sát trực tiếp tại main thread gây tràn context.
+- **Phân rã và chạy song song**: Chủ động chia nhỏ phạm vi khảo sát (theo module, tầng kiến trúc frontend/backend, hoặc domain nghiệp vụ) cho nhiều subagent con triển khai song song trong cùng một turn để tối đa tốc độ xử lý.
+
+
