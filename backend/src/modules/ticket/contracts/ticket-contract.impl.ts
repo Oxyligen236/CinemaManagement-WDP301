@@ -11,10 +11,13 @@ export class TicketContractImpl implements TicketContract {
     return this.ticketService.getTicketsByOrderId(orderId);
   }
 
-  async createTicketsForOrder(params: {
-    orderId: string;
-    seatShowtimeIds: string[];
-  }, session?: ClientSession): Promise<TicketItemSummaryDto[]> {
+  async createTicketsForOrder(
+    params: {
+      orderId: string;
+      seatShowtimeIds: string[];
+    },
+    session?: ClientSession,
+  ): Promise<TicketItemSummaryDto[]> {
     return session
       ? this.ticketService.createTicketsForOrder(params, session)
       : this.ticketService.createTicketsForOrder(params);
