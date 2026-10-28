@@ -103,7 +103,7 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ secrets.VPS_USER || 'root' }}
           key_path: .deploy_key
           port: ${{ secrets.VPS_PORT || 22 }}
           source: "docker-compose.yml,backend,frontend,backend/.env,frontend/.env"
@@ -117,7 +117,7 @@ jobs:
           FE_ENV: ${{ secrets.FE_ENV }}
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: ${{ secrets.VPS_USER || 'root' }}
           key_path: .deploy_key
           port: ${{ secrets.VPS_PORT || 22 }}
           envs: BE_ENV,FE_ENV
