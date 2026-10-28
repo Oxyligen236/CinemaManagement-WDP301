@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -21,6 +22,7 @@ import {
 import { User, UserDocument } from '../../domain/schemas/user.schema';
 import { Role } from '../../domain/enums/role.enum';
 import { UserRegisteredEvent } from '../../../auth/domain/events/user-registered.event';
+import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
@@ -33,6 +35,8 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 
 @Injectable()
 export class UserRegistrationService {
+  private readonly logger = new Logger(UserRegistrationService.name);
+
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
@@ -103,7 +107,7 @@ export class UserRegistrationService {
         new UserRegisteredEvent(
           email,
           code,
-          CODE_TTL_SECONDS / 60,
+          CODE_TTL_SECONDS,
           `${firstName} ${lastName}`,
         ),
       );
@@ -145,8 +149,10 @@ export class UserRegistrationService {
       throw new BadRequestException('Code is invalid or has expired');
     }
 
+    let user: UserDocument;
+
     try {
-      const user = await this.userModel.create({
+      user = await this.userModel.create({
         userId: randomUUID(),
         email,
         password: pending.passwordHash,
@@ -155,14 +161,6 @@ export class UserRegistrationService {
         role: Role.USER,
         isActive: true,
       });
-
-      this.pendingRegistrations.delete(email);
-
-      return {
-        message: 'Email verified, account created',
-        userId: user.userId,
-        email: user.email,
-      };
     } catch (err: any) {
       if (err?.code === 11000) {
         this.pendingRegistrations.delete(email);
@@ -170,5 +168,29 @@ export class UserRegistrationService {
       }
       throw err;
     }
+
+    this.pendingRegistrations.delete(email);
+
+    // Email chào mừng chỉ mang tính thông báo: tài khoản đã được tạo thành
+    // công nên lỗi gửi mail chỉ được ghi log, không làm thất bại xác thực.
+    try {
+      await this.eventBus.publish(
+        new UserCreatedEvent(
+          user.email,
+          `${pending.firstName} ${pending.lastName}`,
+        ),
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to dispatch welcome email for ${user.email}`,
+        err instanceof Error ? err.stack : err,
+      );
+    }
+
+    return {
+      message: 'Email verified, account created',
+      userId: user.userId,
+      email: user.email,
+    };
   }
 }
