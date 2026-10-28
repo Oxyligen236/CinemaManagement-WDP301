@@ -47,4 +47,7 @@ export interface BookingSummary {
   movieName?: string;
   roomName?: string;
   startTime?: string;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
 }

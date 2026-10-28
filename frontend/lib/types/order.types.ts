@@ -21,6 +21,9 @@ export interface OrderItemTicket {
   seatLabel: string;
   startTime: string;
   endTime?: string;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
 }
 
 export interface PromotionSummary {
@@ -39,6 +42,9 @@ export interface OrderSummary {
   createdAt: string;
   ticketCount: number;
   hasProducts: boolean;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
 }
 
 export interface OrderDetail {
@@ -47,9 +53,18 @@ export interface OrderDetail {
   totalAmount: number;
   status: OrderStatus;
   createdAt: string;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
   tickets: OrderItemTicket[];
   products: OrderItemProduct[];
   promotion?: PromotionSummary;
+}
+
+export interface CancelOrderRes {
+  success: boolean;
+  message: string;
+  orderId?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -101,4 +116,7 @@ export interface ScanTicketResult {
   scannedBy: string;
   scannedAt: string;
   message: string;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
 }
