@@ -10,6 +10,7 @@ import {
   Users,
   Building2,
   Tags,
+  Clock3,
   Film,
   ShieldCheck,
   Menu,
@@ -54,6 +55,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/price-multipliers",
     icon: Tags,
   },
+  { label: "Ca làm việc", href: "/admin/work-schedules", icon: Clock3 },
 ];
 
 export default function SystemAdminLayout({
