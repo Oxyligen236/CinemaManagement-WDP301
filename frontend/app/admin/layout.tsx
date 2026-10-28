@@ -86,7 +86,7 @@ export default function SystemAdminLayout({
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    router.replace("/login");
+    router.replace("/");
   }
 
   const isActiveRoute = (href: string) =>

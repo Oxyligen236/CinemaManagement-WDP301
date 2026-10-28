@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CINEMA_REGIONS } from "./data";
 
 type User = {
@@ -13,6 +14,7 @@ type User = {
 };
 
 export function Header() {
+  const router = useRouter();
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [activeRegion, setActiveRegion] = useState<string>("TPHCM");
   const [user, setUser] = useState<User | null>(null);
@@ -35,6 +37,7 @@ export function Header() {
     localStorage.removeItem("cinema_user");
     localStorage.removeItem("cinema_access_token");
     setUser(null);
+    router.replace("/");
   }
 
   return (
