@@ -138,6 +138,148 @@ describe('UserRegistrationService (email verification flow)', () => {
     });
   });
 
+  describe('resendVerificationCode', () => {
+    /** Move past the 60s resend cooldown without slowing the suite down. */
+    const skipCooldown = (harness: {
+      pending: PendingRegistrationService;
+    }): void => {
+      const pending = harness.pending.get('new.user@cinema.local');
+      if (!pending) throw new Error('expected a pending registration');
+      pending.lastSentAt -= 61 * 1000;
+    };
+
+    const codeOfCall = (index: number): string => {
+      const context = sendMail.mock.calls[index][0].context as {
+        code: string;
+      };
+      return context.code;
+    };
+
+    it('issues a different code and invalidates the previous one', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+      const firstCode = codeOfCall(0);
+      skipCooldown(harness);
+
+      const result =
+        await harness.service.resendVerificationCode(REGISTER_INPUT.email);
+
+      expect(result.verificationExpiresInSeconds).toBe(300);
+      expect(sendMail).toHaveBeenCalledTimes(2);
+      expect(sendMail.mock.calls[1][0].template).toBe('verification');
+
+      // Only the newest code may verify the account.
+      await expect(
+        harness.service.verifyEmail(REGISTER_INPUT.email, firstCode),
+      ).rejects.toThrow('Code is invalid or has expired');
+
+      await expect(
+        harness.service.verifyEmail(REGISTER_INPUT.email, codeOfCall(1)),
+      ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
+    });
+
+    it('clears earlier wrong attempts so the new code is usable', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+
+      for (let i = 0; i < 4; i += 1) {
+        await expect(
+          harness.service.verifyEmail(REGISTER_INPUT.email, '000000'),
+        ).rejects.toThrow('Code is invalid or has expired');
+      }
+
+      skipCooldown(harness);
+      await harness.service.resendVerificationCode(REGISTER_INPUT.email);
+
+      expect(harness.pending.get('new.user@cinema.local')?.attempts).toBe(0);
+      await expect(
+        harness.service.verifyEmail(REGISTER_INPUT.email, codeOfCall(1)),
+      ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
+    });
+
+    it('enforces the cooldown between resends', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+
+      await expect(
+        harness.service.resendVerificationCode(REGISTER_INPUT.email),
+      ).rejects.toThrow('Please wait before requesting another code');
+
+      expect(sendMail).toHaveBeenCalledTimes(1);
+    });
+
+    it('caps the number of resends for one registration', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+
+      for (let i = 0; i < 3; i += 1) {
+        skipCooldown(harness);
+        await harness.service.resendVerificationCode(REGISTER_INPUT.email);
+      }
+
+      skipCooldown(harness);
+      await expect(
+        harness.service.resendVerificationCode(REGISTER_INPUT.email),
+      ).rejects.toThrow('Resend limit reached, please register again');
+
+      expect(sendMail).toHaveBeenCalledTimes(4);
+    });
+
+    it('keeps the old code valid when the resend email fails', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+      const firstCode = codeOfCall(0);
+      skipCooldown(harness);
+
+      sendMail.mockRejectedValueOnce(new Error('SMTP down'));
+      await expect(
+        harness.service.resendVerificationCode(REGISTER_INPUT.email),
+      ).rejects.toThrow('SMTP down');
+
+      // The rollback must restore the previous entry, not drop the
+      // registration, otherwise a failed resend would lock the user out.
+      await expect(
+        harness.service.verifyEmail(REGISTER_INPUT.email, firstCode),
+      ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
+    });
+
+    it('rejects a resend when no registration is pending', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await expect(
+        harness.service.resendVerificationCode('nobody@cinema.local'),
+      ).rejects.toThrow('No pending registration found, please register again');
+
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('rejects a resend for an email that already has an account', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+      skipCooldown(harness);
+      (harness.userModel.exists as unknown as jest.Mock).mockResolvedValue({
+        _id: 'existing',
+      });
+
+      await expect(
+        harness.service.resendVerificationCode(REGISTER_INPUT.email),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
   describe('verifyEmail', () => {
     const extractCode = () => {
       const context = sendMail.mock.calls[0][0].context as { code: string };
