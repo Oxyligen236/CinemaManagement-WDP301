@@ -96,16 +96,15 @@ jobs:
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          printf "%s" "$VPS_SSH_KEY" | sed 's/\\n/\n/g' | tr -d '\r' > ~/.ssh/vps_key
-          chmod 600 ~/.ssh/vps_key
+          printf "%s\n" "$VPS_SSH_KEY" | sed 's/\\n/\n/g' | tr -d '\r' > .deploy_key
+          chmod 600 .deploy_key
 
       - name: Sync files to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key_path: ~/.ssh/vps_key
+          key_path: .deploy_key
           port: ${{ secrets.VPS_PORT || 22 }}
           source: "docker-compose.yml,backend,frontend,backend/.env,frontend/.env"
           target: ${{ secrets.VPS_TARGET_DIR }}
@@ -119,7 +118,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key_path: ~/.ssh/vps_key
+          key_path: .deploy_key
           port: ${{ secrets.VPS_PORT || 22 }}
           envs: BE_ENV,FE_ENV
           script: |
@@ -190,3 +189,7 @@ jobs:
             echo "=== Deployment Status ==="
             docker compose ps backend frontend
             docker image prune -f
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f .deploy_key
