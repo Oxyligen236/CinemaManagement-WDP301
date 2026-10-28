@@ -171,8 +171,11 @@ export default function ManagerWorkSchedulesPage() {
     <main className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Phân công nhân viên
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
+            LATTE CINEMA • VẬN HÀNH CHI NHÁNH
+          </p>
+          <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase">
+            Lịch làm việc Nhân viên
           </h1>
           <p className="mt-1 text-sm text-gray-600">
             Chọn ca, xem thông tin nhân viên, rồi lưu danh sách phân công.

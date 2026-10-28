@@ -15,7 +15,7 @@ export default function BookingLayout({
         backgroundRepeat: 'repeat',
       }}
     >
-      {/* Header Container - Lotte Cinema Standard */}
+      {/* Header Container - Latte Cinema Standard */}
       <div className="w-full bg-white border-b border-[#dad2b4] shadow-xs overflow-x-auto">
         <div className="min-w-[980px] max-w-[1400px] mx-auto">
           <Header />
@@ -27,7 +27,7 @@ export default function BookingLayout({
         {children}
       </main>
 
-      {/* Footer Container - Lotte Cinema Standard */}
+      {/* Footer Container - Latte Cinema Standard */}
       <div className="w-full bg-white border-t border-[#dedede] mt-auto overflow-x-auto">
         <div className="min-w-[980px] max-w-[1400px] mx-auto">
           <Footer />

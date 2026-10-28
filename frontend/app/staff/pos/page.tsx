@@ -43,10 +43,10 @@ import {
 } from "lucide-react";
 
 const BRANCH_NAMES: Record<string, string> = {
-  "branch-cantavil": "Lotte Cinema Cantavil",
-  "branch-govap": "Lotte Cinema Gò Vấp",
-  "branch-nam-sai-gon": "Lotte Cinema Nam Sài Gòn",
-  "branch-landmark": "Lotte Cinema Landmark Hà Nội",
+  "branch-cantavil": "Latte Cinema Cantavil",
+  "branch-govap": "Latte Cinema Gò Vấp",
+  "branch-nam-sai-gon": "Latte Cinema Nam Sài Gòn",
+  "branch-landmark": "Latte Cinema Landmark Hà Nội",
 };
 
 type ActiveTab = "showtimes" | "seats" | "concessions";
@@ -669,7 +669,7 @@ export default function StaffPosPage() {
         <div>
           <div className="flex items-center gap-2">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-              LOTTE CINEMA • ĐIỂM BÁN VÉ TẠI QUẦY (POS)
+              LATTE CINEMA • ĐIỂM BÁN VÉ TẠI QUẦY (POS)
             </p>
             {staffUser?.branchId && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-[#da291c] text-white">
@@ -987,7 +987,7 @@ export default function StaffPosPage() {
           {/* TAB 2: SƠ ĐỒ GHẾ THỜI GIAN THỰC */}
           {activeTab === "seats" && (
             <div className="p-4 flex flex-col min-h-[500px]">
-              {/* Header Màn hình cong Lotte Cinema */}
+              {/* Header Màn hình cong Latte Cinema */}
               <div className="w-full flex flex-col items-center mb-6 shrink-0">
                 <div className="w-4/5 h-2 bg-gradient-to-r from-[#e3e1d6] via-[#da291c] to-[#e3e1d6] shadow-[0_-2px_10px_rgba(218,41,28,0.3)]" />
                 <p className="text-[11px] font-bold tracking-[0.2em] text-[#6f6247] uppercase mt-1.5">
@@ -1102,7 +1102,7 @@ export default function StaffPosPage() {
                 <div>
                   <h4 className="text-[12px] font-bold text-[#b45309] uppercase tracking-wider mb-2.5 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#d97706]" />
-                    Gói Combo Ưu Đãi Lotte Cinema
+                    Gói Combo Ưu Đãi Latte Cinema
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {catalog.combos.map((combo) => {

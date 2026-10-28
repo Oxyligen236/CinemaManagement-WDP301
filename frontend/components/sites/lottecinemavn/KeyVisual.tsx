@@ -5,6 +5,7 @@ import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getPublicMovieList } from "@/lib/api/movie-public.api";
+import { R2_PUBLIC_URL } from "@/lib/constants/r2";
 
 interface BoxOfficeMovie {
   id: string;
@@ -101,7 +102,7 @@ export function KeyVisual() {
                   title="Xem danh sách phim đang chiếu"
                 >
                   <Image
-                    src="/sites/lottecinemavn/ui/h2_boxoffice.png"
+                    src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/h2_boxoffice.png`}
                     alt="BOX OFFICE"
                     width={201}
                     height={15}

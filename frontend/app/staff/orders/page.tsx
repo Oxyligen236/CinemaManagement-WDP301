@@ -113,7 +113,7 @@ export default function StaffOrdersPage() {
       <div className="border-b-2 border-[#231f20] pb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            LOTTE CINEMA • QUẢN LÝ ĐƠN HÀNG QUẦY
+            LATTE CINEMA • QUẢN LÝ ĐƠN HÀNG QUẦY
           </p>
           <h1 className="mt-1 text-[22px] font-bold text-[#231f20] uppercase flex items-center gap-2.5">
             <ClipboardList className="h-6 w-6 text-[#da291c]" />

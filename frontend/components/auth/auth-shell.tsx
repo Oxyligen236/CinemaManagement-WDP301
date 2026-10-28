@@ -3,7 +3,8 @@
 import React from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { R2_PUBLIC_URL } from "@/lib/constants/r2";
+import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
 
 export const AUTH_INPUT_CLASS =
   "mt-1.5 h-[40px] w-full border border-[#dad2b4] bg-white px-3 text-[13px] text-[#231f20] placeholder:text-[#9d9580] outline-none transition-colors focus:border-[#da291c] focus:ring-1 focus:ring-[#da291c] disabled:cursor-not-allowed disabled:bg-[#efebdb] disabled:text-[#9d9580]";
@@ -65,7 +66,7 @@ export function AuthShell({
                   "url('/sites/lottecinemavn/ui/icon_lottecinemaapp.png')",
               }}
             />
-            <span>Về Trang chủ Lotte Cinema</span>
+            <span>Về Trang chủ Latte Cinema</span>
           </Link>
         </div>
         <ul className="flex items-center gap-5 text-[12px]">
@@ -96,8 +97,8 @@ export function AuthShell({
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-[84px] flex items-center justify-center sm:justify-start">
           <Link href="/" className="flex items-center gap-4">
             <Image
-              src="/sites/lottecinemavn/ui/logo.png"
-              alt="LOTTE CINEMA"
+              src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+              alt="LATTE CINEMA"
               width={300}
               height={34}
               priority
@@ -108,7 +109,7 @@ export function AuthShell({
                 ACCOUNT CENTER
               </p>
               <p className="text-[16px] font-bold text-[#231f20]">
-                TÀI KHOẢN THÀNH VIÊN LOTTE CINEMA
+                TÀI KHOẢN THÀNH VIÊN LATTE CINEMA
               </p>
             </div>
           </Link>
@@ -140,7 +141,7 @@ export function AuthShell({
             )}
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-                LOTTE CINEMA • {eyebrow}
+                LATTE CINEMA • {eyebrow}
               </p>
               <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase">
                 {title}
@@ -176,19 +177,17 @@ export function AuthShell({
         <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Image
-              src="/sites/lottecinemavn/ui/logo_footer.gif"
-              alt="LOTTE CINEMA"
-              width={160}
-              height={28}
-              className="block"
+              src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+              alt="LATTE CINEMA"
+              width={140}
+              height={35}
+              className="h-[28px] w-auto max-h-[28px] object-contain block"
             />
             <span className="text-[#dedede]">|</span>
-            <span>
-              CÔNG TY TNHH LOTTE CINEMA VIỆT NAM - TÀI KHOẢN THÀNH VIÊN
-            </span>
+            <span>CÔNG TY TNHH LATTE CINEMA VIỆT NAM - TÀI KHOẢN THÀNH VIÊN</span>
           </div>
           <p className="text-[11px] text-[#777]">
-            COPYRIGHT © LOTTECINEMAVN.COM - ALL RIGHTS RESERVED.
+            COPYRIGHT © LATTECINEMAVN.COM - ALL RIGHTS RESERVED.
           </p>
         </div>
       </footer>

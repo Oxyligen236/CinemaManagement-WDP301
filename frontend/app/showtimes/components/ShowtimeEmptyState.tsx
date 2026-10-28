@@ -28,7 +28,7 @@ export function ShowtimeEmptyState({
           Vui lòng chọn rạp chiếu để xem lịch chiếu
         </h3>
         <p className="text-sm text-text-muted max-w-md mb-6">
-          Hệ thống rạp chiếu Lotte Cinema. Hãy chọn cụm rạp ở phía trên để xem các suất chiếu thực tế.
+          Hệ thống rạp chiếu Latte Cinema. Hãy chọn cụm rạp ở phía trên để xem các suất chiếu thực tế.
         </p>
         {onFocusBranchSelect && (
           <button
