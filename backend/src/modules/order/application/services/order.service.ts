@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { Connection } from 'mongoose';
+import { InjectConnection } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
 import { Page } from '../../../../common/dto/page.dto';
 import { Order, OrderDocument } from '../../domain/schemas/order.schema';
@@ -27,6 +29,8 @@ import {
 } from '../../domain/constants/order.constant';
 import { OrderCreatedEvent } from '../../domain/events/order-created.event';
 import { OrderExpiredEvent } from '../../domain/events/order-expired.event';
+import { OrderPaidEvent } from '../../domain/events/order-paid.event';
+import { PaymentContract, PAYMENT_CONTRACT } from '../../contracts/payment.contract';
 import {
   TicketContract,
   TICKET_CONTRACT,
@@ -99,6 +103,9 @@ export class OrderService
     private readonly seatOrderModel: Model<SeatOrderDocument>,
     @InjectModel(ProductOrder.name)
     private readonly productOrderModel: Model<ProductOrderDocument>,
+    @InjectConnection() private readonly connection: Connection,
+    @Inject(PAYMENT_CONTRACT)
+    private readonly paymentContract: PaymentContract,
     @Inject(TICKET_CONTRACT)
     private readonly ticketContract: TicketContract,
     @Inject(PRODUCT_CONTRACT)
@@ -112,6 +119,70 @@ export class OrderService
     @Inject(INTERNAL_EVENT_BUS)
     private readonly internalEventBus: InternalEventBus,
   ) {}
+
+  async createVnpayPayment(userId: string, orderId: string, ipAddr: string) {
+    const order = await this.orderModel.findOne({ orderId }).exec();
+    if (!order) throw new NotFoundException(`Order with ID ${orderId} not found`);
+    if (order.userId !== userId) throw new ForbiddenException('You do not have access to this order');
+    if (order.status !== OrderStatus.PENDING) throw new BadRequestException('Đơn hàng không ở trạng thái chờ thanh toán');
+    const returnUrl = process.env.VNPAY_RETURN_URL;
+    if (!returnUrl) throw new BadRequestException('VNPAY_RETURN_URL chưa được cấu hình');
+    return this.paymentContract.createVnpayPayment({ orderId, amount: order.totalAmount, ipAddr, returnUrl });
+  }
+
+  async handleVnpayReturn(query: Record<string, string | string[]>) {
+    const result = await this.paymentContract.verifyVnpayReturn(query);
+    if (!result.isSuccess) return result;
+    // Return URL is the completion path when VNPay IPN is unavailable.
+    await this.fulfillVnpayOrder(result.orderId);
+    return result;
+  }
+
+  async handleVnpayIpn(query: Record<string, string | string[]>) {
+    const result = await this.paymentContract.verifyVnpayIpn(query);
+    if (result.RspCode !== '00' || !result.isSuccess || !result.orderId) return result;
+    await this.fulfillVnpayOrder(result.orderId);
+    return { RspCode: '00', Message: 'Confirm Success' };
+  }
+
+  private async fulfillVnpayOrder(orderId: string) {
+    const order = await this.orderModel.findOne({ orderId }).exec();
+    if (!order) {
+      return { RspCode: '01', Message: 'Order not found' };
+    }
+    if (order.status === OrderStatus.PAID) return { RspCode: '00', Message: 'Confirm Success' };
+    if (order.status !== OrderStatus.PENDING) return { RspCode: '02', Message: 'Order not pending' };
+
+    const seatOrders = await this.seatOrderModel.find({ orderId: order.orderId }).lean().exec();
+    const seatShowtimeIds = seatOrders.map((seat) => seat.seatShowtimeId);
+    const session = await this.connection.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const currentOrder = await this.orderModel.findOne({ orderId: order.orderId }).session(session).exec();
+        if (currentOrder?.status === OrderStatus.PAID) return;
+        if (!currentOrder || currentOrder.status !== OrderStatus.PENDING) throw new ConflictException('Order is not pending');
+        const seatOrdersInTx = await this.seatOrderModel.find({ orderId: order.orderId }).session(session).lean().exec();
+        const seatIds = seatOrdersInTx.map(({ seatShowtimeId }) => seatShowtimeId);
+        await this.showtimeBookingService.confirmSeats(seatIds, session);
+        await this.ticketContract.createTicketsForOrder({ orderId: order.orderId, seatShowtimeIds: seatIds }, session);
+        const productsInTx = await this.productOrderModel.find({ orderId: order.orderId }).session(session).lean().exec();
+        if (productsInTx.length) await this.productContract.deductConcessionStock(productsInTx.map(({ productId, quantity }) => ({ productId, quantity })), session);
+        const update = await this.orderModel.updateOne(
+          { orderId: order.orderId, status: OrderStatus.PENDING },
+          { $set: { status: OrderStatus.PAID } },
+          { session },
+        ).exec();
+        if (update.modifiedCount !== 1) throw new ConflictException('Could not confirm order');
+      });
+    } finally {
+      await session.endSession();
+    }
+    try {
+      await this.internalEventBus.publish(new OrderPaidEvent(order.orderId, order.userId, undefined, order.totalAmount, 'VNPAY', new Date()));
+    } catch (err) {
+      this.logger.warn(`Failed to publish OrderPaidEvent for order ${order.orderId}: ${(err as Error).message}`);
+    }
+  }
 
   async createBookingOrder(
     userId: string,
@@ -188,31 +259,30 @@ export class OrderService
     let appliedPromotion: PromotionSummaryRes | undefined;
 
     if (request.promotionCode) {
-      try {
-        const promo = await this.promotionContract.getPromotionById(
-          request.promotionCode,
+      const originalSubtotal = ticketSubtotal + productSubtotal;
+      const validationResult =
+        await this.promotionContract.validatePromotionCode({
+          code: request.promotionCode,
+          orderAmount: originalSubtotal,
+          userId,
+        });
+
+      if (!validationResult.isValid) {
+        await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds);
+        throw new BadRequestException(
+          validationResult.reason || 'Mã giảm giá không hợp lệ',
         );
-        if (promo && promo.isActive) {
-          appliedPromotionId = promo.promotionId;
-          const originalSubtotal = ticketSubtotal + productSubtotal;
-          if (promo.discountType === 'PERCENTAGE') {
-            discountAmount = Math.round(
-              (originalSubtotal * promo.discountValue) / 100,
-            );
-          } else {
-            discountAmount = Math.min(originalSubtotal, promo.discountValue);
-          }
-          appliedPromotion = PromotionSummaryRes.of(
-            promo.promotionId,
-            promo.promotionCode,
-            promo.discountType,
-            promo.discountValue,
-            discountAmount,
-          );
-        }
-      } catch {
-        discountAmount = 0;
       }
+
+      appliedPromotionId = validationResult.promotionId;
+      discountAmount = Math.max(0, validationResult.discountAmount);
+      appliedPromotion = PromotionSummaryRes.of(
+        validationResult.promotionId || '',
+        validationResult.promotionCode || request.promotionCode,
+        validationResult.discountType || 'PERCENTAGE',
+        validationResult.discountValue || 0,
+        discountAmount,
+      );
     }
 
     const totalAmount = Math.max(
@@ -371,7 +441,10 @@ export class OrderService
           order.promotionId,
         );
         if (promoInfo) {
-          const ticketSubtotal = bookingSeats.reduce((sum, s) => sum + s.price, 0);
+          const ticketSubtotal = bookingSeats.reduce(
+            (sum, s) => sum + s.price,
+            0,
+          );
           const productSubtotal = bookingProducts.reduce(
             (sum, p) => sum + p.quantity * p.unitPrice,
             0,
@@ -570,7 +643,12 @@ export class OrderService
   ): Promise<Page<OrderSummaryRes>> {
     const filter: Record<string, unknown> = { userId };
     if (query.status) {
-      filter.status = query.status;
+      const statuses = query.status.split(',').filter(Boolean);
+      if (statuses.length === 1) {
+        filter.status = statuses[0];
+      } else if (statuses.length > 1) {
+        filter.status = { $in: statuses };
+      }
     }
 
     return this.paginateOrders(filter, query.page, query.limit);
@@ -581,7 +659,12 @@ export class OrderService
   ): Promise<Page<OrderSummaryRes>> {
     const filter: Record<string, unknown> = {};
     if (query.status) {
-      filter.status = query.status;
+      const statuses = query.status.split(',').filter(Boolean);
+      if (statuses.length === 1) {
+        filter.status = statuses[0];
+      } else if (statuses.length > 1) {
+        filter.status = { $in: statuses };
+      }
     }
     if (query.date) {
       const start = new Date(query.date);
@@ -602,7 +685,12 @@ export class OrderService
       filter.userId = query.userId;
     }
     if (query.status) {
-      filter.status = query.status;
+      const statuses = query.status.split(',').filter(Boolean);
+      if (statuses.length === 1) {
+        filter.status = statuses[0];
+      } else if (statuses.length > 1) {
+        filter.status = { $in: statuses };
+      }
     }
     if (query.fromDate || query.toDate) {
       const dateFilter: { $gte?: Date; $lte?: Date } = {};
@@ -629,7 +717,7 @@ export class OrderService
       this.productOrderModel.find({ orderId }).lean().exec(),
     ]);
 
-    const tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
+    let tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
       OrderItemTicketRes.of(
         t.ticketId,
         t.ticketCode,
@@ -642,6 +730,36 @@ export class OrderService
         t.startTime,
       ),
     );
+
+    if (tickets.length === 0) {
+      const seatOrders = await this.seatOrderModel
+        .find({ orderId })
+        .lean()
+        .exec();
+      if (seatOrders.length > 0) {
+        const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+        const seatBookingDetails =
+          await this.showtimeBookingService.getSeatBookingDetails(
+            seatShowtimeIds,
+          );
+        tickets = seatBookingDetails.map((seat) => {
+          const matchedOrder = seatOrders.find(
+            (so) => so.seatShowtimeId === seat.seatShowtimeId,
+          );
+          return OrderItemTicketRes.of(
+            seat.seatShowtimeId,
+            '',
+            matchedOrder?.price ?? seat.basePrice,
+            String(order.status),
+            undefined,
+            seat.movieName,
+            seat.roomName,
+            `${seat.rowPosition}${seat.columnPosition}`,
+            seat.startTime,
+          );
+        });
+      }
+    }
 
     const productIds = productOrders.map((po) => po.productId);
     const productsMap =

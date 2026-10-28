@@ -6,7 +6,11 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { SearchShowtimeReqDto } from '../application/dto/req.dto';
+import {
+  GetPublicShowtimesReqDto,
+  SearchShowtimeReqDto,
+} from '../application/dto/req.dto';
+import { PublicShowtimeQueryService } from '../application/services/public-showtime-query.service';
 import { SeatShowtimeQueryService } from '../application/services/seat-showtime-query.service';
 import { ShowtimeQueryService } from '../application/services/showtime-query.service';
 
@@ -16,7 +20,13 @@ export class ShowtimeController {
   constructor(
     private readonly showtimeQueryService: ShowtimeQueryService,
     private readonly seatShowtimeQueryService: SeatShowtimeQueryService,
+    private readonly publicShowtimeQueryService: PublicShowtimeQueryService,
   ) {}
+
+  @Get('public')
+  getPublicShowtimes(@Query() query: GetPublicShowtimesReqDto) {
+    return this.publicShowtimeQueryService.getPublicShowtimes(query);
+  }
 
   @Get()
   searchShowtimes(@Query() query: SearchShowtimeReqDto) {

@@ -27,7 +27,7 @@ import { BranchRoomService } from './application/branch-room.service';
     ]),
   ],
   controllers: [BranchRoomController],
-  providers: [BranchRoomService],
-  exports: [MongooseModule],
+  providers: [BranchRoomService, RoomOptionQueryService],
+  exports: [MongooseModule, RoomOptionQueryService],
 })
 export class RoomModule {}

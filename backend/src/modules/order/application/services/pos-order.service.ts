@@ -418,6 +418,8 @@ export class PosOrderService
           amountToPay,
           'CASH',
           new Date(),
+          order.promotionId,
+          order.userId,
         ),
       );
     } catch (eventError) {
@@ -545,6 +547,8 @@ export class PosOrderService
             amountToPay,
             paymentMethod,
             new Date(),
+            order.promotionId,
+            order.userId,
           ),
         );
       } catch (eventError) {
@@ -622,8 +626,7 @@ export class PosOrderService
     return {
       orderId,
       branchName:
-        staffContext.branchName ||
-        `MyCast Chi nhánh ${staffContext.branchId}`,
+        staffContext.branchName || `MyCast Chi nhánh ${staffContext.branchId}`,
       branchAddress:
         staffContext.branchAddress || 'Chi nhánh hệ thống rạp MyCast',
       staffName: staffContext.staffName || 'Thu ngân',
@@ -661,7 +664,9 @@ export class PosOrderService
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
     if (seatShowtimeIds.length) {
       const seats =
-        await this.showtimeBookingService.getSeatBookingDetails(seatShowtimeIds);
+        await this.showtimeBookingService.getSeatBookingDetails(
+          seatShowtimeIds,
+        );
       if (seats.some((seat) => seat.branchId && seat.branchId !== branchId)) {
         throw new ForbiddenException(
           'Đơn hàng không thuộc chi nhánh của nhân viên',

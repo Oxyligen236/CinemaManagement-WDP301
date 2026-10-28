@@ -6,6 +6,7 @@ import { ShowtimeModule } from '../showtime/showtime.module';
 import { Branch, BranchSchema } from './domain/schemas/branch.schema';
 import { AdminBranchController } from './infra/admin-branch.controller';
 import { AdminBranchService } from './application/admin-branch.service';
+import { BranchQueryService } from './application/services/branch-query.service';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -20,7 +21,7 @@ import { AdminBranchService } from './application/admin-branch.service';
     MongooseModule.forFeature([{ name: Branch.name, schema: BranchSchema }]),
   ],
   controllers: [AdminBranchController],
-  providers: [AdminBranchService],
-  exports: [MongooseModule, AdminBranchService],
+  providers: [AdminBranchService, BranchQueryService],
+  exports: [MongooseModule, AdminBranchService, BranchQueryService],
 })
 export class BranchModule {}

@@ -9,93 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
-
-const MOCK_ADMIN_ORDERS: OrderSummary[] = [
-  {
-    orderId: 'ord-adm-001',
-    userId: 'user-vip-001',
-    totalAmount: 480000,
-    status: 'PAID',
-    createdAt: new Date().toISOString(),
-    ticketCount: 3,
-    hasProducts: true,
-  },
-  {
-    orderId: 'ord-adm-002',
-    userId: 'staff-pos-02',
-    totalAmount: 120000,
-    status: 'PAID',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    ticketCount: 1,
-    hasProducts: true,
-  },
-  {
-    orderId: 'ord-adm-003',
-    userId: 'user-guest-09',
-    totalAmount: 190000,
-    status: 'PENDING',
-    createdAt: new Date(Date.now() - 10800000).toISOString(),
-    ticketCount: 2,
-    hasProducts: false,
-  },
-  {
-    orderId: 'ord-adm-004',
-    userId: 'user-guest-10',
-    totalAmount: 95000,
-    status: 'CANCELLED',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    ticketCount: 1,
-    hasProducts: false,
-  },
-];
-
-const MOCK_ADMIN_DETAIL: OrderDetail = {
-  orderId: 'ord-adm-001',
-  userId: 'user-vip-001',
-  totalAmount: 480000,
-  status: 'PAID',
-  createdAt: new Date().toISOString(),
-  promotion: {
-    promotionId: 'p-01',
-    promotionCode: 'VIP20',
-    discountType: 'PERCENTAGE',
-    discountValue: 20,
-    discountAmount: 120000,
-  },
-  tickets: [
-    {
-      ticketId: 't-301',
-      ticketCode: 'TK-MYCAST-ADMIN-01',
-      price: 150000,
-      ticketStatus: 'USED',
-      usedAt: new Date().toISOString(),
-      movieTitle: 'Dune: Part Two (IMAX)',
-      roomName: 'IMAX Laser Room 01',
-      seatLabel: 'H10',
-      startTime: new Date().toISOString(),
-    },
-    {
-      ticketId: 't-302',
-      ticketCode: 'TK-MYCAST-ADMIN-02',
-      price: 150000,
-      ticketStatus: 'USED',
-      usedAt: new Date().toISOString(),
-      movieTitle: 'Dune: Part Two (IMAX)',
-      roomName: 'IMAX Laser Room 01',
-      seatLabel: 'H11',
-      startTime: new Date().toISOString(),
-    },
-  ],
-  products: [
-    {
-      productId: 'prd-01',
-      productName: 'Combo Family 2 Bắp + 3 Nước',
-      quantity: 1,
-      unitPrice: 150000,
-      subTotal: 150000,
-    },
-  ],
-};
+import { AlertCircle } from 'lucide-react';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
@@ -103,6 +17,7 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters
   const [userIdFilter, setUserIdFilter] = useState('');
@@ -119,6 +34,7 @@ export default function AdminOrdersPage() {
     let ignore = false;
     async function loadData() {
       setIsLoading(true);
+      setError(null);
       try {
         const res = await orderApi.getAdminOrders({
           page,
@@ -133,19 +49,15 @@ export default function AdminOrdersPage() {
           setTotal(res.total);
           setIsLoading(false);
         }
-      } catch {
+      } catch (err: unknown) {
         if (!ignore) {
-          let list = [...MOCK_ADMIN_ORDERS];
-          if (userIdFilter.trim()) {
-            list = list.filter((o) =>
-              o.userId.toLowerCase().includes(userIdFilter.trim().toLowerCase()),
-            );
-          }
-          if (statusFilter) {
-            list = list.filter((o) => o.status === statusFilter);
-          }
-          setOrders(list);
-          setTotal(list.length);
+          setOrders([]);
+          setTotal(0);
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Không thể kết nối đến máy chủ để tải đơn hàng. Vui lòng thử lại.'
+          );
           setIsLoading(false);
         }
       }
@@ -164,11 +76,7 @@ export default function AdminOrdersPage() {
       setSelectedOrderDetail(detail);
       setIsDetailOpen(true);
     } catch {
-      setSelectedOrderDetail({
-        ...MOCK_ADMIN_DETAIL,
-        orderId,
-      });
-      setIsDetailOpen(true);
+      alert('Không thể tải chi tiết đơn hàng từ máy chủ.');
     } finally {
       setIsLoadingDetail(false);
     }
@@ -273,6 +181,14 @@ export default function AdminOrdersPage() {
           </div>
         )}
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+          <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Orders Table */}
       {isLoading ? (

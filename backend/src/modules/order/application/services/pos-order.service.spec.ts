@@ -279,14 +279,17 @@ describe('PosOrderService', () => {
       expect(result.userId).toBe('staff-001');
       expect((result as Record<string, unknown>).customerPhone).toBeUndefined();
       expect((result as Record<string, unknown>).customerName).toBeUndefined();
-      expect((result as Record<string, unknown>).discountAmount).toBeUndefined();
+      expect(
+        (result as Record<string, unknown>).discountAmount,
+      ).toBeUndefined();
       expect((result as Record<string, unknown>).finalAmount).toBeUndefined();
-      expect(mockOrderModel.create).toHaveBeenCalledWith({
+      const expectedCreatedOrder: Record<string, unknown> = {
         orderId: expect.any(String),
         userId: staffContext.staffId,
         totalAmount: 150000,
         status: OrderStatus.PENDING,
-      });
+      };
+      expect(mockOrderModel.create).toHaveBeenCalledWith(expectedCreatedOrder);
       expect(mockQueueService.publish).toHaveBeenCalled();
       expect(mockEventBus.publish).toHaveBeenCalled();
     });
@@ -313,7 +316,9 @@ describe('PosOrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
-      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
         {
           seatShowtimeId: 'sst-1',
           branchId: 'branch-other',
@@ -337,7 +342,9 @@ describe('PosOrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
-      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
         {
           seatShowtimeId: 'sst-1',
           branchId: 'branch-hn-01',
@@ -387,7 +394,9 @@ describe('PosOrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
-      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
         {
           seatShowtimeId: 'sst-1',
           branchId: 'branch-hn-01',
@@ -436,7 +445,14 @@ describe('PosOrderService', () => {
       expect(mockShowtimeBooking.confirmSeats).toHaveBeenCalledWith(['sst-1']);
       expect(mockProductContract.deductConcessionStock).toHaveBeenCalled();
       expect(pendingOrder.status).toBe(OrderStatus.PAID);
-      expect(mockEventBus.publish).toHaveBeenCalled();
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: 'order-pos-123',
+          totalAmount: 150000,
+          paymentMethod: 'CASH',
+          userId: 'staff-001',
+        }),
+      );
     });
   });
 
@@ -454,7 +470,9 @@ describe('PosOrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
-      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
         {
           seatShowtimeId: 'sst-1',
           branchId: 'branch-hn-01',
@@ -499,7 +517,9 @@ describe('PosOrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
-      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
         {
           seatShowtimeId: 'sst-1',
           branchId: 'branch-hn-01',
@@ -535,7 +555,14 @@ describe('PosOrderService', () => {
       expect(res.totalAmount).toBe(180000);
       expect(res.tickets).toHaveLength(1);
       expect(mockShowtimeBooking.confirmSeats).toHaveBeenCalled();
-      expect(mockEventBus.publish).toHaveBeenCalled();
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: 'order-pos-123',
+          totalAmount: 180000,
+          paymentMethod: PaymentMethod.VNPAY,
+          userId: 'staff-001',
+        }),
+      );
     });
   });
 
@@ -552,7 +579,9 @@ describe('PosOrderService', () => {
       mockSeatOrderModel.find.mockReturnValue({
         exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
       });
-      (mockShowtimeBooking.getSeatBookingDetails as jest.Mock).mockResolvedValue([
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
         {
           seatShowtimeId: 'sst-1',
           branchId: 'branch-hn-01',
@@ -599,8 +628,12 @@ describe('PosOrderService', () => {
       expect(receipt.tickets).toHaveLength(1);
       expect(receipt.products).toHaveLength(1);
       expect((receipt as Record<string, unknown>).customerName).toBeUndefined();
-      expect((receipt as Record<string, unknown>).customerPhone).toBeUndefined();
-      expect((receipt as Record<string, unknown>).discountAmount).toBeUndefined();
+      expect(
+        (receipt as Record<string, unknown>).customerPhone,
+      ).toBeUndefined();
+      expect(
+        (receipt as Record<string, unknown>).discountAmount,
+      ).toBeUndefined();
       expect((receipt as Record<string, unknown>).finalAmount).toBeUndefined();
     });
 

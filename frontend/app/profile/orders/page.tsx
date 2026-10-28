@@ -11,83 +11,16 @@ import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
 import {
   Ticket,
-  QrCode,
+  Eye,
   ArrowLeft,
   Calendar,
   Popcorn,
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  AlertTriangle,
+  CreditCard,
 } from 'lucide-react';
-
-const MOCK_MY_ORDERS: OrderSummary[] = [
-  {
-    orderId: 'ord-cust-001',
-    userId: 'user-tuna-01',
-    totalAmount: 255000,
-    status: 'PAID',
-    createdAt: new Date().toISOString(),
-    ticketCount: 2,
-    hasProducts: true,
-  },
-  {
-    orderId: 'ord-cust-002',
-    userId: 'user-tuna-01',
-    totalAmount: 95000,
-    status: 'PAID',
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    ticketCount: 1,
-    hasProducts: false,
-  },
-  {
-    orderId: 'ord-cust-003',
-    userId: 'user-tuna-01',
-    totalAmount: 190000,
-    status: 'CANCELLED',
-    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-    ticketCount: 2,
-    hasProducts: false,
-  },
-];
-
-const MOCK_DETAIL_FALLBACK: OrderDetail = {
-  orderId: 'ord-cust-001',
-  userId: 'user-tuna-01',
-  totalAmount: 255000,
-  status: 'PAID',
-  createdAt: new Date().toISOString(),
-  tickets: [
-    {
-      ticketId: 't-101',
-      ticketCode: 'TK-MYCAST-2026-X89',
-      price: 95000,
-      ticketStatus: 'VALID',
-      movieTitle: 'Mai',
-      roomName: 'Cinema 01 (2D Atmos)',
-      seatLabel: 'F8',
-      startTime: new Date(Date.now() + 2 * 3600000).toISOString(),
-    },
-    {
-      ticketId: 't-102',
-      ticketCode: 'TK-MYCAST-2026-X90',
-      price: 95000,
-      ticketStatus: 'VALID',
-      movieTitle: 'Mai',
-      roomName: 'Cinema 01 (2D Atmos)',
-      seatLabel: 'F9',
-      startTime: new Date(Date.now() + 2 * 3600000).toISOString(),
-    },
-  ],
-  products: [
-    {
-      productId: 'prod-01',
-      productName: 'Combo Solo Bắp ngọt + Nước lớn',
-      quantity: 1,
-      unitPrice: 65000,
-      subTotal: 65000,
-    },
-  ],
-};
 
 export default function CustomerOrderHistoryPage() {
   const router = useRouter();
@@ -95,13 +28,16 @@ export default function CustomerOrderHistoryPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
-  const [status, setStatus] = useState<OrderStatus | undefined>();
+  const [status, setStatus] = useState<OrderStatus | string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Detail modal state
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<OrderDetail | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('cinema_access_token') || localStorage.getItem('access_token');
@@ -111,49 +47,46 @@ export default function CustomerOrderHistoryPage() {
       return;
     }
 
-    let ignore = false;
-    async function fetchOrders() {
-      setIsLoading(true);
-      try {
-        const res = await orderApi.getMyOrders({ page, limit, status });
-        if (!ignore) {
+    let isCancelled = false;
+
+    orderApi
+      .getMyOrders({ page, limit, status })
+      .then((res) => {
+        if (!isCancelled) {
           setOrders(res.items);
           setTotal(res.total);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!isCancelled) {
+          setOrders([]);
+          setTotal(0);
+          setError(
+            err instanceof Error ? err.message : 'Không thể tải danh sách đơn hàng. Vui lòng thử lại sau.'
+          );
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
           setIsLoading(false);
         }
-      } catch {
-        // Fallback mock
-        if (!ignore) {
-          let list = [...MOCK_MY_ORDERS];
-          if (status) {
-            list = list.filter((o) => o.status === status);
-          }
-          setOrders(list);
-          setTotal(list.length);
-          setIsLoading(false);
-        }
-      }
-    }
+      });
 
-    fetchOrders();
     return () => {
-      ignore = true;
+      isCancelled = true;
     };
-  }, [page, limit, status, router]);
+  }, [page, limit, status, reloadKey, router]);
 
   const handleOpenDetail = async (orderId: string) => {
     setIsLoadingDetail(true);
+    setDetailError(null);
     try {
       const detail = await orderApi.getOrderDetail(orderId);
       setSelectedOrderDetail(detail);
       setIsDetailOpen(true);
-    } catch {
-      // Mock fallback
-      setSelectedOrderDetail({
-        ...MOCK_DETAIL_FALLBACK,
-        orderId,
-      });
-      setIsDetailOpen(true);
+    } catch (err: unknown) {
+      setDetailError(err instanceof Error ? err.message : 'Không thể tải chi tiết đơn hàng');
     } finally {
       setIsLoadingDetail(false);
     }
@@ -200,6 +133,7 @@ export default function CustomerOrderHistoryPage() {
           <button
             type="button"
             onClick={() => {
+              setIsLoading(true);
               setStatus(undefined);
               setPage(1);
             }}
@@ -214,6 +148,7 @@ export default function CustomerOrderHistoryPage() {
           <button
             type="button"
             onClick={() => {
+              setIsLoading(true);
               setStatus('PAID');
               setPage(1);
             }}
@@ -228,6 +163,7 @@ export default function CustomerOrderHistoryPage() {
           <button
             type="button"
             onClick={() => {
+              setIsLoading(true);
               setStatus('PENDING');
               setPage(1);
             }}
@@ -242,11 +178,12 @@ export default function CustomerOrderHistoryPage() {
           <button
             type="button"
             onClick={() => {
-              setStatus('CANCELLED');
+              setIsLoading(true);
+              setStatus('CANCELLED,EXPIRED');
               setPage(1);
             }}
             className={`px-4 py-2 text-[12px] font-bold uppercase tracking-wider border transition-colors cursor-pointer shrink-0 ${
-              status === 'CANCELLED'
+              status === 'CANCELLED,EXPIRED'
                 ? 'bg-[#da291c] text-white border-[#da291c] shadow-xs'
                 : 'bg-[#efebdb] text-[#6f6247] border-[#dad2b4] hover:bg-[#dad2b4]'
             }`}
@@ -255,10 +192,47 @@ export default function CustomerOrderHistoryPage() {
           </button>
         </div>
 
-        {/* Orders list */}
+        {/* Detail error notification */}
+        {detailError && (
+          <div className="bg-[#fef2f2] border border-[#f87171] p-3 text-[#991b1b] text-[12px] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-[#dc2626]" />
+              <span>{detailError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDetailError(null)}
+              className="text-[#991b1b] hover:text-[#da291c] font-bold cursor-pointer"
+            >
+              Đóng
+            </button>
+          </div>
+        )}
+
+        {/* Orders list / Loading / Error / Empty */}
         {isLoading ? (
           <div className="bg-white p-6 border border-[#dad2b4]">
             <TableSkeleton rows={4} cols={4} />
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center bg-[#fef2f2] border border-[#f87171] space-y-3">
+            <div className="w-12 h-12 rounded-full bg-[#fee2e2] text-[#dc2626] flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <p className="text-[15px] font-bold text-[#991b1b]">Không thể tải danh sách đơn hàng</p>
+            <p className="text-[13px] text-[#7f1d1d] max-w-sm mx-auto">{error}</p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLoading(true);
+                  setReloadKey((k) => k + 1);
+                }}
+                className="inline-flex h-9 items-center justify-center bg-[#da291c] hover:bg-[#b82116] px-5 text-[12px] font-bold uppercase tracking-wider text-white transition-colors cursor-pointer"
+              >
+                Thử lại
+              </button>
+            </div>
           </div>
         ) : orders.length === 0 ? (
           <div className="p-12 text-center bg-[#fcfbfa] border border-[#dad2b4] space-y-3">
@@ -317,15 +291,26 @@ export default function CustomerOrderHistoryPage() {
                       {formatCurrency(order.totalAmount)}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={isLoadingDetail && selectedOrderDetail?.orderId === order.orderId}
-                    onClick={() => handleOpenDetail(order.orderId)}
-                    className="inline-flex h-10 items-center justify-center gap-2 bg-[#da291c] hover:bg-[#b82116] px-4 text-[13px] font-bold uppercase tracking-wide text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-                  >
-                    <QrCode className="w-4 h-4" />
-                    <span>{isLoadingDetail && selectedOrderDetail?.orderId === order.orderId ? 'Đang tải...' : 'Xem vé & QR'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {order.status === 'PENDING' && (
+                      <Link
+                        href={`/booking/summary/${order.orderId}`}
+                        className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#efebdb] hover:bg-[#dad2b4] text-[#6f6247] hover:text-[#231f20] border border-[#dad2b4] px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-[#da291c]" />
+                        <span>Thanh toán ngay</span>
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      disabled={isLoadingDetail && selectedOrderDetail?.orderId === order.orderId}
+                      onClick={() => handleOpenDetail(order.orderId)}
+                      className="inline-flex h-10 items-center justify-center gap-2 bg-[#da291c] hover:bg-[#b82116] px-4 text-[13px] font-bold uppercase tracking-wide text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>{isLoadingDetail && selectedOrderDetail?.orderId === order.orderId ? 'Đang tải...' : 'Chi tiết'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -336,7 +321,10 @@ export default function CustomerOrderHistoryPage() {
                 <button
                   type="button"
                   disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => {
+                    setIsLoading(true);
+                    setPage((p) => Math.max(1, p - 1));
+                  }}
                   className="inline-flex items-center gap-1 px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] text-[12px] font-bold hover:bg-[#dad2b4] transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -348,7 +336,10 @@ export default function CustomerOrderHistoryPage() {
                 <button
                   type="button"
                   disabled={page >= Math.ceil(total / limit)}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => {
+                    setIsLoading(true);
+                    setPage((p) => p + 1);
+                  }}
                   className="inline-flex items-center gap-1 px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] text-[12px] font-bold hover:bg-[#dad2b4] transition-colors disabled:opacity-40 cursor-pointer"
                 >
                   <span>Trang sau</span>

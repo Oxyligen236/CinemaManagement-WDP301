@@ -19,17 +19,10 @@ import { OrderService } from './application/services/order.service';
 import { PosOrderService } from './application/services/pos-order.service';
 import { OrderExpirationConsumer } from './application/handlers/order-expiration.consumer';
 import { OrderController } from './infra/controllers/order.controller';
+import { VnpayReturnController } from './infra/controllers/vnpay-return.controller';
 import { OrderStaffController } from './infra/controllers/order-staff.controller';
 import { OrderAdminController } from './infra/controllers/order-admin.controller';
 import { PosStaffController } from './infra/controllers/pos-staff.controller';
-import { TICKET_CONTRACT } from './contracts/ticket.contract';
-import { TicketContractImpl } from './contracts/ticket-contract.impl';
-import { PRODUCT_CONTRACT } from './contracts/product.contract';
-import { ProductContractImpl } from './contracts/product-contract.impl';
-import { PROMOTION_CONTRACT } from './contracts/promotion.contract';
-import { PromotionContractImpl } from './contracts/promotion-contract.impl';
-import { PAYMENT_CONTRACT } from './contracts/payment.contract';
-import { PaymentContractImpl } from './contracts/payment-contract.impl';
 import { SHOWTIME_BOOKING } from './contracts/showtime-booking.contract';
 import { ShowtimeBookingService } from '../showtime/application/services/showtime-booking.service';
 
@@ -52,6 +45,7 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
   ],
   controllers: [
     OrderController,
+    VnpayReturnController,
     OrderStaffController,
     OrderAdminController,
     PosStaffController,
@@ -60,26 +54,6 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
     OrderService,
     PosOrderService,
     OrderExpirationConsumer,
-    TicketContractImpl,
-    ProductContractImpl,
-    PromotionContractImpl,
-    PaymentContractImpl,
-    {
-      provide: TICKET_CONTRACT,
-      useClass: TicketContractImpl,
-    },
-    {
-      provide: PRODUCT_CONTRACT,
-      useClass: ProductContractImpl,
-    },
-    {
-      provide: PROMOTION_CONTRACT,
-      useClass: PromotionContractImpl,
-    },
-    {
-      provide: PAYMENT_CONTRACT,
-      useClass: PaymentContractImpl,
-    },
     {
       provide: SHOWTIME_BOOKING,
       useExisting: ShowtimeBookingService,

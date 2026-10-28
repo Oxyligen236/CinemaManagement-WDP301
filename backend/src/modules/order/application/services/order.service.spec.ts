@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { getConnectionToken } from '@nestjs/mongoose';
 import {
   BadRequestException,
   ConflictException,
@@ -43,6 +44,10 @@ import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
 } from '../../../infra/event/application/internal-event-bus.interface';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { QueryMyOrdersReq } from '../dto/req.dto';
+import { PAYMENT_CONTRACT } from '../../contracts/payment.contract';
 
 describe('OrderService', () => {
   let service: OrderService;
@@ -132,6 +137,7 @@ describe('OrderService', () => {
       discountValue: 20,
       discountAmount: 20000,
     }),
+    recordPromotionUsage: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockShowtimeBooking: ShowtimeBookingContract = {
@@ -156,6 +162,8 @@ describe('OrderService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrderService,
+        { provide: getConnectionToken(), useValue: { startSession: jest.fn() } },
+        { provide: PAYMENT_CONTRACT, useValue: { createVnpayPayment: jest.fn(), verifyVnpayReturn: jest.fn() } },
         {
           provide: getModelToken(Order.name),
           useValue: mockOrderModel,
@@ -357,6 +365,118 @@ describe('OrderService', () => {
       expect(mockEventBus.publish).toHaveBeenCalledWith(
         expect.any(OrderCreatedEvent),
       );
+    });
+
+    it('tao don dat ve thanh cong voi promotionCode hop le: ap dung giam gia va luu promotionId', async () => {
+      const seatDetails = [
+        {
+          seatShowtimeId: 'sst-1',
+          showtimeId: 'show-1',
+          seatId: 'seat-1',
+          rowPosition: 'F',
+          columnPosition: 8,
+          seatType: 'STANDARD',
+          seatStatus: 'RESERVED',
+          basePrice: 95000,
+          startTime: new Date('2026-03-30T14:00:00Z'),
+          endTime: new Date('2026-03-30T16:00:00Z'),
+          roomId: 'room-1',
+          roomName: 'Phòng 1',
+          movieId: 'movie-1',
+          movieName: 'Mai',
+        },
+      ];
+
+      (mockShowtimeBooking.reserveSeats as jest.Mock).mockResolvedValue(
+        seatDetails,
+      );
+      (
+        mockPromotionContract.validatePromotionCode as jest.Mock
+      ).mockResolvedValue({
+        isValid: true,
+        promotionId: 'promo-001',
+        promotionCode: 'SALE20',
+        discountType: 'PERCENTAGE',
+        discountValue: 20,
+        discountAmount: 19000,
+      });
+      mockOrderModel.create.mockResolvedValue({});
+      mockSeatOrderModel.insertMany.mockResolvedValue({});
+      mockProductOrderModel.insertMany.mockResolvedValue({});
+      (mockQueueService.publish as jest.Mock).mockResolvedValue(undefined);
+      (mockEventBus.publish as jest.Mock).mockResolvedValue(undefined);
+
+      const res = await service.createBookingOrder('user-001', {
+        showtimeId: 'show-1',
+        seatShowtimeIds: ['sst-1'],
+        promotionCode: 'SALE20',
+      });
+
+      expect(mockPromotionContract.validatePromotionCode).toHaveBeenCalledWith({
+        code: 'SALE20',
+        orderAmount: 95000,
+        userId: 'user-001',
+      });
+      expect(mockOrderModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-001',
+          promotionId: 'promo-001',
+          totalAmount: 76000,
+          status: OrderStatus.PENDING,
+        }),
+      );
+      expect(res.promotion).toBeDefined();
+      expect(res.promotion?.promotionId).toBe('promo-001');
+      expect(res.promotion?.discountAmount).toBe(19000);
+      expect(res.totalAmount).toBe(76000);
+    });
+
+    it('that bai khi promotionCode khong hop le hoac nguoi dung da su dung: releaseSeats va throw BadRequestException', async () => {
+      const seatDetails = [
+        {
+          seatShowtimeId: 'sst-1',
+          showtimeId: 'show-1',
+          seatId: 'seat-1',
+          rowPosition: 'F',
+          columnPosition: 8,
+          seatType: 'STANDARD',
+          seatStatus: 'RESERVED',
+          basePrice: 95000,
+          startTime: new Date('2026-03-30T14:00:00Z'),
+          endTime: new Date('2026-03-30T16:00:00Z'),
+          roomId: 'room-1',
+          roomName: 'Phòng 1',
+          movieId: 'movie-1',
+          movieName: 'Mai',
+        },
+      ];
+
+      (mockShowtimeBooking.reserveSeats as jest.Mock).mockResolvedValue(
+        seatDetails,
+      );
+      (mockShowtimeBooking.releaseSeats as jest.Mock).mockResolvedValue(1);
+      (
+        mockPromotionContract.validatePromotionCode as jest.Mock
+      ).mockResolvedValue({
+        isValid: false,
+        discountAmount: 0,
+        reason: 'Bạn đã sử dụng mã giảm giá này rồi',
+      });
+
+      await expect(
+        service.createBookingOrder('user-001', {
+          showtimeId: 'show-1',
+          seatShowtimeIds: ['sst-1'],
+          promotionCode: 'ALREADY_USED',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Bạn đã sử dụng mã giảm giá này rồi'),
+      );
+
+      expect(mockShowtimeBooking.releaseSeats).toHaveBeenCalledWith(['sst-1']);
+      expect(mockOrderModel.create).not.toHaveBeenCalled();
+      expect(mockQueueService.publish).not.toHaveBeenCalled();
+      expect(mockEventBus.publish).not.toHaveBeenCalled();
     });
   });
 
@@ -591,6 +711,75 @@ describe('OrderService', () => {
         NotFoundException,
       );
     });
+
+    it('fallback sang seatOrder va showtimeBookingService khi don chua co ve (PENDING/CANCELLED/EXPIRED)', async () => {
+      mockOrderModel.findOne.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue({
+            ...mockOrder,
+            status: OrderStatus.PENDING,
+          }),
+        }),
+      });
+
+      (mockTicketContract.getTicketsByOrderId as jest.Mock).mockResolvedValue(
+        [],
+      );
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([
+            {
+              orderId: 'order-123',
+              seatShowtimeId: 'sst-1',
+              price: 100000,
+            },
+          ]),
+        }),
+      });
+
+      (
+        mockShowtimeBooking.getSeatBookingDetails as jest.Mock
+      ).mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          showtimeId: 'show-1',
+          seatId: 'seat-1',
+          rowPosition: 'F',
+          columnPosition: 8,
+          seatType: 'STANDARD',
+          seatStatus: 'RESERVED',
+          basePrice: 95000,
+          startTime: new Date('2026-03-30T14:00:00Z'),
+          endTime: new Date('2026-03-30T16:00:00Z'),
+          roomId: 'room-1',
+          roomName: 'Phòng 1',
+          movieId: 'movie-1',
+          movieName: 'Mai',
+        },
+      ]);
+
+      mockProductOrderModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const res = await service.getOrderDetail('order-123');
+
+      expect(res.orderId).toBe('order-123');
+      expect(res.tickets).toHaveLength(1);
+      expect(res.tickets[0].ticketId).toBe('sst-1');
+      expect(res.tickets[0].ticketCode).toBe('');
+      expect(res.tickets[0].price).toBe(100000);
+      expect(res.tickets[0].ticketStatus).toBe(OrderStatus.PENDING);
+      expect(res.tickets[0].movieTitle).toBe('Mai');
+      expect(res.tickets[0].roomName).toBe('Phòng 1');
+      expect(res.tickets[0].seatLabel).toBe('F8');
+      expect(mockShowtimeBooking.getSeatBookingDetails).toHaveBeenCalledWith([
+        'sst-1',
+      ]);
+    });
   });
 
   describe('applyPromotion', () => {
@@ -743,6 +932,183 @@ describe('OrderService', () => {
           promotionCode: 'SALE20',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getMyOrderHistory', () => {
+    const setupPaginateMocks = (orders = [mockOrder], total = 1) => {
+      mockOrderModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          skip: jest.fn().mockReturnValue({
+            limit: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue(orders),
+              }),
+            }),
+          }),
+        }),
+      });
+
+      mockOrderModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(total),
+      });
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest
+            .fn()
+            .mockResolvedValue([
+              { orderId: 'order-123', seatShowtimeId: 'sst-1' },
+            ]),
+        }),
+      });
+
+      mockProductOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+    };
+
+    it('loc theo mot status don le', async () => {
+      setupPaginateMocks();
+
+      const result = await service.getMyOrderHistory('user-001', {
+        status: OrderStatus.PAID,
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: OrderStatus.PAID,
+      });
+      expect(mockOrderModel.countDocuments).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: OrderStatus.PAID,
+      });
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+
+    it('loc theo nhieu status phan tach bang dau phay (CANCELLED,EXPIRED)', async () => {
+      setupPaginateMocks();
+
+      const result = await service.getMyOrderHistory('user-001', {
+        status: 'CANCELLED,EXPIRED',
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+      expect(mockOrderModel.countDocuments).toHaveBeenCalledWith({
+        userId: 'user-001',
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+
+    it('tra ve tat ca khi khong truyen status', async () => {
+      setupPaginateMocks();
+
+      const result = await service.getMyOrderHistory('user-001', {});
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        userId: 'user-001',
+      });
+      expect(mockOrderModel.countDocuments).toHaveBeenCalledWith({
+        userId: 'user-001',
+      });
+      expect(result.items).toHaveLength(1);
+    });
+  });
+
+  describe('queryStaffOrders and queryAdminOrders with multi-status', () => {
+    const setupPaginateMocks = () => {
+      mockOrderModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          skip: jest.fn().mockReturnValue({
+            limit: jest.fn().mockReturnValue({
+              lean: jest.fn().mockReturnValue({
+                exec: jest.fn().mockResolvedValue([mockOrder]),
+              }),
+            }),
+          }),
+        }),
+      });
+
+      mockOrderModel.countDocuments.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(1),
+      });
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      mockProductOrderModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+    };
+
+    it('queryStaffOrders loc theo nhieu status', async () => {
+      setupPaginateMocks();
+
+      await service.queryStaffOrders({
+        status: 'CANCELLED,EXPIRED',
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+    });
+
+    it('queryAdminOrders loc theo nhieu status', async () => {
+      setupPaginateMocks();
+
+      await service.queryAdminOrders({
+        status: 'CANCELLED,EXPIRED',
+      });
+
+      expect(mockOrderModel.find).toHaveBeenCalledWith({
+        status: { $in: ['CANCELLED', 'EXPIRED'] },
+      });
+    });
+  });
+
+  describe('QueryMyOrdersReq validation', () => {
+    it('hop le voi status don le', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, { status: 'CANCELLED' });
+      const errors = await validate(dto);
+      expect(errors).toHaveLength(0);
+    });
+
+    it('hop le voi status phan tach bang dau phay', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, {
+        status: 'CANCELLED,EXPIRED',
+      });
+      const errors = await validate(dto);
+      expect(errors).toHaveLength(0);
+    });
+
+    it('khong hop le voi status sai', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, {
+        status: 'INVALID_STATUS',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].constraints?.matches).toBeDefined();
+    });
+
+    it('khong hop le khi co status hop le kem status sai', async () => {
+      const dto = plainToInstance(QueryMyOrdersReq, {
+        status: 'CANCELLED,INVALID',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
     });
   });
 });

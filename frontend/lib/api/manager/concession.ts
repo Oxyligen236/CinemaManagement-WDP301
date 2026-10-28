@@ -1,5 +1,5 @@
-export type ItemCategory = 'POPCORN' | 'DRINK' | 'SNACK' | 'OTHER';
-export type ItemSize = 'S' | 'M' | 'L' | 'NONE';
+export type ItemCategory = 'POPCORN' | 'BEVERAGE' | 'SNACK' | 'OTHER';
+export type ItemSize = 'STANDARD' | 'MEDIUM' | 'LARGE' | 'EXTRA_LARGE';
 export type ItemStatus = 'AVAILABLE' | 'OUT_OF_STOCK' | 'INACTIVE';
 export type ComboStatus = 'AVAILABLE' | 'OUT_OF_STOCK' | 'INACTIVE';
 export type StockAdjustmentType = 'ADD' | 'SET' | 'SUBTRACT';
@@ -173,6 +173,21 @@ function getHeaders(isFormData = false): HeadersInit {
   return headers;
 }
 
+async function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (err: unknown) {
+    throw new ConcessionApiError(
+      'Không thể kết nối đến máy chủ backend (Failed to fetch). Vui lòng đảm bảo backend đang hoạt động.',
+      0,
+      err,
+    );
+  }
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = 'Yêu cầu không thành công';
@@ -202,32 +217,29 @@ export const concessionApi = {
     if (params.status) searchParams.set('status', params.status);
     if (params.lowStockOnly) searchParams.set('lowStockOnly', 'true');
 
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE_URL}/manager/items?${searchParams.toString()}`,
       {
         method: 'GET',
         headers: getHeaders(),
-        credentials: 'include',
       },
     );
     return handleResponse<PageResponse<ItemRes>>(res);
   },
 
   async getItem(id: string): Promise<ItemRes> {
-    const res = await fetch(`${API_BASE_URL}/manager/items/${id}`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items/${id}`, {
       method: 'GET',
       headers: getHeaders(),
-      credentials: 'include',
     });
     return handleResponse<ItemRes>(res);
   },
 
   async createItem(formData: FormData): Promise<{ message: string; item: ItemRes }> {
-    const res = await fetch(`${API_BASE_URL}/manager/items`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items`, {
       method: 'POST',
       headers: getHeaders(true),
       body: formData,
-      credentials: 'include',
     });
     return handleResponse<{ message: string; item: ItemRes }>(res);
   },
@@ -236,11 +248,10 @@ export const concessionApi = {
     id: string,
     formData: FormData,
   ): Promise<{ message: string; item: ItemRes }> {
-    const res = await fetch(`${API_BASE_URL}/manager/items/${id}`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items/${id}`, {
       method: 'PATCH',
       headers: getHeaders(true),
       body: formData,
-      credentials: 'include',
     });
     return handleResponse<{ message: string; item: ItemRes }>(res);
   },
@@ -249,11 +260,10 @@ export const concessionApi = {
     id: string,
     data: AdjustStockPayload,
   ): Promise<StockAdjustmentRes> {
-    const res = await fetch(`${API_BASE_URL}/manager/items/${id}/stock`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items/${id}/stock`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify(data),
-      credentials: 'include',
     });
     return handleResponse<StockAdjustmentRes>(res);
   },
@@ -262,29 +272,26 @@ export const concessionApi = {
     id: string,
     status: ItemStatus,
   ): Promise<{ message: string; item: ItemRes }> {
-    const res = await fetch(`${API_BASE_URL}/manager/items/${id}/status`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items/${id}/status`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify({ status }),
-      credentials: 'include',
     });
     return handleResponse<{ message: string; item: ItemRes }>(res);
   },
 
   async deleteItem(id: string): Promise<{ message: string; id: string }> {
-    const res = await fetch(`${API_BASE_URL}/manager/items/${id}`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
-      credentials: 'include',
     });
     return handleResponse<{ message: string; id: string }>(res);
   },
 
   async getOptions(): Promise<ConcessionOptionsRes> {
-    const res = await fetch(`${API_BASE_URL}/manager/items/options`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items/options`, {
       method: 'GET',
       headers: getHeaders(),
-      credentials: 'include',
     });
     return handleResponse<ConcessionOptionsRes>(res);
   },
@@ -294,10 +301,9 @@ export const concessionApi = {
   },
 
   async downloadExcelTemplate(): Promise<Blob> {
-    const res = await fetch(this.getExcelTemplateUrl(), {
+    const res = await apiFetch(this.getExcelTemplateUrl(), {
       method: 'GET',
       headers: getHeaders(),
-      credentials: 'include',
     });
     if (!res.ok) {
       throw new ConcessionApiError(
@@ -316,11 +322,10 @@ export const concessionApi = {
     formData.append('file', file);
     formData.append('stockMode', stockMode);
 
-    const res = await fetch(`${API_BASE_URL}/manager/items/import-excel`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/items/import-excel`, {
       method: 'POST',
       headers: getHeaders(true),
       body: formData,
-      credentials: 'include',
     });
     return handleResponse<ImportItemsExcelRes>(res);
   },
@@ -333,22 +338,20 @@ export const concessionApi = {
     if (params.search?.trim()) searchParams.set('search', params.search.trim());
     if (params.status) searchParams.set('status', params.status);
 
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE_URL}/manager/combos?${searchParams.toString()}`,
       {
         method: 'GET',
         headers: getHeaders(),
-        credentials: 'include',
       },
     );
     return handleResponse<PageResponse<ComboRes>>(res);
   },
 
   async getCombo(id: string): Promise<ComboRes> {
-    const res = await fetch(`${API_BASE_URL}/manager/combos/${id}`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/combos/${id}`, {
       method: 'GET',
       headers: getHeaders(),
-      credentials: 'include',
     });
     return handleResponse<ComboRes>(res);
   },
@@ -356,11 +359,10 @@ export const concessionApi = {
   async createCombo(
     formData: FormData,
   ): Promise<{ message: string; combo: ComboRes }> {
-    const res = await fetch(`${API_BASE_URL}/manager/combos`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/combos`, {
       method: 'POST',
       headers: getHeaders(true),
       body: formData,
-      credentials: 'include',
     });
     return handleResponse<{ message: string; combo: ComboRes }>(res);
   },
@@ -369,11 +371,10 @@ export const concessionApi = {
     id: string,
     formData: FormData,
   ): Promise<{ message: string; combo: ComboRes }> {
-    const res = await fetch(`${API_BASE_URL}/manager/combos/${id}`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/combos/${id}`, {
       method: 'PATCH',
       headers: getHeaders(true),
       body: formData,
-      credentials: 'include',
     });
     return handleResponse<{ message: string; combo: ComboRes }>(res);
   },
@@ -382,20 +383,18 @@ export const concessionApi = {
     id: string,
     status: ComboStatus,
   ): Promise<{ message: string; combo: ComboRes }> {
-    const res = await fetch(`${API_BASE_URL}/manager/combos/${id}/status`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/combos/${id}/status`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify({ status }),
-      credentials: 'include',
     });
     return handleResponse<{ message: string; combo: ComboRes }>(res);
   },
 
   async deleteCombo(id: string): Promise<{ message: string; id: string }> {
-    const res = await fetch(`${API_BASE_URL}/manager/combos/${id}`, {
+    const res = await apiFetch(`${API_BASE_URL}/manager/combos/${id}`, {
       method: 'DELETE',
       headers: getHeaders(),
-      credentials: 'include',
     });
     return handleResponse<{ message: string; id: string }>(res);
   },

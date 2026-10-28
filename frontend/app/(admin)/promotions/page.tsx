@@ -16,54 +16,6 @@ import { PromotionFormModal } from '../../../components/admin/promotions/Promoti
 import { PromotionDeactivateDialog } from '../../../components/admin/promotions/PromotionDeactivateDialog';
 import { TableSkeleton } from '../../../components/ui/TableSkeleton';
 
-// Fallback initial mock data khi backend chưa khởi chạy để preview và test UI
-const INITIAL_MOCK_PROMOTIONS: Promotion[] = [
-  {
-    promotionId: 'promo-001',
-    promotionCode: 'SUMMER2026',
-    discountType: 'PERCENTAGE',
-    discountValue: 20,
-    startDate: new Date(Date.now() - 7 * 86400000).toISOString(),
-    endDate: new Date(Date.now() + 60 * 86400000).toISOString(),
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    promotionId: 'promo-002',
-    promotionCode: 'VIP50K',
-    discountType: 'FIXED_AMOUNT',
-    discountValue: 50000,
-    startDate: new Date(Date.now() - 14 * 86400000).toISOString(),
-    endDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    promotionId: 'promo-003',
-    promotionCode: 'WELCOME10',
-    discountType: 'PERCENTAGE',
-    discountValue: 10,
-    startDate: new Date(Date.now() - 60 * 86400000).toISOString(),
-    endDate: new Date(Date.now() - 1 * 86400000).toISOString(),
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    promotionId: 'promo-004',
-    promotionCode: 'DISCONTINUED',
-    discountType: 'FIXED_AMOUNT',
-    discountValue: 100000,
-    startDate: new Date(Date.now() - 30 * 86400000).toISOString(),
-    endDate: new Date(Date.now() + 15 * 86400000).toISOString(),
-    isActive: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [total, setTotal] = useState(0);
@@ -100,6 +52,7 @@ export default function PromotionsPage() {
     let ignore = false;
 
     async function loadData() {
+      setIsLoading(true);
       try {
         const res = await promotionAdminApi.getPromotions({
           page,
@@ -113,23 +66,17 @@ export default function PromotionsPage() {
           setTotal(res.total);
           setIsLoading(false);
         }
-      } catch {
+      } catch (err: unknown) {
         if (!ignore) {
-          let filtered = [...INITIAL_MOCK_PROMOTIONS];
-          if (search.trim()) {
-            filtered = filtered.filter((p) =>
-              p.promotionCode.toLowerCase().includes(search.trim().toLowerCase()),
-            );
-          }
-          if (discountType) {
-            filtered = filtered.filter((p) => p.discountType === discountType);
-          }
-          if (isActive !== undefined) {
-            filtered = filtered.filter((p) => p.isActive === isActive);
-          }
-          setPromotions(filtered);
-          setTotal(filtered.length);
+          setPromotions([]);
+          setTotal(0);
           setIsLoading(false);
+          showNotification(
+            'error',
+            err instanceof Error
+              ? err.message
+              : 'Không thể kết nối đến máy chủ để tải danh sách khuyến mãi',
+          );
         }
       }
     }

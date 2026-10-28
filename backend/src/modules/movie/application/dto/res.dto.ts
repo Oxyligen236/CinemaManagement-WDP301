@@ -46,3 +46,24 @@ export class GenreResDto {
   genreName!: string;
   genreDescription?: string;
 }
+
+export class GenreItemResDto {
+  genreId!: string;
+  genreName!: string;
+}
+
+export class MovieDetailResDto {
+  movieId!: string;
+  movieName!: string;
+  duration!: number;
+  status!: MovieStatus;
+  posterUrl?: string;
+  trailerUrl?: string;
+  description?: string;
+  releaseDate?: string;
+  isActive!: boolean;
+  genreIds!: string[];
+  genres!: GenreItemResDto[];
+  createdAt!: Date;
+  updatedAt!: Date;
+}

@@ -44,10 +44,10 @@ export class CreateMovieReqDto {
   @IsString()
   description?: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'The poster key field is required.' })
   @IsString()
   @Matches(POSTER_KEY_PATTERN, { message: MSG_INVALID_POSTER_KEY })
-  posterKey?: string;
+  posterKey!: string;
 
   @IsOptional()
   @IsString({ message: MSG11 })
