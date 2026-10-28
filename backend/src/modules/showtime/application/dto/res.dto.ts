@@ -38,6 +38,23 @@ export class SeatShowtimeResDto {
   seatType!: SeatType;
 }
 
+export class StaffShowtimeItemResDto {
+  showtimeId!: string;
+  movieId!: string;
+  movieTitle!: string;
+  moviePosterUrl!: string | null;
+  roomId!: string;
+  roomName!: string;
+  branchId!: string;
+  branchName!: string;
+  startTime!: Date;
+  endTime!: Date;
+  basePrice!: number;
+  format!: string;
+  availableSeats!: number;
+  totalSeats!: number;
+}
+
 export class PublicShowtimeItemResDto {
   showtimeId!: string;
   movieId!: string;
