@@ -10,6 +10,7 @@ import {
 // eslint-disable-next-line prettier/prettier
 import {
   RegisterDto,
+  ResendVerificationDto,
   VerifyEmailDto,
 } from '../application/dto/register.dto';
 import { LoginDto } from '../application/dto/login.dto';
@@ -33,6 +34,12 @@ export class UserController {
   @Post('register')
   register(@Body() input: RegisterDto) {
     return this.userRegistrationService.register(input);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  resendVerification(@Body() input: ResendVerificationDto) {
+    return this.userRegistrationService.resendVerificationCode(input.email);
   }
 
   @Post('verify-email')
