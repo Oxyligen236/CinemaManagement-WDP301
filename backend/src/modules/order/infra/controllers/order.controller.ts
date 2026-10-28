@@ -16,14 +16,17 @@ import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { OrderService } from '../../application/services/order.service';
 import {
   ApplyPromotionReq,
+  CancelOrderReq,
   CreateBookingOrderReq,
   QueryMyOrdersReq,
 } from '../../application/dto/req.dto';
 import {
   BookingSummaryRes,
+  CancelOrderRes,
   OrderDetailRes,
   OrderSummaryRes,
 } from '../../application/dto/res.dto';
+import { Role } from '../../../auth/infra/decorators/role.decorator';
 import { Page } from '../../../../common/dto/page.dto';
 
 interface AuthenticatedRequest {
@@ -98,8 +101,30 @@ export class OrderController {
     @Ip() ip: string,
   ) {
     const userId = req.user?.userId || req.user?.sub;
-    if (!userId) throw new UnauthorizedException('User ID is missing from authorization context');
+    if (!userId)
+      throw new UnauthorizedException(
+        'User ID is missing from authorization context',
+      );
     return this.orderService.createVnpayPayment(userId, orderId, ip);
+  }
+
+  @Post(':orderId/cancel')
+  async cancelCustomerOrder(
+    @Req() req: AuthenticatedRequest,
+    @Param('orderId') orderId: string,
+    @Body() body: CancelOrderReq,
+  ): Promise<CancelOrderRes> {
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      throw new UnauthorizedException(
+        'User ID is missing from authorization context',
+      );
+    }
+    return this.orderService.cancelOrder(
+      orderId,
+      { userId, role: Role.USER },
+      body?.reason,
+    );
   }
 
   @Get(':orderId')

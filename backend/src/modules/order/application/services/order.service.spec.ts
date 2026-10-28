@@ -44,6 +44,7 @@ import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
 } from '../../../infra/event/application/internal-event-bus.interface';
+import { BranchQueryService } from '../../../branch/application/services/branch-query.service';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { QueryMyOrdersReq } from '../dto/req.dto';
@@ -162,8 +163,17 @@ describe('OrderService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrderService,
-        { provide: getConnectionToken(), useValue: { startSession: jest.fn() } },
-        { provide: PAYMENT_CONTRACT, useValue: { createVnpayPayment: jest.fn(), verifyVnpayReturn: jest.fn() } },
+        {
+          provide: getConnectionToken(),
+          useValue: { startSession: jest.fn() },
+        },
+        {
+          provide: PAYMENT_CONTRACT,
+          useValue: {
+            createVnpayPayment: jest.fn(),
+            verifyVnpayReturn: jest.fn(),
+          },
+        },
         {
           provide: getModelToken(Order.name),
           useValue: mockOrderModel,
@@ -199,6 +209,16 @@ describe('OrderService', () => {
         {
           provide: INTERNAL_EVENT_BUS,
           useValue: mockEventBus,
+        },
+        {
+          provide: BranchQueryService,
+          useValue: {
+            getBranchSummary: jest.fn().mockResolvedValue({
+              branchId: 'branch-01',
+              branchName: 'MyCast Cinema Nam Sài Gòn',
+            }),
+            getPublicBranches: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -1109,6 +1129,160 @@ describe('OrderService', () => {
       });
       const errors = await validate(dto);
       expect(errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('cancelOrder', () => {
+    it('huy don PENDING thanh cong cho Customer chinh chu, nha ghe va ban event', async () => {
+      const mockPendingOrder = {
+        orderId: 'order-cancel-1',
+        userId: 'user-001',
+        status: OrderStatus.PENDING,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPendingOrder),
+      });
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest
+            .fn()
+            .mockResolvedValue([
+              { orderId: 'order-cancel-1', seatShowtimeId: 'sst-1' },
+            ]),
+        }),
+      });
+
+      (mockShowtimeBooking.releaseSeats as jest.Mock).mockResolvedValue(1);
+
+      const res = await service.cancelOrder(
+        'order-cancel-1',
+        { userId: 'user-001', role: 'USER' },
+        'Khong muon xem nua',
+      );
+
+      expect(res.orderId).toBe('order-cancel-1');
+      expect(res.status).toBe(OrderStatus.CANCELLED);
+      expect(mockPendingOrder.status).toBe(OrderStatus.CANCELLED);
+      expect(mockPendingOrder.save).toHaveBeenCalled();
+      expect(mockShowtimeBooking.releaseSeats).toHaveBeenCalledWith(['sst-1']);
+      expect(mockEventBus.publish).toHaveBeenCalled();
+    });
+
+    it('nem ForbiddenException khi Customer huy don cua nguoi khac', async () => {
+      const mockPendingOrder = {
+        orderId: 'order-cancel-1',
+        userId: 'other-user',
+        status: OrderStatus.PENDING,
+      };
+
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPendingOrder),
+      });
+
+      await expect(
+        service.cancelOrder('order-cancel-1', {
+          userId: 'user-001',
+          role: 'USER',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('nem BadRequestException khi don khong o trang thai PENDING', async () => {
+      const mockPaidOrder = {
+        orderId: 'order-cancel-1',
+        userId: 'user-001',
+        status: OrderStatus.PAID,
+      };
+
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPaidOrder),
+      });
+
+      await expect(
+        service.cancelOrder('order-cancel-1', {
+          userId: 'user-001',
+          role: 'USER',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('huy don PENDING thanh cong cho Staff cung chi nhanh', async () => {
+      const mockPendingOrder = {
+        orderId: 'order-cancel-1',
+        userId: 'staff-01',
+        branchId: 'branch-01',
+        status: OrderStatus.PENDING,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPendingOrder),
+      });
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const res = await service.cancelOrder('order-cancel-1', {
+        userId: 'staff-01',
+        role: 'STAFF',
+        branchId: 'branch-01',
+      });
+
+      expect(res.status).toBe(OrderStatus.CANCELLED);
+    });
+
+    it('nem ForbiddenException khi Staff huy don khac chi nhanh', async () => {
+      const mockPendingOrder = {
+        orderId: 'order-cancel-1',
+        userId: 'staff-01',
+        branchId: 'branch-02',
+        status: OrderStatus.PENDING,
+      };
+
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPendingOrder),
+      });
+
+      await expect(
+        service.cancelOrder('order-cancel-1', {
+          userId: 'staff-01',
+          role: 'STAFF',
+          branchId: 'branch-01',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('Admin co the huy bat ky don PENDING nao', async () => {
+      const mockPendingOrder = {
+        orderId: 'order-cancel-1',
+        userId: 'user-any',
+        branchId: 'branch-any',
+        status: OrderStatus.PENDING,
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPendingOrder),
+      });
+
+      mockSeatOrderModel.find.mockReturnValue({
+        lean: () => ({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const res = await service.cancelOrder('order-cancel-1', {
+        userId: 'admin-01',
+        role: 'ADMIN',
+      });
+
+      expect(res.status).toBe(OrderStatus.CANCELLED);
     });
   });
 });
