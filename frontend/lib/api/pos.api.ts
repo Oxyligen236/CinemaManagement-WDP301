@@ -64,6 +64,7 @@ export interface PosItem {
   price: number;
   stockQuantity: number;
   imageKey?: string | null;
+  imageUrl?: string | null;
   description?: string | null;
 }
 
@@ -79,6 +80,7 @@ export interface PosCombo {
   price: number;
   availableStock: number;
   imageKey?: string | null;
+  imageUrl?: string | null;
   description?: string | null;
   items: PosComboItem[];
 }
@@ -96,11 +98,15 @@ export interface PosShowtime {
   moviePosterUrl?: string;
   roomId: string;
   roomName?: string;
+  branchId?: string;
+  branchName?: string;
   startTime: string;
   endTime?: string;
   basePrice: number;
   format?: string;
   subtitleType?: string;
+  availableSeats?: number;
+  totalSeats?: number;
 }
 
 export interface PosSeatShowtime {
@@ -154,7 +160,13 @@ export interface ConfirmCashPaymentReq {
 
 export interface PosReceiptTicket {
   ticketCode: string;
-  seatName: string;
+  seatName?: string;
+  seatLabel?: string;
+  seatType?: string;
+  movieTitle?: string;
+  roomName?: string;
+  startTime?: string | Date;
+  endTime?: string | Date;
   price: number;
   qrCodeUrl?: string;
 }
@@ -213,7 +225,7 @@ export interface PosReceiptRes {
     subTotal: number;
   }>;
   products?: Array<{
-    name: string;
+    productName: string;
     quantity: number;
     unitPrice: number;
     subTotal: number;
@@ -233,32 +245,30 @@ export const posApi = {
     return request<PosConcessionCatalog>("/staff/products");
   },
 
-  // Lấy danh sách suất chiếu hôm nay
+    // Lấy danh sách suất chiếu hôm nay cho nhân viên tại quầy
   getTodayShowtimes: async (branchId?: string): Promise<PosShowtime[]> => {
-    const branchQuery = branchId ? `&branchId=${encodeURIComponent(branchId)}` : "";
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
-        `/showtimes?limit=50&date=${today}${branchQuery}`,
-      );
-      if (Array.isArray(res) && res.length > 0) return res;
-      if (res && 'items' in res && Array.isArray(res.items) && res.items.length > 0) return res.items;
-
-      // Fallback nếu ngày hôm nay chưa có suất chiếu
-      const fallback = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
-        `/showtimes?limit=50${branchQuery}`,
-      );
-      if (Array.isArray(fallback)) return fallback;
-      if (fallback && 'items' in fallback && Array.isArray(fallback.items)) return fallback.items;
-      return [];
-    } catch {
-      // Fallback lấy toàn bộ suất chiếu
-      const res = await request<{ items?: PosShowtime[] } | PosShowtime[]>(
-        `/showtimes?limit=50${branchQuery}`,
+      // 1. Thử gọi endpoint chuyên biệt của Staff (tự động nhận diện branchId qua token)
+      const res = await request<PosShowtime[] | { items?: PosShowtime[] }>(
+        "/staff/showtimes/today",
       );
       if (Array.isArray(res)) return res;
-      if (res && 'items' in res && Array.isArray(res.items)) return res.items;
+      if (res && "items" in res && Array.isArray(res.items)) return res.items;
       return [];
+    } catch {
+      // 2. Fallback sang /showtimes/public có branchId cụ thể (TUYỆT ĐỐI KHÔNG query khi thiếu branchId)
+      if (!branchId) return [];
+      const today = new Date().toISOString().split("T")[0];
+      try {
+        const res = await request<PosShowtime[] | { items?: PosShowtime[] }>(
+          `/showtimes/public?branchId=${encodeURIComponent(branchId)}&date=${today}`,
+        );
+        if (Array.isArray(res)) return res;
+        if (res && "items" in res && Array.isArray(res.items)) return res.items;
+        return [];
+      } catch {
+        return [];
+      }
     }
   },
 

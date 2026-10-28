@@ -182,14 +182,20 @@ describe('ProductService', () => {
       mockItemModel.find
         .mockReturnValueOnce({
           sort: jest.fn().mockReturnValue({
-            lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+            lean: jest
+              .fn()
+              .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
           }),
         })
         .mockReturnValueOnce({
-          lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+          lean: jest
+            .fn()
+            .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
         });
       mockComboModel.find.mockReturnValue({
-        lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
+        lean: jest
+          .fn()
+          .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
       });
 
       try {
@@ -202,22 +208,30 @@ describe('ProductService', () => {
         mockItemModel.find
           .mockReturnValueOnce({
             sort: jest.fn().mockReturnValue({
-              lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+              lean: jest
+                .fn()
+                .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
             }),
           })
           .mockReturnValueOnce({
-            lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+            lean: jest
+              .fn()
+              .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
           });
         mockComboModel.find.mockReturnValue({
-          lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
+          lean: jest
+            .fn()
+            .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
         });
-        const unsetImageUrlResult = await service.getBranchConcessions('BRANCH-1');
+        const unsetImageUrlResult =
+          await service.getBranchConcessions('BRANCH-1');
         expect(unsetImageUrlResult.items.map((item) => item.imageUrl)).toEqual([
           null,
           'https://images.example.test/item.png',
         ]);
       } finally {
-        if (previousPublicUrl === undefined) delete process.env.STORAGE_PUBLIC_URL;
+        if (previousPublicUrl === undefined)
+          delete process.env.STORAGE_PUBLIC_URL;
         else process.env.STORAGE_PUBLIC_URL = previousPublicUrl;
       }
     });

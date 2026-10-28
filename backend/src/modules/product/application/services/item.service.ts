@@ -675,7 +675,9 @@ export class ItemService
     };
   }
 
-  private resolveImageUrl(image: string | null | undefined): string | undefined {
+  private resolveImageUrl(
+    image: string | null | undefined,
+  ): string | undefined {
     if (!image) return undefined;
     const value = image.trim();
     if (!value) return undefined;
