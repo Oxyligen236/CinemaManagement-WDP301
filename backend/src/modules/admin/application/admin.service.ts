@@ -289,12 +289,21 @@ export class AdminService {
       input.email = input.email.toLowerCase();
     }
 
+    // Chỉ Branch Manager và Staff được gán chi nhánh, nên khi hạ vai trò
+    // xuống USER (hoặc nâng lên ADMIN) thì branchId cũ phải được xoá, tránh
+    // để lại liên kết chi nhánh trên tài khoản không còn làm việc ở đó.
+    const clearBranch =
+      input.role !== undefined &&
+      input.role !== Role.BRANCHMANAGER &&
+      input.role !== Role.STAFF;
+
     try {
       const user = await this.userModel
         .findOneAndUpdate(
           { userId },
           {
             $set: input,
+            ...(clearBranch ? { $unset: { branchId: '' } } : {}),
             ...(input.isActive === false
               ? { $inc: { tokenVersion: 1 } }
               : {}),
