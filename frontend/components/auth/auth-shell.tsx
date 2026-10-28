@@ -3,7 +3,7 @@
 import React from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 export const AUTH_INPUT_CLASS =
   "mt-1.5 h-[40px] w-full border border-[#dad2b4] bg-white px-3 text-[13px] text-[#231f20] placeholder:text-[#9d9580] outline-none transition-colors focus:border-[#da291c] focus:ring-1 focus:ring-[#da291c] disabled:cursor-not-allowed disabled:bg-[#efebdb] disabled:text-[#9d9580]";
@@ -67,11 +67,6 @@ export function AuthShell({
             />
             <span>Về Trang chủ Lotte Cinema</span>
           </Link>
-          <span className="text-[#c1b687]">|</span>
-          <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
-            <ShieldCheck className="h-3.5 w-3.5 text-[#da291c]" />
-            Khu vực Tài khoản & Xác thực
-          </span>
         </div>
         <ul className="flex items-center gap-5 text-[12px]">
           <li>
@@ -110,7 +105,7 @@ export function AuthShell({
             />
             <div className="hidden md:block border-l-2 border-[#dad2b4] pl-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6f6247]">
-                MEMBER ACCOUNT CENTER
+                ACCOUNT CENTER
               </p>
               <p className="text-[16px] font-bold text-[#231f20]">
                 TÀI KHOẢN THÀNH VIÊN LOTTE CINEMA
@@ -188,7 +183,9 @@ export function AuthShell({
               className="block"
             />
             <span className="text-[#dedede]">|</span>
-            <span>CÔNG TY TNHH LOTTE CINEMA VIỆT NAM - TÀI KHOẢN THÀNH VIÊN</span>
+            <span>
+              CÔNG TY TNHH LOTTE CINEMA VIỆT NAM - TÀI KHOẢN THÀNH VIÊN
+            </span>
           </div>
           <p className="text-[11px] text-[#777]">
             COPYRIGHT © LOTTECINEMAVN.COM - ALL RIGHTS RESERVED.

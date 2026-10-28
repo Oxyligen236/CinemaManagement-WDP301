@@ -54,7 +54,7 @@ export default function AdminDashboardPage() {
 
   function logout() {
     clearSession();
-    router.replace("/login");
+    router.replace("/");
   }
 
   useEffect(() => {

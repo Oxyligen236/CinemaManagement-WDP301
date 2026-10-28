@@ -52,7 +52,7 @@ export default function StaffLayout({
   function logout() {
     localStorage.removeItem('cinema_access_token');
     localStorage.removeItem('cinema_user');
-    router.replace('/login');
+    router.replace('/');
   }
 
   const isActiveRoute = (href: string) => {
