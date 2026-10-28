@@ -141,7 +141,10 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
    * @returns Số lượng ghế thực tế đã chuyển sang BOOKED
    * @throws ConflictException khi số ghế cập nhật không khớp số lượng yêu cầu
    */
-  async confirmSeats(seatShowtimeIds: string[], session?: ClientSession): Promise<number> {
+  async confirmSeats(
+    seatShowtimeIds: string[],
+    session?: ClientSession,
+  ): Promise<number> {
     if (!seatShowtimeIds.length) return 0;
     const result = await this.seatShowtimeModel
       .updateMany(
