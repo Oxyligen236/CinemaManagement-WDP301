@@ -13,6 +13,7 @@ flowchart TD
     Login -->|Quên mật khẩu| ForgotPassword
     Register -->|Đăng ký thành công| VerifyEmail
     VerifyEmail -->|Xác thực thành công| Login
+    VerifyEmail -->|"Gửi lại mã (hết cooldown 60s, ở lại trang)"| VerifyEmail
     ForgotPassword -->|Đặt lại mật khẩu thành công| Login
 
     %% Customer Experience Flow
