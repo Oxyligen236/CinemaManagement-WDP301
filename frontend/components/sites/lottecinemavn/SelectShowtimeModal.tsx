@@ -151,7 +151,7 @@ export function SelectShowtimeModal({
             <Film className="h-5 w-5" />
             <div>
               <p className="text-[11px] font-bold uppercase tracking-widest text-[#fecaca]">
-                LOTTE CINEMA • ĐẶT VÉ NHANH
+                LATTE CINEMA • ĐẶT VÉ NHANH
               </p>
               <h3 className="text-[17px] font-bold uppercase tracking-wide">
                 Chọn suất chiếu & Giờ xem phim
@@ -186,7 +186,7 @@ export function SelectShowtimeModal({
             <div className="mt-1 flex items-center gap-3 text-[12px] text-[#6f6247]">
               <span className="flex items-center gap-1">
                 <MapPin className="h-3.5 w-3.5 text-[#da291c]" />
-                Lotte Cinema Diamond Plaza
+                Latte Cinema Diamond Plaza
               </span>
               <span>•</span>
               <span className="text-[#da291c] font-bold">2D Digital</span>

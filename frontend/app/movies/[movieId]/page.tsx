@@ -362,7 +362,7 @@ export default function MovieDetailPage({
     >();
 
     for (const st of showtimes) {
-      const bKey = st.branchName || (st.branchId ? `Rạp ${st.branchId}` : 'Lotte Cinema');
+      const bKey = st.branchName || (st.branchId ? `Rạp ${st.branchId}` : 'Latte Cinema');
       let bGroup = map.get(bKey);
       if (!bGroup) {
         bGroup = { branchName: bKey, rooms: new Map() };
@@ -672,7 +672,7 @@ export default function MovieDetailPage({
                     onChange={(e) => setSelectedBranchId(e.target.value)}
                     className="w-full h-10 px-3 text-sm bg-white border border-[#e5e7eb] rounded-lg text-[#111827] focus:border-[#dc2626] focus:outline-none focus:ring-1 focus:ring-[#dc2626] cursor-pointer"
                   >
-                    <option value="">Tất cả các rạp Lotte Cinema</option>
+                    <option value="">Tất cả các rạp Latte Cinema</option>
                     {branches.map((b) => (
                       <option key={b.branchId} value={b.branchId}>
                         {b.branchName}

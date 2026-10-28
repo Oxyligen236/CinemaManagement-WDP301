@@ -583,7 +583,7 @@ export default function ManageShowtimePage() {
       <div className="border-b-2 border-[#231f20] pb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            {branch?.branchName ?? 'LOTTE CINEMA'} • VẬN HÀNH CHI NHÁNH
+            {branch?.branchName ?? 'LATTE CINEMA'} • VẬN HÀNH CHI NHÁNH
           </p>
           <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase">
             Quản lý Suất chiếu
@@ -821,7 +821,7 @@ export default function ManageShowtimePage() {
             </span>
           </div>
           <span className="text-[12px] text-[#c1b687] font-semibold">
-            {branch?.branchName ?? 'Lotte Cinema Nam Sài Gòn'}
+            {branch?.branchName ?? 'Latte Cinema Nam Sài Gòn'}
           </span>
         </div>
 
@@ -1050,7 +1050,7 @@ export default function ManageShowtimePage() {
             <div className="bg-[#231f20] border-b-2 border-[#c1b687] px-6 py-4 flex items-center justify-between text-white">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c1b687]">
-                  {branch?.branchName ?? 'LOTTE CINEMA'}
+                  {branch?.branchName ?? 'LATTE CINEMA'}
                 </p>
                 <h2 className="text-[18px] font-bold uppercase">
                   {editingShowtime

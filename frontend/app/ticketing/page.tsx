@@ -377,7 +377,7 @@ function TicketingContent() {
           <div>
             <h1 className="text-[26px] font-black uppercase text-[#231f20] tracking-wide flex items-center gap-2.5">
               <Ticket className="h-6 w-6 text-[#da291c]" />
-              <span>ĐẶT VÉ NHANH LOTTE CINEMA</span>
+              <span>ĐẶT VÉ NHANH LATTE CINEMA</span>
             </h1>
             <p className="text-[13px] text-[#6f6247] mt-1">
               Chọn phim, rạp chiếu, ngày và khung giờ thuận tiện nhất để đặt ghế trực tuyến.

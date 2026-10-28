@@ -46,7 +46,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <Ticket className="h-5 w-5" />
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-[#fecaca]">
-                  LOTTE CINEMA • CHI TIẾT ĐƠN HÀNG
+                  LATTE CINEMA • CHI TIẾT ĐƠN HÀNG
                 </p>
                 <h3 className="text-[16px] font-bold uppercase tracking-wide">
                   Đơn hàng #{order.orderId.slice(0, 8).toUpperCase()}
@@ -202,7 +202,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           <div className="bg-[#efebdb] px-6 py-3 border-t border-[#dad2b4] flex items-center justify-between">
             <span className="text-[11px] text-[#6f6247] flex items-center gap-1">
               <ShieldCheck className="h-3.5 w-3.5 text-[#15803d]" />
-              Xác thực vé điện tử bảo mật bởi Lotte Cinema
+              Xác thực vé điện tử bảo mật bởi Latte Cinema
             </span>
             <button
               type="button"

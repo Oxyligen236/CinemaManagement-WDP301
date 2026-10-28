@@ -3,6 +3,7 @@
 import React from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
+import { R2_PUBLIC_URL } from "@/lib/constants/r2";
 import { AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
 
 export const AUTH_INPUT_CLASS =
@@ -65,7 +66,7 @@ export function AuthShell({
                   "url('/sites/lottecinemavn/ui/icon_lottecinemaapp.png')",
               }}
             />
-            <span>Về Trang chủ Lotte Cinema</span>
+            <span>Về Trang chủ Latte Cinema</span>
           </Link>
           <span className="text-[#c1b687]">|</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
@@ -101,8 +102,8 @@ export function AuthShell({
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-[84px] flex items-center justify-center sm:justify-start">
           <Link href="/" className="flex items-center gap-4">
             <Image
-              src="/sites/lottecinemavn/ui/logo.png"
-              alt="LOTTE CINEMA"
+              src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+              alt="LATTE CINEMA"
               width={300}
               height={34}
               priority
@@ -113,7 +114,7 @@ export function AuthShell({
                 MEMBER ACCOUNT CENTER
               </p>
               <p className="text-[16px] font-bold text-[#231f20]">
-                TÀI KHOẢN THÀNH VIÊN LOTTE CINEMA
+                TÀI KHOẢN THÀNH VIÊN LATTE CINEMA
               </p>
             </div>
           </Link>
@@ -145,7 +146,7 @@ export function AuthShell({
             )}
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-                LOTTE CINEMA • {eyebrow}
+                LATTE CINEMA • {eyebrow}
               </p>
               <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase">
                 {title}
@@ -181,17 +182,17 @@ export function AuthShell({
         <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Image
-              src="/sites/lottecinemavn/ui/logo_footer.gif"
-              alt="LOTTE CINEMA"
-              width={160}
-              height={28}
-              className="block"
+              src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+              alt="LATTE CINEMA"
+              width={140}
+              height={35}
+              className="h-[28px] w-auto max-h-[28px] object-contain block"
             />
             <span className="text-[#dedede]">|</span>
-            <span>CÔNG TY TNHH LOTTE CINEMA VIỆT NAM - TÀI KHOẢN THÀNH VIÊN</span>
+            <span>CÔNG TY TNHH LATTE CINEMA VIỆT NAM - TÀI KHOẢN THÀNH VIÊN</span>
           </div>
           <p className="text-[11px] text-[#777]">
-            COPYRIGHT © LOTTECINEMAVN.COM - ALL RIGHTS RESERVED.
+            COPYRIGHT © LATTECINEMAVN.COM - ALL RIGHTS RESERVED.
           </p>
         </div>
       </footer>

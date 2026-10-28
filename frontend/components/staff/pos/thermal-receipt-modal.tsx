@@ -95,7 +95,7 @@ export function ThermalReceiptModal({
         <div className="no-print flex items-center justify-between px-5 py-3.5 bg-[#231f20] text-white border-b-2 border-[#c1b687] shrink-0">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c1b687]">
-              LOTTE CINEMA
+              LATTE CINEMA
             </p>
             <h3 className="font-bold text-[14px] text-white mt-0.5">
               Hóa đơn & Vé xem phim (Khổ nhiệt 80mm)
@@ -120,9 +120,9 @@ export function ThermalReceiptModal({
           >
             {/* Header rạp */}
             <div className="text-center pb-2 border-b border-dashed border-black">
-              <h1 className="text-base font-extrabold tracking-wide uppercase">LOTTE CINEMA</h1>
-              <p className="font-bold text-[11px] mt-0.5">{receipt.branchName || 'Lotte Cinema Nam Sài Gòn'}</p>
-              <p className="text-[10px] text-gray-700 leading-tight mt-0.5">{receipt.branchAddress || 'Tầng 3, TTTM Lotte, Q.7, TP.HCM'}</p>
+              <h1 className="text-base font-extrabold tracking-wide uppercase">LATTE CINEMA</h1>
+              <p className="font-bold text-[11px] mt-0.5">{receipt.branchName || 'Latte Cinema Nam Sài Gòn'}</p>
+              <p className="text-[10px] text-gray-700 leading-tight mt-0.5">{receipt.branchAddress || 'Tầng 3, TTTM Latte, Q.7, TP.HCM'}</p>
               <p className="text-[10px] text-gray-700">Hotline: 1900 6778</p>
             </div>
 
@@ -259,7 +259,7 @@ export function ThermalReceiptModal({
             {/* Lời cảm ơn chân trang */}
             <div className="text-center pt-3 text-[10px] space-y-0.5">
               <p className="font-bold uppercase">CẢM ƠN QUÝ KHÁCH & HẸN GẶP LẠI!</p>
-              <p className="italic">Chúc quý khách xem phim vui vẻ tại Lotte Cinema!</p>
+              <p className="italic">Chúc quý khách xem phim vui vẻ tại Latte Cinema!</p>
               <p className="text-[9px] text-gray-500 pt-1">
                 (Hóa đơn bán hàng kiêm vé xem phim hợp lệ)
               </p>

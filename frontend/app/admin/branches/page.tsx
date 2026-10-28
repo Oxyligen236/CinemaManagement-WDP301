@@ -517,7 +517,7 @@ export default function AdminManageBranchesPage() {
       <div className="border-b-2 border-[#231f20] pb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            LOTTE CINEMA • QUẢN TRỊ CƠ SỞ VẬT CHẤT TOÀN HỆ THỐNG
+            LATTE CINEMA • QUẢN TRỊ CƠ SỞ VẬT CHẤT TOÀN HỆ THỐNG
           </p>
           <h1 className="text-[26px] font-bold text-[#231f20] tracking-tight mt-0.5">
             QUẢN LÝ CHI NHÁNH RẠP CHIẾU PHIM
@@ -705,7 +705,7 @@ export default function AdminManageBranchesPage() {
             </span>
           </div>
           <span className="text-[12px] text-[#c1b687] font-semibold">
-            Lotte Cinema Vietnam Chain
+            Latte Cinema Vietnam Chain
           </span>
         </div>
 
@@ -915,7 +915,7 @@ export default function AdminManageBranchesPage() {
             <div className="bg-[#231f20] text-white px-5 py-4 flex items-center justify-between border-b-2 border-[#c1b687]">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c1b687]">
-                  LOTTE CINEMA ADMINISTRATION
+                  LATTE CINEMA ADMINISTRATION
                 </p>
                 <h3 className="text-[16px] font-bold mt-0.5">
                   {editingBranch
@@ -966,7 +966,7 @@ export default function AdminManageBranchesPage() {
                       }));
                     }
                   }}
-                  placeholder="VD: Lotte Cinema Gò Vấp"
+                  placeholder="VD: Latte Cinema Gò Vấp"
                   className="w-full px-3.5 py-2.5 text-[13px] border border-[#dad2b4] bg-[#fcfbfa] focus:outline-none focus:border-[#231f20]"
                 />
                 {fieldErrors.branchName && (
@@ -992,7 +992,7 @@ export default function AdminManageBranchesPage() {
                       }));
                     }
                   }}
-                  placeholder="VD: Tầng 3, TTTM Lotte Mart, số 242 Nguyễn Văn Lượng, Quận Gò Vấp, TP.HCM"
+                  placeholder="VD: Tầng 3, TTTM Latte Mart, số 242 Nguyễn Văn Lượng, Quận Gò Vấp, TP.HCM"
                   className="w-full px-3.5 py-2.5 text-[13px] border border-[#dad2b4] bg-[#fcfbfa] focus:outline-none focus:border-[#231f20]"
                 />
                 {fieldErrors.address && (

@@ -209,7 +209,7 @@ export default function BookingSummaryPage({
       <div className="py-24 text-center">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[#dad2b4] border-t-[#da291c]" />
         <p className="mt-3 text-[14px] text-[#6f6247] font-semibold">
-          Đang tải thông tin đơn đặt vé Lotte Cinema...
+          Đang tải thông tin đơn đặt vé Latte Cinema...
         </p>
       </div>
     );
@@ -234,7 +234,7 @@ export default function BookingSummaryPage({
             href="/"
             className="inline-flex h-10 items-center justify-center bg-[#da291c] hover:bg-[#b91c1c] px-6 text-[13px] font-bold text-white transition-colors uppercase tracking-wider"
           >
-            Về trang chủ Lotte Cinema
+            Về trang chủ Latte Cinema
           </Link>
         </div>
       </div>
@@ -419,7 +419,7 @@ export default function BookingSummaryPage({
                 Thông tin suất chiếu & Rạp
               </h2>
               <span className="text-[11px] text-[#c1b687]">
-                Hệ thống rạp chiếu Lotte Cinema
+                Hệ thống rạp chiếu Latte Cinema
               </span>
             </div>
 
@@ -449,7 +449,7 @@ export default function BookingSummaryPage({
                       Rạp & Phòng chiếu
                     </p>
                     <p className="font-bold text-[#231f20]">
-                      Lotte Cinema Nam Sài Gòn
+                      Latte Cinema Nam Sài Gòn
                     </p>
                     <p className="text-[12px] text-[#666]">
                       {summary.roomName || "Phòng chiếu tiêu chuẩn"}
@@ -548,7 +548,7 @@ export default function BookingSummaryPage({
               </h2>
             </div>
             <p className="text-[12px] text-[#666] mb-3">
-              Nhập mã giảm giá của Lotte Cinema hoặc mã đối tác để nhận ưu đãi
+              Nhập mã giảm giá của Latte Cinema hoặc mã đối tác để nhận ưu đãi
               thanh toán vé.
             </p>
 
@@ -642,7 +642,7 @@ export default function BookingSummaryPage({
               <div className="pt-3 border-t border-[#efebdb] flex items-center gap-2 text-[11px] text-[#6f6247]">
                 <ShieldCheck className="h-4 w-4 text-[#15803d] shrink-0" />
                 <span>
-                  Giao dịch bảo mật theo chuẩn Lotte Cinema Payment Gateway
+                  Giao dịch bảo mật theo chuẩn Latte Cinema Payment Gateway
                 </span>
               </div>
 
@@ -662,7 +662,7 @@ export default function BookingSummaryPage({
                   href="/"
                   className="w-full h-10 bg-[#efebdb] hover:bg-[#dad2b4] border border-[#dad2b4] text-[#231f20] font-semibold text-[13px] flex items-center justify-center transition-colors"
                 >
-                  Về trang chủ Lotte Cinema
+                  Về trang chủ Latte Cinema
                 </Link>
               </div>
             </div>
@@ -687,7 +687,7 @@ export default function BookingSummaryPage({
         </div>
       </div>
 
-      {/* Lotte Cinema Payment Gateway Modal */}
+      {/* Latte Cinema Payment Gateway Modal */}
       {isPaymentModalOpen && (
         <div
           role="dialog"
@@ -701,7 +701,7 @@ export default function BookingSummaryPage({
                 <CreditCard className="h-5 w-5" />
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-widest text-[#fecaca]">
-                    LOTTE CINEMA GATEWAY
+                    LATTE CINEMA GATEWAY
                   </p>
                   <h3 className="text-[16px] font-bold uppercase tracking-wide">
                     Xác nhận & Thanh toán đơn hàng
@@ -730,7 +730,7 @@ export default function BookingSummaryPage({
                     Thanh toán thành công!
                   </h4>
                   <p className="mt-1 text-[13px] text-[#666]">
-                    Giao dịch đã được ghi nhận vào hệ thống Lotte Cinema.
+                    Giao dịch đã được ghi nhận vào hệ thống Latte Cinema.
                   </p>
                   <p className="mt-2 text-[12px] font-semibold text-[#da291c]">
                     Đang chuyển tiếp tới Lịch sử đơn hàng để lấy mã vé & QR
@@ -754,7 +754,7 @@ export default function BookingSummaryPage({
                   <div className="flex justify-between text-[12px]">
                     <span className="text-[#6f6247]">Phim:</span>
                     <span className="font-bold text-[#231f20] truncate max-w-[260px]">
-                      {summary.movieName || "Vé xem phim Lotte Cinema"}
+                      {summary.movieName || "Vé xem phim Latte Cinema"}
                     </span>
                   </div>
                   <div className="pt-2 border-t border-[#dad2b4] flex justify-between items-baseline">

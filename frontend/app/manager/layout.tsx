@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { SafeImage as Image } from '@/components/ui/safe-image';
 import Link from 'next/link';
+import { R2_PUBLIC_URL } from '@/lib/constants/r2';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -136,7 +137,7 @@ export default function BranchManagerLayout({
           <span className="text-[#c1b687]">|</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
             <Building2 className="h-3.5 w-3.5 text-[#da291c]" />
-            Chi nhánh: Lotte Cinema Nam Sài Gòn
+            Chi nhánh: Latte Cinema Nam Sài Gòn
           </span>
         </div>
 
@@ -162,7 +163,7 @@ export default function BranchManagerLayout({
         </ul>
       </div>
 
-      {/* 2. Lotte Cinema Brand Header Bar */}
+      {/* 2. Latte Cinema Brand Header Bar */}
       <header className="w-full bg-white border-b border-[#dad2b4] select-none">
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-[84px] flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -177,8 +178,8 @@ export default function BranchManagerLayout({
 
             <Link href="/manager" className="flex items-center gap-4">
               <Image
-                src="/sites/lottecinemavn/ui/logo.png"
-                alt="LOTTE CINEMA"
+                src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+                alt="LATTE CINEMA"
                 width={300}
                 height={34}
                 priority
@@ -210,7 +211,7 @@ export default function BranchManagerLayout({
           </div>
         </div>
 
-        {/* Classic Lotte Cinema GNB Gold-Beige Bar */}
+        {/* Classic Latte Cinema GNB Gold-Beige Bar */}
         <div
           className="w-full h-[10px] bg-repeat-x bg-top"
           style={{
@@ -246,7 +247,7 @@ export default function BranchManagerLayout({
           <div className="bg-[#231f20] text-white px-5 py-4 flex items-center justify-between border-b-2 border-[#c1b687]">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c1b687]">
-                LOTTE CINEMA
+                LATTE CINEMA
               </p>
               <h2 className="text-[15px] font-bold tracking-wide text-white mt-0.5">
                 DANH MỤC QUẢN LÝ
@@ -304,10 +305,10 @@ export default function BranchManagerLayout({
                 Cụm rạp đang quản lý
               </p>
               <p className="mt-1 text-[13px] font-bold text-[#231f20]">
-                Lotte Cinema Nam Sài Gòn
+                Latte Cinema Nam Sài Gòn
               </p>
               <p className="mt-0.5 text-[11px] text-[#666]">
-                Tầng 3, TTTM Lotte, Q.7, TP.HCM
+                Tầng 3, TTTM Latte, Q.7, TP.HCM
               </p>
               <div className="mt-2.5 pt-2 border-t border-[#efebdb] flex items-center justify-between text-[11px]">
                 <span className="text-[#6f6247]">Trạng thái:</span>
@@ -323,22 +324,22 @@ export default function BranchManagerLayout({
         </main>
       </div>
 
-      {/* 4. Classic Lotte Cinema Compact Footer */}
+      {/* 4. Classic Latte Cinema Compact Footer */}
       <footer className="w-full border-t border-[#dedede] bg-white py-5 px-6 lg:px-8 text-[12px] text-[#666] select-none">
         <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Image
-              src="/sites/lottecinemavn/ui/logo_footer.gif"
-              alt="LOTTE CINEMA"
-              width={160}
-              height={28}
-              className="block"
+              src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+              alt="LATTE CINEMA"
+              width={140}
+              height={35}
+              className="h-[28px] w-auto max-h-[28px] object-contain block"
             />
             <span className="text-[#dedede]">|</span>
-            <span>CÔNG TY TNHH LOTTE CINEMA VIỆT NAM - HỆ THỐNG QUẢN TRỊ CHI NHÁNH</span>
+            <span>CÔNG TY TNHH LATTE CINEMA VIỆT NAM - HỆ THỐNG QUẢN TRỊ CHI NHÁNH</span>
           </div>
           <p className="text-[11px] text-[#777]">
-            COPYRIGHT © LOTTECINEMAVN.COM - ALL RIGHTS RESERVED.
+            COPYRIGHT © LATTECINEMAVN.COM - ALL RIGHTS RESERVED.
           </p>
         </div>
       </footer>

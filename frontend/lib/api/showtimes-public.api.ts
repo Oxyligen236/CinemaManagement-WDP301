@@ -93,10 +93,11 @@ export async function getPublicBranches(): Promise<PublicBranch[]> {
 }
 
 function mapBranchItem(item: Record<string, unknown>): PublicBranch {
+  const rawName = String(item.branchName || item.name || 'Latte Cinema');
   return {
     branchId: String(item.branchId || item.id || item._id || ''),
-    branchName: String(item.branchName || item.name || 'Lotte Cinema'),
-    address: String(item.address || ''),
+    branchName: rawName.replace(/Lotte/gi, 'Latte'),
+    address: String(item.address || '').replace(/Lotte/gi, 'Latte'),
     hotline: String(item.hotline || ''),
     branchStatus: (item.branchStatus as PublicBranch['branchStatus']) || 'ACTIVE',
   };
@@ -159,7 +160,7 @@ export async function queryPublicShowtimes(params: {
       (item.roomName as string) ||
       (item.roomId ? `Phòng ${item.roomId}` : 'Cinema 01'),
     branchId: (item.branchId as string) || undefined,
-    branchName: (item.branchName as string) || undefined,
+    branchName: typeof item.branchName === 'string' ? item.branchName.replace(/Lotte/gi, 'Latte') : undefined,
     startTime: String(item.startTime || ''),
     endTime: String(item.endTime || ''),
     basePrice: Number(item.basePrice || 0),

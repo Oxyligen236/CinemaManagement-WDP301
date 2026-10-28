@@ -3,12 +3,13 @@
 import React, { useState } from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
+import { R2_PUBLIC_URL } from "@/lib/constants/r2";
 
 export function NoticeBar() {
   const notices = [
-    { id: 1, title: "[THÔNG BÁO] THAY ĐỔI THỜI GIAN HOẠT ĐỘNG TẠI MỘT SỐ CỤM RẠP LOTTE CINEMA", date: "2026.10.10" },
+    { id: 1, title: "[THÔNG BÁO] THAY ĐỔI THỜI GIAN HOẠT ĐỘNG TẠI MỘT SỐ CỤM RẠP LATTE CINEMA", date: "2026.10.10" },
     { id: 2, title: "[ƯU ĐÃI] CHƯƠNG TRÌNH KHUYẾN MÃI COMBO BẮP NƯỚC MÙA LỄ HỘI 2026", date: "2026.10.08" },
-    { id: 3, title: "[CẢNH BÁO] CẢNH GIÁC VỚI CÁC TRANG WEB GIẢ MẠO LOTTE CINEMA VIỆT NAM", date: "2026.10.01" },
+    { id: 3, title: "[CẢNH BÁO] CẢNH GIÁC VỚI CÁC TRANG WEB GIẢ MẠO LATTE CINEMA VIỆT NAM", date: "2026.10.01" },
   ];
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -95,15 +96,15 @@ export function Footer() {
       <div className="w-[980px] mx-auto pt-[30px] pb-[20px]">
         {/* Footer Logo */}
         <div className="mb-[20px]">
-          <span className="inline-block">
+          <Link href="/" className="inline-block">
             <Image
-              src="/sites/lottecinemavn/ui/logo_footer.gif"
-              alt="LOTTE CINEMA"
-              width={203}
+              src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+              alt="LATTE CINEMA"
+              width={144}
               height={36}
-              className="block"
+              className="h-[36px] w-auto max-h-[36px] object-contain block"
             />
-          </span>
+          </Link>
         </div>
 
         {/* Policy Links */}
@@ -142,19 +143,19 @@ export function Footer() {
 
         {/* Company Info text */}
         <div className="text-[12px] text-[#666] leading-[18px] space-y-[2px]">
-          <p>CÔNG TY TNHH LOTTE CINEMA VIỆT NAM</p>
+          <p>CÔNG TY TNHH LATTE CINEMA VIỆT NAM</p>
           <p>
             Giấy CNĐKDN: 0302575928, đăng ký lần đầu ngày 02/05/2008, đăng ký thay đổi lần thứ 10 ngày 30/03/2018, cấp bởi Sở KHĐT Thành phố Hồ Chí Minh
           </p>
           <p>
-            Địa chỉ: Tầng 3, TTTM Lotte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng, TPHCM, Việt Nam
+            Địa chỉ: Tầng 3, TTTM Latte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng, TPHCM, Việt Nam
           </p>
           <p>Hotline: (028) 3775 2524</p>
         </div>
 
         {/* Copyright notice */}
         <p className="mt-[10px] text-[11px] text-[#777]">
-          COPYRIGHT © LOTTECINEMAVN.COM - ALL RIGHTS RESERVED.
+          COPYRIGHT © LATTECINEMAVN.COM - ALL RIGHTS RESERVED.
         </p>
       </div>
     </footer>

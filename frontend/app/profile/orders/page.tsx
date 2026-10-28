@@ -108,7 +108,7 @@ export default function CustomerOrderHistoryPage() {
             className="inline-flex items-center gap-1.5 text-[#6f6247] hover:text-[#da291c] font-bold transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span>Về trang chủ Lotte Cinema</span>
+            <span>Về trang chủ Latte Cinema</span>
           </Link>
         </div>
       </div>
@@ -117,13 +117,13 @@ export default function CustomerOrderHistoryPage() {
         {/* Page Title & Header */}
         <div className="border-b-2 border-[#231f20] pb-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            LOTTE CINEMA • TÀI KHOẢN KHÁCH HÀNG
+            LATTE CINEMA • TÀI KHOẢN KHÁCH HÀNG
           </p>
           <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase tracking-wide">
             Vé và Lịch sử Đơn hàng
           </h1>
           <p className="mt-1 text-[13px] text-[#666]">
-            Theo dõi chi tiết các đơn đặt vé online, bắp nước F&B và mã QR check-in vào phòng chiếu tại rạp Lotte Cinema.
+            Theo dõi chi tiết các đơn đặt vé online, bắp nước F&B và mã QR check-in vào phòng chiếu tại rạp Latte Cinema.
           </p>
         </div>
 
@@ -342,7 +342,7 @@ export default function CustomerOrderHistoryPage() {
         <div className="mt-8 pt-4 border-t border-[#dad2b4] flex items-center justify-between text-[11px] text-[#6f6247]">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="h-4 w-4 text-[#15803d]" />
-            <span>Mã vé và thông tin giao dịch được xác thực mã hóa theo tiêu chuẩn Lotte Cinema Vietnam.</span>
+            <span>Mã vé và thông tin giao dịch được xác thực mã hóa theo tiêu chuẩn Latte Cinema Vietnam.</span>
           </div>
           <Link href="#support" className="hover:text-[#da291c] font-bold">
             Hotline: 1900 2099
