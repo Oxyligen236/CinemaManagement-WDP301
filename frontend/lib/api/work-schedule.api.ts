@@ -1,0 +1,16 @@
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
+const headers = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('cinema_access_token') || ''}` });
+export const workScheduleApi = {
+  branches: () => fetch(`${API}/branches/admin?limit=100`, { headers: headers() }).then(async r => { if (!r.ok) throw new Error('Không thể tải chi nhánh'); const data = await r.json(); return Array.isArray(data) ? data : Array.isArray(data.branches) ? data.branches : []; }),
+  list: (branchId?: string) => fetch(`${API}/admin/work-schedules${branchId ? `?branchId=${encodeURIComponent(branchId)}` : ''}`, { headers: headers() }).then(r => r.json()),
+  create: (body: { shiftName: string; branchId: string; startTime: string; endTime: string; note?: string }) => fetch(`${API}/admin/work-schedules`, { method: 'POST', headers: headers(), body: JSON.stringify(body) }).then(async r => { if (!r.ok) throw new Error((await r.json()).message || 'Không thể tạo ca'); return r.json(); }),
+  managerList: () => fetch(`${API}/manager/work-schedules`, { headers: headers() }).then(async r => { if (!r.ok) throw new Error('Không thể tải ca làm'); return r.json(); }),
+  managerStaff: () => fetch(`${API}/manager/work-schedules/staff`, { headers: headers() }).then(async r => { if (!r.ok) throw new Error('Không thể tải nhân viên'); return r.json(); }),
+  assign: (scheduleId: string, userIds: string[]) => fetch(`${API}/manager/work-schedules/${encodeURIComponent(scheduleId)}/assign`, { method: 'PUT', headers: headers(), body: JSON.stringify({ userIds }) }).then(async r => { if (!r.ok) throw new Error((await r.json()).message || 'Không thể phân ca'); return r.json(); }),
+  async importFile(file: File) { const form = new FormData(); form.append('file', file); const r = await fetch(`${API}/manager/work-schedules/import`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('cinema_access_token') || ''}` }, body: form }); if (!r.ok) throw new Error((await r.json()).message || 'Import thất bại'); return r.json(); },
+  async exportTemplate() { const r = await fetch(`${API}/manager/work-schedules/export-template`, { headers: headers() }); if (!r.ok) throw new Error('Không thể tải file mẫu'); const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = 'work-schedule-template.xlsx'; a.click(); URL.revokeObjectURL(url); },
+  myShifts: () => fetch(`${API}/staff/shifts/my-shifts`, { headers: headers() }).then(async r => { if (!r.ok) throw new Error('Không thể tải ca làm'); return r.json(); }),
+  startShift: (scheduleId: string) => fetch(`${API}/staff/shifts/start`, { method: 'POST', headers: headers(), body: JSON.stringify({ scheduleId }) }).then(async r => { if (!r.ok) throw new Error((await r.json()).message || 'Không thể bắt đầu ca'); return r.json(); }),
+  endShift: () => fetch(`${API}/staff/shifts/end`, { method: 'POST', headers: headers() }).then(async r => { if (!r.ok) throw new Error((await r.json()).message || 'Không thể kết thúc ca'); return r.json(); }),
+  stats: () => fetch(`${API}/staff/shifts/current-stats`, { headers: headers() }).then(async r => { if (!r.ok) throw new Error('Không thể tải thống kê'); return r.json(); }),
+};

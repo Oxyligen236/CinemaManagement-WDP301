@@ -25,6 +25,11 @@ interface NavItem {
 
 const STAFF_NAV_ITEMS: NavItem[] = [
   {
+    label: 'Ca làm của tôi',
+    href: '/staff/my-shifts',
+    icon: ClipboardList,
+  },
+  {
     label: 'Bán vé tại quầy (POS)',
     href: '/staff/pos',
     icon: MonitorPlay,
@@ -53,7 +58,7 @@ export default function StaffLayout({
   function logout() {
     localStorage.removeItem('cinema_access_token');
     localStorage.removeItem('cinema_user');
-    router.replace('/login');
+    router.replace('/');
   }
 
   const isActiveRoute = (href: string) => {

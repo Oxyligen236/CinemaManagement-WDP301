@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
 import { R2_PUBLIC_URL } from "@/lib/constants/r2";
+import { useRouter } from "next/navigation";
 
 type User = {
   email: string;
@@ -13,6 +14,7 @@ type User = {
 };
 
 export function Header() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export function Header() {
     localStorage.removeItem("cinema_user");
     localStorage.removeItem("cinema_access_token");
     setUser(null);
+    router.replace("/");
   }
 
   return (
@@ -65,9 +68,7 @@ export function Header() {
                   </Link>
                 </li>
               )}
-              {(user.role === "BRANCHMANAGER" ||
-                user.role === "MANAGER" ||
-                user.role === "BRANCH_MANAGER") && (
+              {user.role === "MANAGER" && (
                 <li className="pt-[9px] pl-[16px]">
                   <Link
                     href="/manager"

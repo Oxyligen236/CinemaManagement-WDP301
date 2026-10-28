@@ -88,12 +88,7 @@ export default function BranchManagerLayout({
       const role = user.role?.toUpperCase();
       if (role === 'ADMIN') {
         router.replace('/admin/dashboard');
-      } else if (
-        role &&
-        role !== 'BRANCHMANAGER' &&
-        role !== 'MANAGER' &&
-        role !== 'BRANCH_MANAGER'
-      ) {
+      } else if (role && role !== 'MANAGER') {
         router.replace('/');
       }
     } catch {
@@ -104,7 +99,7 @@ export default function BranchManagerLayout({
   function logout() {
     localStorage.removeItem('cinema_access_token');
     localStorage.removeItem('cinema_user');
-    router.replace('/login');
+    router.replace('/');
   }
 
   const isActiveRoute = (href: string) => {

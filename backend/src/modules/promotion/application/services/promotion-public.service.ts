@@ -1,22 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { randomUUID } from 'crypto';
 import { ValidatePromotionUsecase } from '../usecase/validate-promotion.usecase';
 import { GetPublicPromotionUsecase } from '../usecase/get-public-promotion.usecase';
+import { RecordPromotionUsageUsecase } from '../usecase/record-promotion-usage.usecase';
 import {
   Promotion,
   PromotionDocument,
 } from '../../domain/schemas/promotion.schema';
+import {
+  PromotionUsage,
+  PromotionUsageDocument,
+} from '../../domain/schemas/promotion-usage.schema';
 import { DiscountType } from '../../domain/enums/discount-type.enum';
 import { PromotionResponseDto } from '../dto/res.dto';
 
 @Injectable()
 export class PromotionPublicService
-  implements ValidatePromotionUsecase, GetPublicPromotionUsecase
+  implements
+    ValidatePromotionUsecase,
+    GetPublicPromotionUsecase,
+    RecordPromotionUsageUsecase
 {
   constructor(
     @InjectModel(Promotion.name)
     private readonly promotionModel: Model<PromotionDocument>,
+    @InjectModel(PromotionUsage.name)
+    private readonly promotionUsageModel: Model<PromotionUsageDocument>,
   ) {}
 
   async validatePromotionCode(params: {
@@ -32,14 +43,14 @@ export class PromotionPublicService
     discountAmount: number;
     reason?: string;
   }> {
-    const { code, orderAmount } = params;
+    const { code, orderAmount, userId } = params;
     const normalizedCode = (code || '').trim().toUpperCase();
 
     if (!normalizedCode) {
       return {
         isValid: false,
         discountAmount: 0,
-        reason: 'Promotion code cannot be empty',
+        reason: 'Mã giảm giá không được để trống',
       };
     }
 
@@ -51,7 +62,7 @@ export class PromotionPublicService
       return {
         isValid: false,
         discountAmount: 0,
-        reason: 'Promotion not found',
+        reason: 'Mã giảm giá không tồn tại',
       };
     }
 
@@ -59,7 +70,7 @@ export class PromotionPublicService
       return {
         isValid: false,
         discountAmount: 0,
-        reason: 'Promotion is inactive',
+        reason: 'Mã giảm giá hiện đang tạm ngừng hoạt động',
       };
     }
 
@@ -68,7 +79,7 @@ export class PromotionPublicService
       return {
         isValid: false,
         discountAmount: 0,
-        reason: 'Promotion has not started yet',
+        reason: 'Mã giảm giá chưa đến ngày áp dụng',
       };
     }
 
@@ -76,7 +87,7 @@ export class PromotionPublicService
       return {
         isValid: false,
         discountAmount: 0,
-        reason: 'Promotion has expired',
+        reason: 'Mã giảm giá đã hết hạn sử dụng',
       };
     }
 
@@ -88,7 +99,7 @@ export class PromotionPublicService
       return {
         isValid: false,
         discountAmount: 0,
-        reason: `Order value must be at least ${promotion.minOrderValue}`,
+        reason: `Giá trị đơn hàng chưa đạt mức tối thiểu ${promotion.minOrderValue}`,
       };
     }
 
@@ -100,8 +111,23 @@ export class PromotionPublicService
       return {
         isValid: false,
         discountAmount: 0,
-        reason: 'Promotion usage limit has been reached',
+        reason: 'Mã giảm giá đã hết lượt sử dụng',
       };
+    }
+
+    if (userId) {
+      const hasUsed = await this.promotionUsageModel.exists({
+        promotionId: promotion.promotionId,
+        userId,
+      });
+
+      if (hasUsed) {
+        return {
+          isValid: false,
+          discountAmount: 0,
+          reason: 'Bạn đã sử dụng mã giảm giá này rồi',
+        };
+      }
     }
 
     let discountAmount =
@@ -125,6 +151,35 @@ export class PromotionPublicService
       discountValue: promotion.discountValue,
       discountAmount,
     };
+  }
+
+  async recordPromotionUsage(params: {
+    promotionId: string;
+    userId: string;
+    orderId: string;
+  }): Promise<void> {
+    const { promotionId, userId, orderId } = params;
+    try {
+      await this.promotionUsageModel.create({
+        usageId: randomUUID(),
+        promotionId,
+        userId,
+        orderId,
+        usedAt: new Date(),
+      });
+
+      await this.promotionModel.updateOne(
+        { promotionId },
+        { $inc: { usedCount: 1 } },
+      );
+    } catch (err: unknown) {
+      const mongoError = err as { code?: number };
+      if (mongoError?.code === 11000) {
+        // Idempotency: Người dùng đã được ghi nhận trước đó, bỏ qua để tránh lỗi crash luồng event
+        return;
+      }
+      throw err;
+    }
   }
 
   async getPromotionById(

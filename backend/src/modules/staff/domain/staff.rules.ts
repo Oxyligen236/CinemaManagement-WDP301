@@ -29,15 +29,11 @@ export const STAFF_MESSAGES = {
 
 /**
  * BR-BRM-14: vị trí công việc mà Branch Manager được phép gán cho nhân viên
- * thuộc chi nhánh của mình. Vị trí nằm ngoài danh sách này → MSG01 (AF-2).
+ * thuộc chi nhánh của mình — chỉ có Nhân viên Bán vé. Vị trí nằm ngoài danh
+ * sách này → MSG01 (AF-2).
  */
 export const BRANCH_ASSIGNABLE_POSITIONS: readonly JobPosition[] = [
   JobPosition.TICKET_SELLER,
-  JobPosition.CONCESSION_STAFF,
-  JobPosition.USHER,
-  JobPosition.PROJECTIONIST,
-  JobPosition.CLEANER,
-  JobPosition.SHIFT_SUPERVISOR,
 ];
 
 /**

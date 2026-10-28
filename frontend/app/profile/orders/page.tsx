@@ -11,7 +11,7 @@ import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
 import {
   Ticket,
-  QrCode,
+  Eye,
   ArrowLeft,
   Calendar,
   Popcorn,
@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ShieldCheck,
   AlertTriangle,
+  CreditCard,
 } from 'lucide-react';
 
 export default function CustomerOrderHistoryPage() {
@@ -290,15 +291,26 @@ export default function CustomerOrderHistoryPage() {
                       {formatCurrency(order.totalAmount)}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={isLoadingDetail && selectedOrderDetail?.orderId === order.orderId}
-                    onClick={() => handleOpenDetail(order.orderId)}
-                    className="inline-flex h-10 items-center justify-center gap-2 bg-[#da291c] hover:bg-[#b82116] px-4 text-[13px] font-bold uppercase tracking-wide text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-                  >
-                    <QrCode className="w-4 h-4" />
-                    <span>{isLoadingDetail && selectedOrderDetail?.orderId === order.orderId ? 'Đang tải...' : 'Xem vé & QR'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {order.status === 'PENDING' && (
+                      <Link
+                        href={`/booking/summary/${order.orderId}`}
+                        className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#efebdb] hover:bg-[#dad2b4] text-[#6f6247] hover:text-[#231f20] border border-[#dad2b4] px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-[#da291c]" />
+                        <span>Thanh toán ngay</span>
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      disabled={isLoadingDetail && selectedOrderDetail?.orderId === order.orderId}
+                      onClick={() => handleOpenDetail(order.orderId)}
+                      className="inline-flex h-10 items-center justify-center gap-2 bg-[#da291c] hover:bg-[#b82116] px-4 text-[13px] font-bold uppercase tracking-wide text-white transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>{isLoadingDetail && selectedOrderDetail?.orderId === order.orderId ? 'Đang tải...' : 'Chi tiết'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

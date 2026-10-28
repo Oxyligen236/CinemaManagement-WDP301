@@ -9,6 +9,8 @@ export interface PendingUser {
   expiresAt: number;
   attempts: number;
   lastSentAt: number;
+  /** Số lần đã gửi lại mã, dùng để chặn dò mã bằng cách xin mã mới liên tục. */
+  resendCount: number;
 }
 
 @Injectable()

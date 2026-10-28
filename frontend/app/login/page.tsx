@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, LogIn } from "lucide-react";
+import { Home, Loader2, LogIn } from "lucide-react";
 import {
   AuthShell,
   AuthErrorBanner,
   AUTH_PRIMARY_BUTTON_CLASS,
+  AUTH_SECONDARY_BUTTON_CLASS,
 } from "@/components/auth/auth-shell";
 import { AuthField } from "@/components/auth/auth-field";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
@@ -22,13 +23,7 @@ type LoginForm = {
 function getRedirectPathByRole(role?: string): string {
   const normalizedRole = role?.toUpperCase();
   if (normalizedRole === "ADMIN") return "/admin/dashboard";
-  if (
-    normalizedRole === "BRANCHMANAGER" ||
-    normalizedRole === "MANAGER" ||
-    normalizedRole === "BRANCH_MANAGER"
-  ) {
-    return "/manager";
-  }
+  if (normalizedRole === "MANAGER") return "/manager";
   if (normalizedRole === "STAFF") return "/staff/pos";
   return "/";
 }
@@ -133,18 +128,23 @@ function LoginForm() {
       eyebrow="ĐĂNG NHẬP HỆ THỐNG"
       title="Chào mừng trở lại"
       panelTitle="Thông tin Đăng nhập"
-      panelAside="Bắt buộc"
       icon={LogIn}
       footerSlot={
-        <p className="text-center text-[13px] text-[#666]">
-          Chưa có tài khoản?{" "}
-          <Link
-            href="/register"
-            className="font-bold text-[#da291c] hover:underline"
-          >
-            Đăng ký ngay
+        <div className="space-y-4">
+          <p className="text-center text-[13px] text-[#666]">
+            Chưa có tài khoản?{" "}
+            <Link
+              href="/register"
+              className="font-bold text-[#da291c] hover:underline"
+            >
+              Đăng ký ngay
+            </Link>
+          </p>
+          <Link href="/" className={AUTH_SECONDARY_BUTTON_CLASS}>
+            <Home className="h-4 w-4" />
+            Về Trang chủ
           </Link>
-        </p>
+        </div>
       }
     >
       <form className="space-y-4" onSubmit={handleSubmit} noValidate>

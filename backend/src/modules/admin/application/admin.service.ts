@@ -11,7 +11,6 @@ import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { Role } from '../../user/domain/enums/role.enum';
-import { isBranchManagerRole } from '../../user/domain/role.normalizer';
 import { AuthUser } from '../../auth/domain/auth-user';
 import { Branch, BranchDocument } from '../../branch/domain/schemas/branch.schema';
 import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
@@ -158,7 +157,7 @@ export class AdminService {
           'Cannot assign branch to an inactive account',
         );
       }
-      if (!isBranchManagerRole(user.role) && user.role !== Role.STAFF) {
+      if (user.role !== Role.BRANCHMANAGER && user.role !== Role.STAFF) {
         throw new BadRequestException(
           'Only Branch Manager or Staff accounts can be assigned to a branch',
         );
@@ -203,7 +202,7 @@ export class AdminService {
     if (input.branchId) {
       if (
         input.isActive === false ||
-        (!isBranchManagerRole(input.role) && input.role !== Role.STAFF)
+        (input.role !== Role.BRANCHMANAGER && input.role !== Role.STAFF)
       ) {
         throw new BadRequestException(
           'Only Branch Manager or Staff accounts can be assigned to a branch',
@@ -290,12 +289,21 @@ export class AdminService {
       input.email = input.email.toLowerCase();
     }
 
+    // Chỉ Branch Manager và Staff được gán chi nhánh, nên khi hạ vai trò
+    // xuống USER (hoặc nâng lên ADMIN) thì branchId cũ phải được xoá, tránh
+    // để lại liên kết chi nhánh trên tài khoản không còn làm việc ở đó.
+    const clearBranch =
+      input.role !== undefined &&
+      input.role !== Role.BRANCHMANAGER &&
+      input.role !== Role.STAFF;
+
     try {
       const user = await this.userModel
         .findOneAndUpdate(
           { userId },
           {
             $set: input,
+            ...(clearBranch ? { $unset: { branchId: '' } } : {}),
             ...(input.isActive === false
               ? { $inc: { tokenVersion: 1 } }
               : {}),

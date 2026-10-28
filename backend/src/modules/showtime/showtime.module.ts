@@ -14,6 +14,7 @@ import { ShowtimeQueryService } from './application/services/showtime-query.serv
 import { PublicShowtimeQueryService } from './application/services/public-showtime-query.service';
 import { ShowtimeController } from './infra/showtime.controller';
 import { ShowtimeBookingService } from './application/services/showtime-booking.service';
+import { ShowtimeScheduleService } from './application/services/showtime-schedule.service';
 import { SHOWTIME_CONTRACT } from './contracts/showtime.contract';
 import { ShowtimeContractImpl } from './contracts/showtime-contract.impl';
 export type { SeatBookingDetail } from './contract/seat-booking-detail';
@@ -39,6 +40,7 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     ShowtimeQueryService,
     SeatShowtimeQueryService,
     ShowtimeBookingService,
+    ShowtimeScheduleService,
     PublicShowtimeQueryService,
     ShowtimeContractImpl,
     {
@@ -50,6 +52,7 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     MongooseModule,
     ShowtimeQueryService,
     ShowtimeBookingService,
+    ShowtimeScheduleService,
     PublicShowtimeQueryService,
     SHOWTIME_CONTRACT,
   ],

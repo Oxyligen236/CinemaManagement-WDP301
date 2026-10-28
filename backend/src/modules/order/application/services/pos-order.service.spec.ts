@@ -445,7 +445,14 @@ describe('PosOrderService', () => {
       expect(mockShowtimeBooking.confirmSeats).toHaveBeenCalledWith(['sst-1']);
       expect(mockProductContract.deductConcessionStock).toHaveBeenCalled();
       expect(pendingOrder.status).toBe(OrderStatus.PAID);
-      expect(mockEventBus.publish).toHaveBeenCalled();
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: 'order-pos-123',
+          totalAmount: 150000,
+          paymentMethod: 'CASH',
+          userId: 'staff-001',
+        }),
+      );
     });
   });
 
@@ -548,7 +555,14 @@ describe('PosOrderService', () => {
       expect(res.totalAmount).toBe(180000);
       expect(res.tickets).toHaveLength(1);
       expect(mockShowtimeBooking.confirmSeats).toHaveBeenCalled();
-      expect(mockEventBus.publish).toHaveBeenCalled();
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: 'order-pos-123',
+          totalAmount: 180000,
+          paymentMethod: PaymentMethod.VNPAY,
+          userId: 'staff-001',
+        }),
+      );
     });
   });
 

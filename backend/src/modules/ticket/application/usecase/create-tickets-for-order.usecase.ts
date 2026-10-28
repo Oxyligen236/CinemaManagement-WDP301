@@ -22,5 +22,6 @@ export interface CreateTicketsForOrderUsecase {
   createTicketsForOrder(params: {
     orderId: string;
     seatShowtimeIds: string[];
-  }): Promise<TicketItemSummaryDto[]>;
+  }, session?: ClientSession): Promise<TicketItemSummaryDto[]>;
 }
+import { ClientSession } from 'mongoose';

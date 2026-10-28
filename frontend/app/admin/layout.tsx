@@ -11,6 +11,7 @@ import {
   Users,
   Building2,
   Tags,
+  Clock3,
   Film,
   ShieldCheck,
   Menu,
@@ -55,6 +56,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/price-multipliers",
     icon: Tags,
   },
+  { label: "Ca làm việc", href: "/admin/work-schedules", icon: Clock3 },
 ];
 
 export default function SystemAdminLayout({
@@ -74,11 +76,7 @@ export default function SystemAdminLayout({
       const user = JSON.parse(rawUser) as { email?: string; role?: string };
       const role = user.role?.toUpperCase();
       setAdminEmail(user.email ?? "");
-      if (
-        role === "BRANCHMANAGER" ||
-        role === "MANAGER" ||
-        role === "BRANCH_MANAGER"
-      ) {
+      if (role === "MANAGER") {
         router.replace("/manager");
       } else if (role && role !== "ADMIN") {
         router.replace("/");
@@ -91,7 +89,7 @@ export default function SystemAdminLayout({
   function logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    router.replace("/login");
+    router.replace("/");
   }
 
   const isActiveRoute = (href: string) =>

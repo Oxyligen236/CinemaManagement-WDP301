@@ -1,0 +1,195 @@
+name: CI/CD
+
+"on":
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  backend:
+    name: Backend (NestJS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test -- --passWithNoTests
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  docker-build:
+    name: Docker Build Check
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Backend image
+        run: docker build -t wdp-backend:ci ./backend
+
+      - name: Build Frontend image
+        run: docker build -t wdp-frontend:ci ./frontend
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Write env files from secrets
+        env:
+          BE_ENV: ${{ secrets.BE_ENV }}
+          FE_ENV: ${{ secrets.FE_ENV }}
+        run: |
+          printf "%s\n" "$BE_ENV" > backend/.env
+          printf "%s\n" "$FE_ENV" > frontend/.env
+
+      - name: Build Docker images
+        run: |
+          docker compose build backend frontend
+
+      - name: Prepare SSH key
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          printf "%s\n" "$VPS_SSH_KEY" | sed 's/\\n/\n/g' | tr -d '\r' > .deploy_key
+          chmod 644 .deploy_key
+
+      - name: Sync files to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key_path: .deploy_key
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "docker-compose.yml,backend,frontend,backend/.env,frontend/.env"
+          target: ${{ secrets.VPS_TARGET_DIR }}
+          strip_components: 0
+
+      - name: Deploy services on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          BE_ENV: ${{ secrets.BE_ENV }}
+          FE_ENV: ${{ secrets.FE_ENV }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          key_path: .deploy_key
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: BE_ENV,FE_ENV
+          script: |
+            set -e
+            cd ${{ secrets.VPS_TARGET_DIR }}
+            printf "%s\n" "$BE_ENV" > backend/.env
+            printf "%s\n" "$FE_ENV" > frontend/.env
+            docker compose up -d --build backend frontend
+
+            echo "Waiting for services to start up..."
+            sleep 10
+
+            echo "=== Checking backend status ==="
+            if [ "$(docker inspect -f '{{.State.Running}}' wdp-backend 2>/dev/null)" != "true" ]; then
+              echo "❌ Backend failed to start!"
+              docker logs --tail 50 wdp-backend
+              exit 1
+            fi
+            echo "✅ Backend is running"
+
+            echo "=== Checking frontend status ==="
+            if [ "$(docker inspect -f '{{.State.Running}}' wdp-frontend 2>/dev/null)" != "true" ]; then
+              echo "❌ Frontend failed to start!"
+              docker logs --tail 50 wdp-frontend
+              exit 1
+            fi
+            echo "✅ Frontend is running"
+
+            echo "=== Checking Backend HTTP health ==="
+            PORT=$(grep -E '^PORT=' backend/.env | cut -d '=' -f2 | tr -d '\r"' || echo "8010")
+            PORT=${PORT:-8010}
+            HEALTHY=false
+            for i in {1..10}; do
+              if curl -s -f "http://127.0.0.1:${PORT}/" > /dev/null 2>&1; then
+                HEALTHY=true
+                echo "✅ Backend is healthy on port ${PORT}"
+                break
+              fi
+              echo "Waiting for backend response... ($i/10)"
+              sleep 2
+            done
+
+            if [ "$HEALTHY" = false ]; then
+              echo "❌ Backend HTTP healthcheck failed on port ${PORT}!"
+              docker logs --tail 50 wdp-backend
+              exit 1
+            fi
+
+            echo "=== Checking Frontend HTTP health ==="
+            FE_PORT=3000
+            FE_HEALTHY=false
+            for i in {1..10}; do
+              if curl -s -f "http://127.0.0.1:${FE_PORT}/" > /dev/null 2>&1; then
+                FE_HEALTHY=true
+                echo "✅ Frontend is healthy on port ${FE_PORT}"
+                break
+              fi
+              echo "Waiting for frontend response... ($i/10)"
+              sleep 2
+            done
+
+            if [ "$FE_HEALTHY" = false ]; then
+              echo "❌ Frontend HTTP healthcheck failed on port ${FE_PORT}!"
+              docker logs --tail 50 wdp-frontend
+              exit 1
+            fi
+
+            echo "=== Deployment Status ==="
+            docker compose ps backend frontend
+            docker image prune -f
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f .deploy_key

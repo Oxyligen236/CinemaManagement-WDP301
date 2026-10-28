@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ClientSession } from 'mongoose';
 import { ProductService } from '../application/services/product.service';
 import { ProductContract, ProductSummaryDto } from './product.contract';
 
@@ -25,7 +26,8 @@ export class ProductContractImpl implements ProductContract {
 
   async deductConcessionStock(
     items: Array<{ productId: string; quantity: number }>,
+    session?: ClientSession,
   ): Promise<void> {
-    return this.productService.deductConcessionStock(items);
+    return this.productService.deductConcessionStock(items, session);
   }
 }

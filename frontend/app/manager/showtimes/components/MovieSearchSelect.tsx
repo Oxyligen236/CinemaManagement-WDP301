@@ -1,33 +1,30 @@
-"use client";
+'use client';
 
-import { KeyboardEvent, useEffect, useState } from "react";
-import { fetchMovieOptions, MovieChoice, MovieOption } from "../api";
+import { KeyboardEvent, UIEvent, useEffect, useState } from 'react';
+import { fetchMovieOptions, MovieChoice, MovieOption } from '../api';
 
 interface Props {
   id: string;
   value: MovieChoice | null;
-  invalid: boolean;
-  describedBy?: string;
+  invalid?: boolean;
   disabled?: boolean;
-  onChange: (movie: MovieChoice) => void;
+  /** Filter bars pass an "all movies" label and may clear the selection. */
+  clearLabel?: string;
+  height?: 'h-[38px]' | 'h-[42px]';
+  onChange: (movie: MovieChoice | null) => void;
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
-const OPTION_LIMIT = 10;
+const OPTION_LIMIT = 20;
+const SCROLL_THRESHOLD_PX = 24;
 
-const inputClass = (invalid: boolean) =>
-  `h-10 w-full rounded-lg border bg-white px-3 text-sm text-text-main placeholder:text-text-muted focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-70 ${
-    invalid
-      ? "border-primary-600 focus:border-primary-600 focus:ring-primary-600"
-      : "border-border-main focus:border-primary-600 focus:ring-primary-600"
-  }`;
-
-export default function MovieCombobox({
+export default function MovieSearchSelect({
   id,
   value,
-  invalid,
-  describedBy,
+  invalid = false,
   disabled,
+  clearLabel,
+  height = 'h-[42px]',
   onChange,
 }: Props) {
   const listId = `${id}-listbox`;
@@ -35,8 +32,11 @@ export default function MovieCombobox({
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<MovieOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [pageNo, setPageNo] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     if (!open) return;
@@ -44,10 +44,12 @@ export default function MovieCombobox({
     const timer = setTimeout(
       () => {
         setLoading(true);
-        fetchMovieOptions((query ?? "").trim(), 1, OPTION_LIMIT)
+        fetchMovieOptions((query ?? '').trim(), 1, OPTION_LIMIT)
           .then((result) => {
             if (cancelled) return;
             setOptions(result.items);
+            setPageNo(1);
+            setTotalPages(result.totalPages);
             setFailed(false);
             setActiveIndex(result.items.length > 0 ? 0 : -1);
           })
@@ -69,6 +71,28 @@ export default function MovieCombobox({
     };
   }, [open, query]);
 
+  function handleScroll(event: UIEvent<HTMLUListElement>) {
+    const list = event.currentTarget;
+    const nearBottom =
+      list.scrollHeight - list.scrollTop - list.clientHeight <=
+      SCROLL_THRESHOLD_PX;
+    if (!nearBottom || loading || loadingMore || pageNo >= totalPages) return;
+
+    const nextPage = pageNo + 1;
+    setLoadingMore(true);
+    fetchMovieOptions((query ?? '').trim(), nextPage, OPTION_LIMIT)
+      .then((result) => {
+        setOptions((prev) => {
+          const seen = new Set(prev.map((item) => item.movieId));
+          return [...prev, ...result.items.filter((i) => !seen.has(i.movieId))];
+        });
+        setPageNo(nextPage);
+        setTotalPages(result.totalPages);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setLoadingMore(false));
+  }
+
   function select(option: MovieOption) {
     onChange({
       movieId: option.movieId,
@@ -87,7 +111,7 @@ export default function MovieCombobox({
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     switch (event.key) {
-      case "ArrowDown":
+      case 'ArrowDown':
         event.preventDefault();
         if (!open) {
           setOpen(true);
@@ -95,19 +119,19 @@ export default function MovieCombobox({
           setActiveIndex((i) => (i + 1) % options.length);
         }
         break;
-      case "ArrowUp":
+      case 'ArrowUp':
         event.preventDefault();
         if (open && options.length > 0) {
           setActiveIndex((i) => (i <= 0 ? options.length - 1 : i - 1));
         }
         break;
-      case "Enter":
+      case 'Enter':
         if (open && activeIndex >= 0 && options[activeIndex]) {
           event.preventDefault();
           select(options[activeIndex]);
         }
         break;
-      case "Escape":
+      case 'Escape':
         if (open) {
           event.stopPropagation();
           close();
@@ -120,6 +144,7 @@ export default function MovieCombobox({
   const activeId =
     open && activeIndex >= 0 ? `${id}-opt-${activeIndex}` : undefined;
   const showEmpty = open && !loading && !failed && options.length === 0;
+  const borderClass = invalid ? 'border-[#da291c]' : 'border-[#dad2b4]';
 
   return (
     <div className="relative">
@@ -133,10 +158,9 @@ export default function MovieCombobox({
         aria-autocomplete="list"
         aria-activedescendant={activeId}
         aria-invalid={invalid}
-        aria-describedby={describedBy}
         disabled={disabled}
-        placeholder="Gõ để tìm phim"
-        value={query ?? value?.movieName ?? ""}
+        placeholder={clearLabel ?? 'Gõ để tìm phim'}
+        value={query ?? value?.movieName ?? ''}
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
@@ -144,36 +168,45 @@ export default function MovieCombobox({
         onFocus={() => setOpen(true)}
         onBlur={close}
         onKeyDown={handleKeyDown}
-        className={inputClass(invalid)}
+        className={`w-full ${height} border ${borderClass} bg-[#fcfbfa] px-3 text-[13px] font-semibold text-[#231f20] placeholder:font-normal placeholder:text-[#9d9580] focus:border-[#da291c] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70`}
       />
       {open && (
         <ul
           id={listId}
           role="listbox"
           aria-label="Danh sách phim"
-          className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border-main bg-surface py-1 shadow-card"
+          onScroll={handleScroll}
+          className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto border border-[#dad2b4] bg-white py-1 shadow-lg"
         >
-          {loading && (
+          {clearLabel && value && (
             <li
-              role="presentation"
-              className="px-3 py-2 text-sm text-text-muted"
+              role="option"
+              aria-selected={false}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(null);
+                close();
+              }}
+              className="cursor-pointer px-3 py-2 text-[13px] font-semibold text-[#6f6247] hover:bg-[#efebdb]"
             >
+              {clearLabel}
+            </li>
+          )}
+          {loading && (
+            <li role="presentation" className="px-3 py-2 text-[13px] text-[#666]">
               Đang tải...
             </li>
           )}
           {!loading && failed && (
             <li
               role="presentation"
-              className="px-3 py-2 text-sm text-status-danger"
+              className="px-3 py-2 text-[13px] font-semibold text-[#da291c]"
             >
               Không thể tải danh sách phim.
             </li>
           )}
           {showEmpty && (
-            <li
-              role="presentation"
-              className="px-3 py-2 text-sm text-text-muted"
-            >
+            <li role="presentation" className="px-3 py-2 text-[13px] text-[#666]">
               Không tìm thấy phim phù hợp.
             </li>
           )}
@@ -187,16 +220,21 @@ export default function MovieCombobox({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => select(option)}
                 onMouseEnter={() => setActiveIndex(index)}
-                className={`flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm text-text-main ${
-                  index === activeIndex ? "bg-primary-50" : ""
-                } ${option.movieId === value?.movieId ? "font-semibold" : ""}`}
+                className={`flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-[13px] text-[#231f20] ${
+                  index === activeIndex ? 'bg-[#efebdb]' : ''
+                } ${option.movieId === value?.movieId ? 'font-bold' : ''}`}
               >
                 <span className="truncate">{option.movieName}</span>
-                <span className="shrink-0 text-xs text-text-muted">
+                <span className="shrink-0 text-[12px] text-[#6f6247]">
                   {option.duration} phút
                 </span>
               </li>
             ))}
+          {loadingMore && (
+            <li role="presentation" className="px-3 py-2 text-[13px] text-[#666]">
+              Đang tải thêm...
+            </li>
+          )}
         </ul>
       )}
     </div>

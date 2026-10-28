@@ -34,6 +34,12 @@ export class RegisterDto {
   lastName!: string;
 }
 
+export class ResendVerificationDto {
+  @Transform(trim)
+  @IsEmail()
+  email!: string;
+}
+
 export class VerifyEmailDto {
   @Transform(trim)
   @IsEmail()

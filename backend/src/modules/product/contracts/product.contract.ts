@@ -14,5 +14,6 @@ export interface ProductContract {
   ): Promise<Map<string, ProductSummaryDto>>;
   deductConcessionStock(
     items: Array<{ productId: string; quantity: number }>,
+    session?: import('mongoose').ClientSession,
   ): Promise<void>;
 }

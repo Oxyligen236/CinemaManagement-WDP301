@@ -18,24 +18,7 @@ const TOKEN_KEY = "cinema_access_token";
 const USER_KEY = "cinema_user";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 
-/**
- * Value của vai trò Quản lý Chi nhánh từng được đổi giữa 'BRANCHMANAGER' và
- * 'MANAGER', nên API vẫn có thể trả về value cũ. Khi GỬI lên backend phải dùng
- * `BRANCH_MANAGER_ROLE` (value canonical, khớp enum `Role` của backend), còn khi
- * ĐỌC thì so sánh qua `isBranchManager`.
- */
-const BRANCH_MANAGER_ROLE = "MANAGER";
-
-type Role = "ADMIN" | "USER" | "MANAGER" | "BRANCHMANAGER" | "STAFF";
-
-function isBranchManager(role?: string): boolean {
-  const value = role?.toUpperCase();
-  return (
-    value === "MANAGER" ||
-    value === "BRANCHMANAGER" ||
-    value === "BRANCH_MANAGER"
-  );
-}
+type Role = "ADMIN" | "USER" | "MANAGER" | "STAFF";
 
 type User = {
   userId: string;
@@ -61,7 +44,6 @@ type UserForm = Pick<
 const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Quản trị viên",
   MANAGER: "Quản lý Chi nhánh",
-  BRANCHMANAGER: "Quản lý Chi nhánh",
   STAFF: "Nhân viên",
   USER: "Khách hàng",
 };
@@ -264,7 +246,7 @@ export default function ManageUsersPage() {
         !editingSelf &&
         branchId &&
         branchId !== selectedUser.branchId &&
-        (isBranchManager(updatedUser.role) || updatedUser.role === "STAFF")
+        (updatedUser.role === "MANAGER" || updatedUser.role === "STAFF")
       ) {
         const branchResult = await request(
           `/admin/users/${selectedUser.userId}/branch`,
@@ -408,7 +390,7 @@ export default function ManageUsersPage() {
             >
               <option value="">Tất cả vai trò</option>
               <option value="ADMIN">Quản trị viên</option>
-              <option value={BRANCH_MANAGER_ROLE}>Quản lý Chi nhánh</option>
+              <option value="MANAGER">Quản lý Chi nhánh</option>
               <option value="STAFF">Nhân viên</option>
               <option value="USER">Khách hàng</option>
             </select>
@@ -679,12 +661,13 @@ export default function ManageUsersPage() {
                   id="admin-form-branch"
                   required={
                     !editingSelf &&
-                    (isBranchManager(form.role) || form.role === "STAFF")
+                    (form.role === "MANAGER" || form.role === "STAFF")
                   }
                   value={form.branchId}
                   disabled={
-                    !creating &&
-                    (editingSelf || selectedUser?.isActive === false)
+                    (form.role !== "MANAGER" && form.role !== "STAFF") ||
+                    (!creating &&
+                      (editingSelf || selectedUser?.isActive === false))
                   }
                   onChange={(event) =>
                     setForm({
@@ -735,18 +718,23 @@ export default function ManageUsersPage() {
                     !creating &&
                     (editingSelf || selectedUser?.isActive === false)
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const role = event.target.value as Role;
                     setForm({
                       ...form,
-                      role: event.target.value as Role,
-                    })
-                  }
+                      role,
+                      branchId:
+                        role === "MANAGER" || role === "STAFF"
+                          ? form.branchId
+                          : "",
+                    });
+                  }}
                   className={INPUT_CLASS}
                 >
-                  <option value="ADMIN">Quản trị viên</option>
-                  <option value={BRANCH_MANAGER_ROLE}>
-                    Quản lý Chi nhánh
-                  </option>
+                  {form.role === "ADMIN" && (
+                    <option value="ADMIN">Quản trị viên</option>
+                  )}
+                  <option value="MANAGER">Quản lý Chi nhánh</option>
                   <option value="STAFF">Nhân viên</option>
                   <option value="USER">Khách hàng</option>
                 </select>

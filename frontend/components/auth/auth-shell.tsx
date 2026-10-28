@@ -68,11 +68,6 @@ export function AuthShell({
             />
             <span>Về Trang chủ Latte Cinema</span>
           </Link>
-          <span className="text-[#c1b687]">|</span>
-          <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
-            <ShieldCheck className="h-3.5 w-3.5 text-[#da291c]" />
-            Khu vực Tài khoản & Xác thực
-          </span>
         </div>
         <ul className="flex items-center gap-5 text-[12px]">
           <li>
@@ -111,7 +106,7 @@ export function AuthShell({
             />
             <div className="hidden md:block border-l-2 border-[#dad2b4] pl-4">
               <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6f6247]">
-                MEMBER ACCOUNT CENTER
+                ACCOUNT CENTER
               </p>
               <p className="text-[16px] font-bold text-[#231f20]">
                 TÀI KHOẢN THÀNH VIÊN LATTE CINEMA

@@ -16,15 +16,24 @@ export class WorkSchedule {
   })
   scheduleId!: string;
 
-  @Prop({
-    required: true,
-  })
-  startTime!: Date;
+  @Prop({ required: true, trim: true, maxlength: 100 })
+  shiftName!: string;
 
   @Prop({
     required: true,
   })
-  endTime!: Date;
+  startTime!: string;
+
+  @Prop({
+    required: true,
+  })
+  endTime!: string;
+
+  @Prop({ required: true, min: 1, max: 600 })
+  durationInMinutes!: number;
+
+  @Prop({ required: true, default: false })
+  isOvernight!: boolean;
 
   @Prop({
     type: [String],
@@ -36,6 +45,12 @@ export class WorkSchedule {
     trim: true,
   })
   branchId?: string;
+
+  @Prop({ trim: true, maxlength: 500 })
+  note?: string;
+
+  @Prop({ default: true })
+  isActive!: boolean;
 }
 
 export const WorkScheduleSchema = SchemaFactory.createForClass(WorkSchedule);

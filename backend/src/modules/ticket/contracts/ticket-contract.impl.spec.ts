@@ -51,4 +51,23 @@ describe('TicketContractImpl', () => {
       seatShowtimeIds: ['sst-1'],
     });
   });
+
+  it('tạo vé cho order có session', async () => {
+    mockTicketService.createTicketsForOrder.mockResolvedValue([]);
+    const fakeSession = {} as any;
+    await contract.createTicketsForOrder(
+      {
+        orderId: 'ord-1',
+        seatShowtimeIds: ['sst-1'],
+      },
+      fakeSession,
+    );
+    expect(mockTicketService.createTicketsForOrder).toHaveBeenCalledWith(
+      {
+        orderId: 'ord-1',
+        seatShowtimeIds: ['sst-1'],
+      },
+      fakeSession,
+    );
+  });
 });
