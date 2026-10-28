@@ -10,6 +10,7 @@ import { TicketModule } from '../ticket/ticket.module';
 import { ProductModule } from '../product/product.module';
 import { PromotionModule } from '../promotion/promotion.module';
 import { ShowtimeModule } from '../showtime/showtime.module';
+import { BranchModule } from '../branch/branch.module';
 import { PaymentModule } from '../payment/payment.module';
 import { QueueModule } from '../infra/queue/queue.module';
 import { EventModule } from '../infra/event/event.module';
@@ -37,6 +38,7 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
     ProductModule,
     PromotionModule,
     ShowtimeModule,
+    BranchModule,
     PaymentModule,
     QueueModule,
     EventModule,

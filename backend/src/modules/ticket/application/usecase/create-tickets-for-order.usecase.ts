@@ -1,4 +1,4 @@
-import { TicketItemSummaryDto } from '../dto/ticket-summary.dto';
+import { TicketItemSummaryRes } from '../dto/res.dto';
 
 /**
  * Giá trị nghiệp vụ: Phát hành vé xem phim sau khi đơn hàng thanh toán thành công
@@ -19,9 +19,12 @@ export interface CreateTicketsForOrderUsecase {
    * @returns Danh sách vé đã phát hành kèm thông tin phòng, phim, suất chiếu
    * @throws BadRequestException khi danh sách ghế rỗng hoặc không tìm thấy thông tin suất chiếu
    */
-  createTicketsForOrder(params: {
-    orderId: string;
-    seatShowtimeIds: string[];
-  }, session?: ClientSession): Promise<TicketItemSummaryDto[]>;
+  createTicketsForOrder(
+    params: {
+      orderId: string;
+      seatShowtimeIds: string[];
+    },
+    session?: ClientSession,
+  ): Promise<TicketItemSummaryRes[]>;
 }
 import { ClientSession } from 'mongoose';

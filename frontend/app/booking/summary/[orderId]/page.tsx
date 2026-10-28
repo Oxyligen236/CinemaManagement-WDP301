@@ -446,8 +446,13 @@ export default function BookingSummaryPage({
                       Rạp & Phòng chiếu
                     </p>
                     <p className="font-bold text-[#231f20]">
-                      Lotte Cinema Nam Sài Gòn
+                      {summary.branchName || "Rạp MyCast Cinema"}
                     </p>
+                    {summary.branchAddress && (
+                      <p className="text-[12px] text-[#666]">
+                        {summary.branchAddress}
+                      </p>
+                    )}
                     <p className="text-[12px] text-[#666]">
                       {summary.roomName || "Phòng chiếu tiêu chuẩn"}
                     </p>

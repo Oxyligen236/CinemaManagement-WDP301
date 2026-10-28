@@ -44,6 +44,24 @@ export class ApplyPromotionRes {
   promotion?: PromotionSummaryRes;
 }
 
+export class CancelOrderRes {
+  orderId!: string;
+  status!: OrderStatus;
+  message!: string;
+  cancelledAt!: Date;
+
+  static of(
+    orderId: string,
+    status: OrderStatus,
+    message: string,
+    cancelledAt: Date,
+  ): CancelOrderRes {
+    const res = new CancelOrderRes();
+    Object.assign(res, { orderId, status, message, cancelledAt });
+    return res;
+  }
+}
+
 export class OrderSummaryRes {
   orderId!: string;
   userId!: string;
@@ -52,6 +70,9 @@ export class OrderSummaryRes {
   createdAt!: Date;
   ticketCount!: number;
   hasProducts!: boolean;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
 
   static of(
     orderId: string,
@@ -61,6 +82,9 @@ export class OrderSummaryRes {
     createdAt: Date,
     ticketCount: number,
     hasProducts: boolean,
+    branchId?: string,
+    branchName?: string,
+    branchAddress?: string,
   ): OrderSummaryRes {
     const res = new OrderSummaryRes();
     Object.assign(res, {
@@ -71,6 +95,9 @@ export class OrderSummaryRes {
       createdAt,
       ticketCount,
       hasProducts,
+      branchId,
+      branchName,
+      branchAddress,
     });
     return res;
   }
@@ -115,6 +142,10 @@ export class OrderItemTicketRes {
   roomName!: string;
   seatLabel!: string;
   startTime!: Date;
+  endTime?: Date;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
 
   static of(
     ticketId: string,
@@ -126,6 +157,10 @@ export class OrderItemTicketRes {
     roomName: string,
     seatLabel: string,
     startTime: Date,
+    endTime?: Date,
+    branchId?: string,
+    branchName?: string,
+    branchAddress?: string,
   ): OrderItemTicketRes {
     const res = new OrderItemTicketRes();
     Object.assign(res, {
@@ -138,6 +173,10 @@ export class OrderItemTicketRes {
       roomName,
       seatLabel,
       startTime,
+      endTime,
+      branchId,
+      branchName,
+      branchAddress,
     });
     return res;
   }
@@ -178,6 +217,9 @@ export class OrderDetailRes {
   tickets!: OrderItemTicketRes[];
   products!: OrderItemProductRes[];
   promotion?: PromotionSummaryRes;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
 
   static of(
     orderId: string,
@@ -188,6 +230,9 @@ export class OrderDetailRes {
     tickets: OrderItemTicketRes[],
     products: OrderItemProductRes[],
     promotion?: PromotionSummaryRes,
+    branchId?: string,
+    branchName?: string,
+    branchAddress?: string,
   ): OrderDetailRes {
     const res = new OrderDetailRes();
     Object.assign(res, {
@@ -199,6 +244,9 @@ export class OrderDetailRes {
       tickets,
       products,
       promotion,
+      branchId,
+      branchName,
+      branchAddress,
     });
     return res;
   }

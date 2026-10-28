@@ -25,6 +25,8 @@ flowchart TD
         Home -->|Xem lịch sử mua vé| CustomerOrders
         CustomerOrders -->|Chi tiết| OrderDetailModal
         CustomerOrders -->|"Thanh toán ngay (Đơn PENDING)"| BookingSummary
+        CustomerOrders -->|"Hủy đơn giữ chỗ (PENDING)"| CustomerOrders
+        OrderDetailModal -->|"Hủy đơn (PENDING)"| CustomerOrders
 
         MovieList["/movies (Danh sách & Tìm kiếm phim: Tab Đang chiếu / Sắp chiếu)"]
         MovieDetail["/movies/[movieId] (Chi tiết phim & Tab Lịch chiếu phim)"]
@@ -73,18 +75,24 @@ flowchart TD
         StaffOrderDetail["[Modal] Chi tiết F&B + Vé quầy"]
         PosReceiptModal["[Modal] In vé cứng & Hóa đơn nhiệt 80mm"]
         PosCancelDialog["[Dialog] Xác nhận hủy đơn quầy"]
-        ScanResultBanner["[Banner] Kết quả soát vé"]
+        ScanResultBanner["[Banner] Kết quả soát vé (Hợp lệ / Cảnh báo sai rạp / Từ chối)"]
 
         Login -->|"Đăng nhập thành công (Staff)"| StaffPOS
         StaffPOS -->|Xem lịch sử đơn| StaffOrders
         StaffOrders -->|Bán vé tại quầy| StaffPOS
+        StaffPOS -->|Sidebar| StaffScan
+        StaffScan -->|Sidebar| StaffPOS
         StaffPOS -->|Tạo đơn giữ chỗ 10p & Thu tiền mặt / QR| PosReceiptModal
+        StaffPOS -->|"Bán lẻ F&B (không chọn ghế/suất chiếu)"| PosReceiptModal
         StaffPOS -->|Khách đổi ý hủy đơn| PosCancelDialog
         PosCancelDialog -->|Xác nhận hủy| StaffPOS
         PosReceiptModal -->|In xong / Bán đơn mới| StaffPOS
         StaffOrders -->|Soát vé| StaffScan
         StaffOrders -->|Xem chi tiết đơn| StaffOrderDetail
-        StaffScan -->|Quét mã| ScanResultBanner
+        StaffOrders -->|"Hủy đơn PENDING"| StaffOrders
+        StaffOrderDetail -->|"Hủy đơn (PENDING)"| StaffOrders
+        StaffScan -->|Quét mã hợp lệ| ScanResultBanner
+        StaffScan -->|"Quét vé khác chi nhánh (Cảnh báo đỏ 220Hz)"| ScanResultBanner
         StaffPOS -->|Đăng xuất| Home
     end
 
@@ -101,6 +109,8 @@ flowchart TD
         AdminDashboard -->|Quản lý Khuyến mãi| AdminPromotions
         AdminDashboard -->|Quản lý Đơn hàng| AdminOrders
         AdminOrders -->|Xem chi tiết| AdminOrderDetail
+        AdminOrders -->|"Hủy đơn PENDING"| AdminOrders
+        AdminOrderDetail -->|"Hủy đơn (PENDING)"| AdminOrders
         AdminDashboard -->|Đăng xuất| Home
     end
 

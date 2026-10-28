@@ -142,22 +142,31 @@ export function ThermalReceiptModal({
               </div>
             </div>
 
-            {/* Thông tin Suất chiếu & Phim */}
-            <div className="py-2 border-b border-dashed border-black">
-              <p className="text-xs font-black uppercase text-center leading-snug">
-                {receipt.movieTitle || 'PHIM CHIẾU RẠP'}
-              </p>
-              <div className="mt-1.5 text-[11px] space-y-0.5">
-                <div className="flex justify-between">
-                  <span>Phòng chiếu:</span>
-                  <span className="font-bold">{receipt.roomName || 'P01'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Suất chiếu:</span>
-                  <span className="font-bold">{receipt.showtime || ''} {receipt.showDate ? `(${receipt.showDate})` : ''}</span>
+            {/* Thông tin Suất chiếu & Phim (hoặc Tiêu đề Đơn F&B) */}
+            {receipt.seats && receipt.seats.length > 0 ? (
+              <div className="py-2 border-b border-dashed border-black">
+                <p className="text-xs font-black uppercase text-center leading-snug">
+                  {receipt.movieTitle || 'PHIM CHIẾU RẠP'}
+                </p>
+                <div className="mt-1.5 text-[11px] space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Phòng chiếu:</span>
+                    <span className="font-bold">{receipt.roomName || 'P01'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Suất chiếu:</span>
+                    <span className="font-bold">{receipt.showtime || ''} {receipt.showDate ? `(${receipt.showDate})` : ''}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="py-2 border-b border-dashed border-black text-center">
+                <p className="text-xs font-black uppercase tracking-wide">
+                  HÓA ĐƠN BẮP NƯỚC (F&B)
+                </p>
+                <p className="text-[10px] text-gray-700 mt-0.5">Đơn bán lẻ tại quầy</p>
+              </div>
+            )}
 
             {/* Danh sách Ghế */}
             {receipt.seats && receipt.seats.length > 0 && (

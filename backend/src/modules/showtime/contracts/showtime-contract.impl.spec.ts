@@ -7,6 +7,7 @@ describe('ShowtimeContractImpl', () => {
   let mockMovieModel: { findOne: jest.Mock };
   let mockRoomModel: { findOne: jest.Mock };
   let mockSeatModel: { findOne: jest.Mock };
+  let mockBranchModel: { findOne: jest.Mock };
 
   beforeEach(() => {
     mockSeatShowtimeModel = { findOne: jest.fn() };
@@ -14,6 +15,7 @@ describe('ShowtimeContractImpl', () => {
     mockMovieModel = { findOne: jest.fn() };
     mockRoomModel = { findOne: jest.fn() };
     mockSeatModel = { findOne: jest.fn() };
+    mockBranchModel = { findOne: jest.fn() };
 
     contract = new ShowtimeContractImpl(
       mockSeatShowtimeModel as any,
@@ -21,6 +23,7 @@ describe('ShowtimeContractImpl', () => {
       mockMovieModel as any,
       mockRoomModel as any,
       mockSeatModel as any,
+      mockBranchModel as any,
     );
   });
 
@@ -107,6 +110,16 @@ describe('ShowtimeContractImpl', () => {
         exec: jest.fn().mockResolvedValue({
           roomId: 'room-1',
           roomName: 'Cinema 1',
+          branchId: 'branch-1',
+        }),
+      }),
+    });
+    mockBranchModel.findOne.mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          branchId: 'branch-1',
+          branchName: 'Chi nhánh Hà Nội',
+          address: '123 Đường Cầu Giấy',
         }),
       }),
     });
@@ -125,6 +138,9 @@ describe('ShowtimeContractImpl', () => {
       price: 90000,
       startTime,
       endTime,
+      branchId: 'branch-1',
+      branchName: 'Chi nhánh Hà Nội',
+      branchAddress: '123 Đường Cầu Giấy',
     });
   });
 });

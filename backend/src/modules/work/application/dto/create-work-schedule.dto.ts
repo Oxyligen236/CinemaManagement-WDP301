@@ -1,4 +1,10 @@
-import { Matches, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  Matches,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateWorkScheduleDto {
   @IsString()

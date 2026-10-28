@@ -11,6 +11,9 @@ export interface SeatShowtimeDetailDto {
   price?: number;
   startTime: Date;
   endTime: Date;
+  branchId: string;
+  branchName: string;
+  branchAddress?: string;
 }
 
 export const SHOWTIME_CONTRACT = Symbol('SHOWTIME_CONTRACT');

@@ -1,4 +1,5 @@
 import {
+  CancelOrderRes,
   OrderDetail,
   OrderSummary,
   PaginatedResponse,
@@ -85,6 +86,13 @@ export const orderApi = {
     return request<OrderDetail>(`/orders/${orderId}`);
   },
 
+  async cancelOrder(orderId: string, reason?: string): Promise<CancelOrderRes> {
+    return request<CancelOrderRes>(`/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
   // Booking Flow
   async createBooking(payload: CreateBookingReq): Promise<BookingSummary> {
     return request<BookingSummary>('/orders/booking', {
@@ -120,6 +128,13 @@ export const orderApi = {
     return request<PaginatedResponse<OrderSummary>>(`/staff/orders${qs}`);
   },
 
+  async cancelStaffOrder(orderId: string, reason?: string): Promise<CancelOrderRes> {
+    return request<CancelOrderRes>(`/staff/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
   // Ticket scan (Staff)
   async scanTicket(dto: ScanTicketDto): Promise<ScanTicketResult> {
     return request<ScanTicketResult>('/tickets/scan', {
@@ -140,5 +155,12 @@ export const orderApi = {
 
     const qs = params.toString() ? `?${params.toString()}` : '';
     return request<PaginatedResponse<OrderSummary>>(`/admin/orders${qs}`);
+  },
+
+  async cancelAdminOrder(orderId: string, reason?: string): Promise<CancelOrderRes> {
+    return request<CancelOrderRes>(`/admin/orders/${encodeURIComponent(orderId)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
   },
 };

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -7,6 +8,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model } from 'mongoose';
 import { randomUUID } from 'crypto';
+import { Role } from '../../../auth/infra/decorators/role.decorator';
 import { ScanTicketUsecase } from '../usecase/scan-ticket.usecase';
 import { GetTicketDetailUsecase } from '../usecase/get-ticket-detail.usecase';
 import { CreateTicketsForOrderUsecase } from '../usecase/create-tickets-for-order.usecase';
@@ -20,9 +22,12 @@ import {
 } from '../../../infra/event/application/internal-event-bus.interface';
 import { Ticket, TicketDocument } from '../../domain/schemas/ticket.schema';
 import { TicketStatus } from '../../domain/enums/ticket-status.enum';
-import { ScanTicketReq } from '../dto/req.dto';
-import { ScanTicketResultRes, TicketDetailRes } from '../dto/res.dto';
-import { TicketItemSummaryDto } from '../dto/ticket-summary.dto';
+import { ScanTicketReq, StaffScanContextReq } from '../dto/req.dto';
+import {
+  ScanTicketResultRes,
+  TicketDetailRes,
+  TicketItemSummaryRes,
+} from '../dto/res.dto';
 import { TicketScannedEvent } from '../../domain/events/ticket-scanned.event';
 
 @Injectable()
@@ -43,7 +48,7 @@ export class TicketService
 
   async scanTicket(
     dto: ScanTicketReq,
-    staffId: string,
+    staffContext: StaffScanContextReq,
   ): Promise<ScanTicketResultRes> {
     const normalizedCode = (dto.ticketCode || '').trim();
     if (!normalizedCode) {
@@ -79,6 +84,19 @@ export class TicketService
       );
     }
 
+    if (staffContext.role === Role.STAFF) {
+      if (!staffContext.branchId) {
+        throw new ForbiddenException(
+          'Nhân viên chưa được gán chi nhánh làm việc',
+        );
+      }
+      if (staffContext.branchId !== showtimeDetail.branchId) {
+        throw new ForbiddenException(
+          `Vé này thuộc chi nhánh "${showtimeDetail.branchName}". Không thể soát tại chi nhánh khác!`,
+        );
+      }
+    }
+
     if (dto.showtimeId && showtimeDetail.showtimeId !== dto.showtimeId) {
       throw new BadRequestException(
         `Vé không thuộc suất chiếu đang chọn (Phim: ${showtimeDetail.movieTitle}, Suất: ${showtimeDetail.startTime.toISOString()})`,
@@ -106,14 +124,14 @@ export class TicketService
     const scannedAt = new Date();
     ticket.ticketStatus = TicketStatus.USED;
     ticket.usedAt = scannedAt;
-    ticket.scannedBy = staffId;
+    ticket.scannedBy = staffContext.staffId;
     await ticket.save();
 
     await this.eventBus.publish(
       new TicketScannedEvent(
         ticket.ticketId,
         ticket.ticketCode,
-        staffId,
+        staffContext.staffId,
         scannedAt,
       ),
     );
@@ -133,7 +151,10 @@ export class TicketService
       seatLabel,
       showtimeDetail.startTime,
       showtimeDetail.endTime,
-      staffId,
+      showtimeDetail.branchId,
+      showtimeDetail.branchName,
+      showtimeDetail.branchAddress,
+      staffContext.staffId,
       scannedAt,
       'Soát vé thành công',
     );
@@ -172,10 +193,16 @@ export class TicketService
       seatLabel,
       showtimeDetail?.startTime ?? new Date(),
       showtimeDetail?.endTime ?? new Date(),
+      showtimeDetail?.branchId,
+      showtimeDetail?.branchName,
+      showtimeDetail?.branchAddress,
     );
   }
 
-  async getTicketsByOrderId(orderId: string, session?: ClientSession): Promise<TicketItemSummaryDto[]> {
+  async getTicketsByOrderId(
+    orderId: string,
+    session?: ClientSession,
+  ): Promise<TicketItemSummaryRes[]> {
     const ticketQuery = this.ticketModel.find({ orderId });
     if (session) ticketQuery.session(session);
     const tickets = await ticketQuery.exec();
@@ -183,7 +210,7 @@ export class TicketService
       return [];
     }
 
-    const results: TicketItemSummaryDto[] = [];
+    const results: TicketItemSummaryRes[] = [];
     for (const ticket of tickets) {
       const showtimeDetail = await this.showtimeContract.getSeatShowtimeDetail(
         ticket.seatShowtimeId,
@@ -204,6 +231,9 @@ export class TicketService
         seatLabel,
         startTime: showtimeDetail?.startTime ?? new Date(),
         endTime: showtimeDetail?.endTime ?? new Date(),
+        branchId: showtimeDetail?.branchId,
+        branchName: showtimeDetail?.branchName,
+        branchAddress: showtimeDetail?.branchAddress,
       });
     }
 
@@ -225,10 +255,13 @@ export class TicketService
    * @returns Danh sách vé đã phát hành kèm thông tin phòng, phim, suất chiếu
    * @throws BadRequestException khi danh sách ghế rỗng hoặc không tìm thấy thông tin suất chiếu
    */
-  async createTicketsForOrder(params: {
-    orderId: string;
-    seatShowtimeIds: string[];
-  }, session?: ClientSession): Promise<TicketItemSummaryDto[]> {
+  async createTicketsForOrder(
+    params: {
+      orderId: string;
+      seatShowtimeIds: string[];
+    },
+    session?: ClientSession,
+  ): Promise<TicketItemSummaryRes[]> {
     const { orderId, seatShowtimeIds } = params;
     if (!orderId) {
       throw new BadRequestException('Mã đơn hàng không được để trống');

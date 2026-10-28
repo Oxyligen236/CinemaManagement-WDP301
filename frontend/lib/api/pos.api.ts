@@ -115,8 +115,8 @@ export interface PosSeatShowtime {
 }
 
 export interface CreatePosOrderReq {
-  showtimeId: string;
-  seatShowtimeIds: string[];
+  showtimeId?: string;
+  seatShowtimeIds?: string[];
   products?: { productId: string; quantity: number }[];
 }
 
