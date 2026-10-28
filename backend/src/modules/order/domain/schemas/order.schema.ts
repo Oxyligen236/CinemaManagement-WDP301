@@ -43,6 +43,13 @@ export class Order {
   })
   status!: OrderStatus;
 
+  @Prop({
+    type: String,
+    required: false,
+    trim: true,
+    index: true,
+  })
+  branchId?: string;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

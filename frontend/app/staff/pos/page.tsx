@@ -17,6 +17,7 @@ import {
   type PosShowtime,
 } from "@/lib/api/pos.api";
 import { ThermalReceiptModal } from "@/components/staff/pos/thermal-receipt-modal";
+import { ConcessionCard } from "@/components/staff/pos/concession-card";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 import {
@@ -38,6 +39,7 @@ import {
   X,
   Armchair,
   MapPin,
+  User,
 } from "lucide-react";
 
 const BRANCH_NAMES: Record<string, string> = {
@@ -76,6 +78,10 @@ export default function StaffPosPage() {
   const [productCart, setProductCart] = useState<
     Map<string, SelectedProductCart>
   >(new Map());
+
+  // Thông tin Khách hàng (Tùy chọn cho đơn lẻ F&B / vé)
+  const [isGuestCustomer, setIsGuestCustomer] = useState(true);
+  const [customerPhone, setCustomerPhone] = useState("");
 
   // Khuyến mãi
   const [voucherCode, setVoucherCode] = useState("");
@@ -141,42 +147,47 @@ export default function StaffPosPage() {
   }, []);
 
   // Thông tin tài khoản nhân viên & chi nhánh
-  const [staffUser, setStaffUser] = useState<{
+  const [staffUser] = useState<{
     branchId?: string;
     email?: string;
     firstName?: string;
     lastName?: string;
-  } | null>(null);
-
-  // Đọc thông tin nhân viên từ localStorage
-  useEffect(() => {
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
     try {
       const raw = localStorage.getItem("cinema_user");
-      if (raw) {
-        setStaffUser(JSON.parse(raw));
-      }
+      return raw ? JSON.parse(raw) : null;
     } catch {
-      // Ignore parse error
+      return null;
     }
-  }, []);
+  });
 
   // Tải danh sách suất chiếu & bắp nước ban đầu
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     setErrorBanner(null);
 
-    let branchId: string | undefined;
-    try {
-      const raw = localStorage.getItem("cinema_user");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.branchId) {
-          branchId = parsed.branchId;
-          setStaffUser(parsed);
+    let branchId = staffUser?.branchId;
+    if (!branchId) {
+      try {
+        const raw = localStorage.getItem("cinema_user");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.branchId) branchId = parsed.branchId;
         }
+      } catch {
+        // Ignore
       }
-    } catch {
-      // Ignore
+    }
+
+    if (!branchId) {
+      setShowtimes([]);
+      setCatalog(null);
+      setErrorBanner(
+        "Tài khoản chưa được gán chi nhánh. Vui lòng liên hệ quản trị viên để được hỗ trợ.",
+      );
+      setLoading(false);
+      return;
     }
 
     try {
@@ -196,7 +207,7 @@ export default function StaffPosPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [staffUser?.branchId]);
 
   useEffect(() => {
     void (async () => {
@@ -330,6 +341,8 @@ export default function StaffPosPage() {
     setPendingOrder(null);
     setSelectedSeatIds([]);
     setProductCart(new Map());
+    setIsGuestCustomer(true);
+    setCustomerPhone("");
     setVoucherCode("");
     setVoucherDiscount(0);
     setVoucherApplied(null);
@@ -368,14 +381,20 @@ export default function StaffPosPage() {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // Tạo đơn giữ chỗ tại quầy
+  // Tạo đơn hàng tại quầy (Vé + F&B hoặc F&B lẻ)
   const handleCreateBookingOrder = async () => {
-    if (!selectedShowtime) {
-      setErrorBanner("Vui lòng chọn suất chiếu trước khi đặt vé");
+    const isConcessionOnly =
+      selectedSeatIds.length === 0 && productCart.size > 0;
+
+    if (selectedSeatIds.length === 0 && productCart.size === 0) {
+      setErrorBanner(
+        "Vui lòng chọn ít nhất 1 ghế xem phim hoặc 1 sản phẩm bắp nước.",
+      );
       return;
     }
-    if (selectedSeatIds.length === 0) {
-      setErrorBanner("Vui lòng chọn ít nhất 1 ghế xem phim");
+
+    if (selectedSeatIds.length > 0 && !selectedShowtime) {
+      setErrorBanner("Vui lòng chọn suất chiếu trước khi đặt vé");
       return;
     }
 
@@ -389,8 +408,8 @@ export default function StaffPosPage() {
 
     try {
       const res = await posApi.createPosOrder({
-        showtimeId: selectedShowtime.showtimeId,
-        seatShowtimeIds: selectedSeatIds,
+        showtimeId: isConcessionOnly ? undefined : selectedShowtime?.showtimeId,
+        seatShowtimeIds: isConcessionOnly ? [] : selectedSeatIds,
         products: productsPayload.length > 0 ? productsPayload : undefined,
       });
 
@@ -398,14 +417,18 @@ export default function StaffPosPage() {
       setRemainingSeconds(res.remainingSeconds || 600);
       setCashReceived(res.totalAmount || finalTotal);
       setSuccessBanner(
-        "Đã giữ chỗ thành công trong 10 phút! Vui lòng thu tiền.",
+        isConcessionOnly
+          ? "Đã tạo đơn hàng F&B thành công! Vui lòng thu tiền."
+          : "Đã giữ chỗ thành công trong 10 phút! Vui lòng thu tiền.",
       );
 
-      // Refresh lại trạng thái ghế
-      loadSeatsForShowtime(selectedShowtime.showtimeId);
+      // Refresh lại trạng thái ghế nếu có chọn suất chiếu
+      if (selectedShowtime) {
+        loadSeatsForShowtime(selectedShowtime.showtimeId);
+      }
     } catch (err) {
       setErrorBanner(
-        getFriendlyErrorMessage(err, "Không thể tạo đơn giữ chỗ tại quầy"),
+        getFriendlyErrorMessage(err, "Không thể tạo đơn hàng tại quầy"),
       );
     } finally {
       setActionLoading(false);
@@ -432,9 +455,7 @@ export default function StaffPosPage() {
           `Áp dụng mã ${voucherCode.trim()} thành công! Giảm ${formatCurrency(discount)}`,
         );
       } else {
-        setVoucherApplied(voucherCode.trim());
-        setVoucherDiscount(30000);
-        setSuccessBanner(`Đã ghi nhận mã voucher ${voucherCode.trim()}`);
+        setErrorBanner("Vui lòng tạo đơn hàng trước khi áp dụng mã giảm giá.");
       }
     } catch (err) {
       setErrorBanner(
@@ -584,7 +605,11 @@ export default function StaffPosPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (pendingOrder || selectedSeatIds.length > 0) {
+        if (
+          pendingOrder ||
+          selectedSeatIds.length > 0 ||
+          productCart.size > 0
+        ) {
           setIsCancelDialogOpen(true);
         }
       } else if (e.key === "F9") {
@@ -600,7 +625,13 @@ export default function StaffPosPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [paymentMethod, isCashSufficient, pendingOrder, selectedSeatIds.length]);
+  }, [
+    paymentMethod,
+    isCashSufficient,
+    pendingOrder,
+    selectedSeatIds.length,
+    productCart.size,
+  ]);
 
   // Lọc danh sách suất chiếu hôm nay
   const filteredShowtimes = useMemo(() => {
@@ -809,17 +840,33 @@ export default function StaffPosPage() {
             </div>
 
             {selectedShowtime && (
-              <div className="text-right">
-                <p className="text-[12px] font-bold text-[#231f20] uppercase truncate max-w-[220px]">
-                  {selectedShowtime.movieTitle || "Phim đã chọn"}
-                </p>
-                <p className="text-[11px] text-[#da291c] font-semibold">
-                  Phòng: {selectedShowtime.roomName || "P01"} |{" "}
-                  {new Date(selectedShowtime.startTime).toLocaleTimeString(
-                    "vi-VN",
-                    { hour: "2-digit", minute: "2-digit" },
-                  )}
-                </p>
+              <div className="text-right flex items-center gap-2">
+                <div>
+                  <p className="text-[12px] font-bold text-[#231f20] uppercase truncate max-w-[220px]">
+                    {selectedShowtime.movieTitle || "Phim đã chọn"}
+                  </p>
+                  <p className="text-[11px] text-[#da291c] font-semibold">
+                    Phòng: {selectedShowtime.roomName || "P01"} |{" "}
+                    {new Date(selectedShowtime.startTime).toLocaleTimeString(
+                      "vi-VN",
+                      { hour: "2-digit", minute: "2-digit" },
+                    )}
+                  </p>
+                </div>
+                {!pendingOrder && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedShowtime(null);
+                      setSelectedSeatIds([]);
+                      setSeats([]);
+                    }}
+                    title="Bỏ chọn suất chiếu (Chuyển sang chỉ bán F&B)"
+                    className="p-1 text-[#888] hover:text-[#da291c] hover:bg-[#fee2e2] transition-colors cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -857,6 +904,14 @@ export default function StaffPosPage() {
                 {loading ? (
                   <div className="h-64 flex items-center justify-center text-[#888] text-[13px]">
                     Đang tải danh sách suất chiếu hôm nay...
+                  </div>
+                ) : !staffUser?.branchId ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-[#fffbeb] border border-[#f59e0b] text-[#b45309]">
+                    <AlertTriangle className="h-8 w-8 text-[#d97706] mb-2" />
+                    <p className="font-bold text-[14px]">Chưa gán chi nhánh trực thuộc</p>
+                    <p className="text-[12px] text-[#92400e] mt-1 max-w-md">
+                      Tài khoản nhân viên chưa được phân công chi nhánh làm việc. Vui lòng liên hệ Quản trị viên để gán chi nhánh trước khi tải suất chiếu.
+                    </p>
                   </div>
                 ) : filteredShowtimes.length === 0 ? (
                   <div className="h-64 flex flex-col items-center justify-center text-[#888] text-[13px]">
@@ -1053,94 +1108,32 @@ export default function StaffPosPage() {
                     {catalog.combos.map((combo) => {
                       const inCart = productCart.get(combo.comboId);
                       const qty = inCart ? inCart.quantity : 0;
-                      const isOutOfStock = combo.availableStock <= 0;
 
                       return (
-                        <div
+                        <ConcessionCard
                           key={combo.comboId}
-                          className={`p-3.5 border transition-all ${
-                            qty > 0
-                              ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm"
-                              : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687]"
-                          }`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h5 className="font-bold text-[13px] text-[#231f20] uppercase">
-                                {combo.name}
-                              </h5>
-                              <p className="text-[11px] text-[#666] mt-0.5">
-                                {combo.items
-                                  .map((i) => `${i.name} x${i.quantity}`)
-                                  .join(" + ")}
-                              </p>
-                            </div>
-                            <span className="text-[13px] font-bold text-[#da291c]">
-                              {formatCurrency(combo.price)}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#efebdb]">
-                            <span className="text-[11px] text-[#666]">
-                              Tồn kho:{" "}
-                              <strong
-                                className={
-                                  combo.availableStock <= 5
-                                    ? "text-[#da291c]"
-                                    : "text-[#231f20]"
-                                }
-                              >
-                                {combo.availableStock}
-                              </strong>
-                            </span>
-
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                disabled={qty <= 0}
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: combo.comboId,
-                                      name: combo.name,
-                                      price: combo.price,
-                                      maxStock: combo.availableStock,
-                                      isCombo: true,
-                                    },
-                                    -1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#efebdb] border border-[#dad2b4] text-[#231f20] hover:bg-[#dad2b4] disabled:opacity-40 text-sm font-bold flex items-center justify-center cursor-pointer"
-                              >
-                                -
-                              </button>
-                              <span className="font-bold text-xs w-6 text-center font-mono">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={
-                                  isOutOfStock || qty >= combo.availableStock
-                                }
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: combo.comboId,
-                                      name: combo.name,
-                                      price: combo.price,
-                                      maxStock: combo.availableStock,
-                                      isCombo: true,
-                                    },
-                                    1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#da291c] hover:bg-[#b91c1c] disabled:opacity-40 text-sm font-bold flex items-center justify-center text-white cursor-pointer"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                          id={combo.comboId}
+                          name={combo.name}
+                          price={combo.price}
+                          stock={combo.availableStock}
+                          imageUrl={combo.imageUrl}
+                          description={combo.description}
+                          comboItems={combo.items}
+                          isCombo
+                          quantity={qty}
+                          onQuantityChange={(delta) =>
+                            updateProductQuantity(
+                              {
+                                id: combo.comboId,
+                                name: combo.name,
+                                price: combo.price,
+                                maxStock: combo.availableStock,
+                                isCombo: true,
+                              },
+                              delta,
+                            )
+                          }
+                        />
                       );
                     })}
                   </div>
@@ -1158,94 +1151,32 @@ export default function StaffPosPage() {
                     {catalog.items.map((item) => {
                       const inCart = productCart.get(item.itemId);
                       const qty = inCart ? inCart.quantity : 0;
-                      const isOutOfStock = item.stockQuantity <= 0;
 
                       return (
-                        <div
+                        <ConcessionCard
                           key={item.itemId}
-                          className={`p-3.5 border transition-all ${
-                            qty > 0
-                              ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm"
-                              : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687]"
-                          }`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h5 className="font-bold text-[13px] text-[#231f20]">
-                                {item.name}
-                              </h5>
-                              <p className="text-[11px] text-[#666] mt-0.5">
-                                {item.size
-                                  ? `Size: ${item.size}`
-                                  : item.category}
-                              </p>
-                            </div>
-                            <span className="text-[13px] font-bold text-[#15803d]">
-                              {formatCurrency(item.price)}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#efebdb]">
-                            <span className="text-[11px] text-[#666]">
-                              Kho:{" "}
-                              <strong
-                                className={
-                                  item.stockQuantity <= 5
-                                    ? "text-[#da291c]"
-                                    : "text-[#231f20]"
-                                }
-                              >
-                                {item.stockQuantity}
-                              </strong>
-                            </span>
-
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                disabled={qty <= 0}
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: item.itemId,
-                                      name: item.name,
-                                      price: item.price,
-                                      maxStock: item.stockQuantity,
-                                      isCombo: false,
-                                    },
-                                    -1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#efebdb] border border-[#dad2b4] text-[#231f20] hover:bg-[#dad2b4] disabled:opacity-40 text-sm font-bold flex items-center justify-center cursor-pointer"
-                              >
-                                -
-                              </button>
-                              <span className="font-bold text-xs w-6 text-center font-mono">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={
-                                  isOutOfStock || qty >= item.stockQuantity
-                                }
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: item.itemId,
-                                      name: item.name,
-                                      price: item.price,
-                                      maxStock: item.stockQuantity,
-                                      isCombo: false,
-                                    },
-                                    1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#da291c] hover:bg-[#b91c1c] disabled:opacity-40 text-sm font-bold flex items-center justify-center text-white cursor-pointer"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                          id={item.itemId}
+                          name={item.name}
+                          price={item.price}
+                          stock={item.stockQuantity}
+                          imageUrl={item.imageUrl}
+                          category={item.category}
+                          size={item.size}
+                          description={item.description}
+                          quantity={qty}
+                          onQuantityChange={(delta) =>
+                            updateProductQuantity(
+                              {
+                                id: item.itemId,
+                                name: item.name,
+                                price: item.price,
+                                maxStock: item.stockQuantity,
+                                isCombo: false,
+                              },
+                              delta,
+                            )
+                          }
+                        />
                       );
                     })}
                   </div>
@@ -1263,12 +1194,19 @@ export default function StaffPosPage() {
               <ShoppingCart className="h-4 w-4 text-[#da291c]" />
               <span>CHI TIẾT ĐƠN HÀNG</span>
             </h3>
-            {pendingOrder && (
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-[#fff8f8] text-[#da291c] border border-[#da291c]">
-                PENDING #
-                {pendingOrder.orderCode || pendingOrder.orderId.slice(-6)}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {selectedSeatIds.length === 0 && productCart.size > 0 && !pendingOrder && (
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-[#f0fdf4] text-[#15803d] border border-[#bbf7d0]">
+                  ĐƠN F&B LẺ
+                </span>
+              )}
+              {pendingOrder && (
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-[#fff8f8] text-[#da291c] border border-[#da291c]">
+                  PENDING #
+                  {pendingOrder.orderCode || pendingOrder.orderId.slice(-6)}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Danh sách mục đã chọn */}
@@ -1286,7 +1224,13 @@ export default function StaffPosPage() {
               </div>
 
               {selectedSeatObjects.length === 0 ? (
-                <p className="text-xs text-[#888] italic">Chưa chọn ghế nào</p>
+                productCart.size > 0 ? (
+                  <p className="text-xs text-[#15803d] font-semibold italic">
+                    Đơn F&B lẻ (không kèm vé phim)
+                  </p>
+                ) : (
+                  <p className="text-xs text-[#888] italic">Chưa chọn ghế nào</p>
+                )
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {selectedSeatObjects.map((s) => (
@@ -1335,6 +1279,65 @@ export default function StaffPosPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Thông tin Khách hàng (Tùy chọn: Bỏ qua / Vãng lai hoặc Thành viên) */}
+            <div className="bg-[#fcfbfa] p-3 border border-[#dad2b4]">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-[#6f6247] uppercase flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-[#da291c]" />
+                  Khách hàng
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsGuestCustomer(true);
+                      setCustomerPhone("");
+                    }}
+                    className={`px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                      isGuestCustomer
+                        ? "bg-[#231f20] text-white border-[#231f20]"
+                        : "bg-white text-[#666] border-[#dad2b4] hover:bg-[#efebdb]"
+                    }`}
+                  >
+                    Bỏ qua (Vãng lai)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsGuestCustomer(false)}
+                    className={`px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
+                      !isGuestCustomer
+                        ? "bg-[#da291c] text-white border-[#da291c]"
+                        : "bg-white text-[#666] border-[#dad2b4] hover:bg-[#efebdb]"
+                    }`}
+                  >
+                    Thành viên
+                  </button>
+                </div>
+              </div>
+
+              {!isGuestCustomer ? (
+                <div className="space-y-1 mt-2">
+                  <input
+                    type="text"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="Nhập SĐT khách hàng tích điểm..."
+                    className="w-full bg-white border border-[#dad2b4] px-2.5 py-1 text-xs text-[#231f20] placeholder-[#888] focus:outline-none focus:border-[#da291c] font-mono"
+                  />
+                  {customerPhone.trim() && (
+                    <p className="text-[10px] text-[#15803d] font-semibold flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Ghi nhận SĐT: {customerPhone.trim()}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[11px] text-[#888] italic">
+                  Khách vãng lai (không lưu thông tin)
+                </p>
               )}
             </div>
 
@@ -1531,7 +1534,7 @@ export default function StaffPosPage() {
                   </div>
                 ) : (
                   <p className="text-center text-xs text-[#888] py-4">
-                    Bấm &quot;Tạo đơn giữ chỗ&quot; để sinh mã QR thanh toán
+                    Bấm &quot;Tạo đơn&quot; để sinh mã QR thanh toán
                   </p>
                 )}
               </div>
@@ -1545,7 +1548,9 @@ export default function StaffPosPage() {
                 onClick={() => setIsCancelDialogOpen(true)}
                 disabled={
                   actionLoading ||
-                  (!pendingOrder && selectedSeatIds.length === 0)
+                  (!pendingOrder &&
+                    selectedSeatIds.length === 0 &&
+                    productCart.size === 0)
                 }
                 className="py-3 bg-[#efebdb] border border-[#dad2b4] text-[#6f6247] hover:bg-[#fee2e2] hover:text-[#da291c] hover:border-[#fca5a5] disabled:opacity-40 text-xs font-bold transition-colors cursor-pointer"
                 title="Hủy đơn (Esc)"
@@ -1558,11 +1563,27 @@ export default function StaffPosPage() {
                 <button
                   type="button"
                   onClick={handleCreateBookingOrder}
-                  disabled={actionLoading || selectedSeatIds.length === 0}
-                  className="col-span-2 py-3 bg-[#d97706] hover:bg-[#b45309] disabled:opacity-40 text-white text-xs font-black shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  disabled={
+                    actionLoading ||
+                    (selectedSeatIds.length === 0 && productCart.size === 0)
+                  }
+                  className={`col-span-2 py-3 disabled:opacity-40 text-white text-xs font-black shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-2 ${
+                    selectedSeatIds.length === 0 && productCart.size > 0
+                      ? "bg-[#15803d] hover:bg-[#166534]"
+                      : "bg-[#d97706] hover:bg-[#b45309]"
+                  }`}
                 >
-                  <Clock className="h-4 w-4" />
-                  GIỮ CHỖ & TIẾP TỤC
+                  {selectedSeatIds.length === 0 && productCart.size > 0 ? (
+                    <>
+                      <Popcorn className="h-4 w-4" />
+                      TẠO ĐƠN & TIẾP TỤC (F&B)
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-4 w-4" />
+                      GIỮ CHỖ & TIẾP TỤC
+                    </>
+                  )}
                 </button>
               ) : (
                 <button
@@ -1579,7 +1600,9 @@ export default function StaffPosPage() {
                   className="col-span-2 py-3 bg-[#da291c] hover:bg-[#b91c1c] disabled:opacity-40 text-white text-xs font-black shadow-md transition-colors cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Receipt className="h-4 w-4" />
-                  THU TIỀN & IN VÉ (F10)
+                  {selectedSeatIds.length === 0 && productCart.size > 0
+                    ? "THU TIỀN & IN HÓA ĐƠN F&B (F10)"
+                    : "THU TIỀN & IN VÉ (F10)"}
                 </button>
               )}
             </div>
@@ -1603,11 +1626,14 @@ export default function StaffPosPage() {
               <AlertTriangle className="h-6 w-6" />
             </div>
             <h4 className="font-bold text-base text-[#231f20]">
-              Xác nhận hủy phiên bán vé?
+              {selectedSeatIds.length === 0 && productCart.size > 0
+                ? "Xác nhận hủy đơn bắp nước?"
+                : "Xác nhận hủy phiên bán vé?"}
             </h4>
             <p className="text-xs text-[#666] mt-1.5 leading-relaxed">
-              Toàn bộ ghế đang chọn hoặc đang giữ chỗ cho khách sẽ được giải
-              phóng ngay lập tức trên hệ thống rạp.
+              {selectedSeatIds.length === 0 && productCart.size > 0
+                ? "Đơn hàng bắp nước chưa thanh toán sẽ được hủy bỏ ngay lập tức."
+                : "Toàn bộ ghế đang chọn hoặc đang giữ chỗ cho khách sẽ được giải phóng ngay lập tức trên hệ thống rạp."}
             </p>
             <div className="mt-5 flex items-center justify-end gap-2.5">
               <button

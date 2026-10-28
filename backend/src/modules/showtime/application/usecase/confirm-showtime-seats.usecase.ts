@@ -14,6 +14,9 @@ export interface ConfirmShowtimeSeatsUsecase {
    * @returns Số lượng ghế thực tế đã chuyển sang BOOKED
    * @throws ConflictException khi số ghế cập nhật không khớp số lượng yêu cầu
    */
-  confirmSeats(seatShowtimeIds: string[], session?: ClientSession): Promise<number>;
+  confirmSeats(
+    seatShowtimeIds: string[],
+    session?: ClientSession,
+  ): Promise<number>;
 }
 import { ClientSession } from 'mongoose';

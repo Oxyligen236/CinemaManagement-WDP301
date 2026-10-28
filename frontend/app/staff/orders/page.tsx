@@ -15,6 +15,8 @@ import {
   RotateCcw,
   Eye,
   AlertCircle,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
 
 export default function StaffOrdersPage() {
@@ -26,11 +28,18 @@ export default function StaffOrdersPage() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Detail Modal
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<OrderDetail | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Cancel order state
+  const [cancellingOrder, setCancellingOrder] = useState<OrderSummary | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -67,7 +76,7 @@ export default function StaffOrdersPage() {
     return () => {
       ignore = true;
     };
-  }, [page, limit, status, selectedDate]);
+  }, [page, limit, status, selectedDate, refreshKey]);
 
   const handleOpenDetail = async (orderId: string) => {
     setIsLoadingDetail(true);
@@ -79,6 +88,22 @@ export default function StaffOrdersPage() {
       alert('Không thể tải chi tiết đơn hàng từ máy chủ.');
     } finally {
       setIsLoadingDetail(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!cancellingOrder) return;
+    try {
+      setIsCancelling(true);
+      setCancelError(null);
+      await orderApi.cancelStaffOrder(cancellingOrder.orderId, cancelReason.trim() || undefined);
+      setCancellingOrder(null);
+      setCancelReason('');
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      setCancelError(err instanceof Error ? err.message : 'Hủy đơn hàng thất bại');
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -111,6 +136,7 @@ export default function StaffOrdersPage() {
             type="button"
             onClick={() => {
               setPage(1);
+              setRefreshKey((k) => k + 1);
             }}
             className="inline-flex h-[38px] items-center gap-1.5 border border-[#dad2b4] bg-white px-3 text-[12px] font-bold text-[#231f20] hover:bg-[#efebdb] transition-colors cursor-pointer"
             title="Làm mới danh sách"
@@ -187,7 +213,7 @@ export default function StaffOrdersPage() {
 
       {/* 3. Table Orders */}
       {isLoading ? (
-        <TableSkeleton rows={5} cols={7} />
+        <TableSkeleton rows={5} cols={8} />
       ) : orders.length === 0 ? (
         <div className="p-10 text-center bg-white border border-[#dad2b4] space-y-2">
           <p className="text-[14px] font-bold text-[#231f20]">Không tìm thấy đơn hàng quầy nào</p>
@@ -200,6 +226,7 @@ export default function StaffOrdersPage() {
               <thead className="bg-[#efebdb] border-b border-[#dad2b4] text-[11px] font-bold uppercase tracking-wider text-[#6f6247]">
                 <tr>
                   <th className="px-4 py-3">Mã đơn hàng</th>
+                  <th className="px-4 py-3">Chi nhánh / Rạp</th>
                   <th className="px-4 py-3">Thời gian tạo</th>
                   <th className="px-4 py-3 text-center">Vé xem phim</th>
                   <th className="px-4 py-3 text-center">F&B Bắp nước</th>
@@ -213,6 +240,9 @@ export default function StaffOrdersPage() {
                   <tr key={o.orderId} className="hover:bg-[#fcfbfa] transition-colors">
                     <td className="px-4 py-3.5 font-mono font-bold text-xs text-[#231f20]">
                       #{o.orderId.slice(0, 8).toUpperCase()}
+                    </td>
+                    <td className="px-4 py-3.5 text-xs text-[#231f20] font-medium">
+                      {o.branchName || '-'}
                     </td>
                     <td className="px-4 py-3.5 text-xs text-[#666]">
                       {formatDateTime(o.createdAt)}
@@ -242,15 +272,31 @@ export default function StaffOrdersPage() {
                       <OrderStatusBadge status={o.status} />
                     </td>
                     <td className="px-4 py-3.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetail(o.orderId)}
-                        disabled={isLoadingDetail && selectedOrderDetail?.orderId === o.orderId}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] hover:text-[#231f20] text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>Chi tiết F&B + Vé</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {o.status === 'PENDING' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCancellingOrder(o);
+                              setCancelReason('');
+                              setCancelError(null);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-red-300 bg-white text-status-danger hover:bg-red-50 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                            <span>Hủy đơn</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetail(o.orderId)}
+                          disabled={isLoadingDetail && selectedOrderDetail?.orderId === o.orderId}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] hover:text-[#231f20] text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Chi tiết F&B + Vé</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -295,7 +341,89 @@ export default function StaffOrdersPage() {
           setSelectedOrderDetail(null);
         }}
         order={selectedOrderDetail}
+        mode="staff"
+        onOrderUpdated={() => setRefreshKey((k) => k + 1)}
       />
+
+      {/* Modal xác nhận hủy đơn (Staff) */}
+      {cancellingOrder && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-sans animate-in fade-in duration-150"
+        >
+          <div className="bg-white w-full max-w-md border border-[#dad2b4] p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-red-100 text-[#da291c] rounded-full shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-[16px] text-[#231f20]">
+                  Xác nhận hủy đơn hàng quầy
+                </h4>
+                <p className="text-[12px] text-[#666] font-mono mt-0.5">
+                  Mã đơn: #{cancellingOrder.orderId.slice(0, 8).toUpperCase()}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[13px] text-[#555] leading-relaxed">
+              Nhân viên có chắc chắn muốn hủy đơn hàng này không? Ghế và các sản phẩm F&B trong đơn sẽ được hoàn lại kho ngay lập tức.
+            </p>
+
+            <div>
+              <label className="block text-[12px] font-bold text-[#231f20] mb-1.5">
+                Lý do hủy đơn (tùy chọn)
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Nhập lý do hủy giao dịch..."
+                rows={3}
+                className="w-full text-[13px] border border-[#dad2b4] p-2.5 bg-[#fcfbfa] text-[#231f20] placeholder:text-[#999] focus:outline-none focus:border-[#da291c] transition-all resize-none"
+              />
+            </div>
+
+            {cancelError && (
+              <p className="text-[12px] text-[#991b1b] bg-[#fee2e2] p-2.5 border border-[#f87171]">
+                {cancelError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={() => {
+                  setCancellingOrder(null);
+                  setCancelError(null);
+                }}
+                className="px-4 py-2 text-[12px] font-bold uppercase tracking-wider border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={handleCancelOrder}
+                className="px-4 py-2 text-[12px] font-bold uppercase tracking-wider bg-[#da291c] hover:bg-[#b82116] text-white transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang hủy...</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4" />
+                    <span>Xác nhận hủy</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

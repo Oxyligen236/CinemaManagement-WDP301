@@ -675,6 +675,19 @@ export class ItemService
     };
   }
 
+  private resolveImageUrl(
+    image: string | null | undefined,
+  ): string | undefined {
+    if (!image) return undefined;
+    const value = image.trim();
+    if (!value) return undefined;
+    if (/^https?:\/\//i.test(value)) return value;
+    const base = process.env.STORAGE_PUBLIC_URL?.trim().replace(/\/+$/, '');
+    if (!base) return undefined;
+    const key = value.replace(/^\/+/, '');
+    return key ? `${base}/${key}` : undefined;
+  }
+
   async getProductsByIds(
     productIds: string[],
   ): Promise<Map<string, ProductSummaryRes>> {
@@ -691,7 +704,7 @@ export class ItemService
       map.set(item.itemId, {
         productId: item.itemId,
         productName: item.name,
-        imageUrl: item.imageKey || undefined,
+        imageUrl: this.resolveImageUrl(item.imageKey),
         unitPrice: item.price,
         branchId: item.branchId,
       });
@@ -707,7 +720,7 @@ export class ItemService
         map.set(combo.comboId, {
           productId: combo.comboId,
           productName: combo.name,
-          imageUrl: combo.imageKey || undefined,
+          imageUrl: this.resolveImageUrl(combo.imageKey),
           unitPrice: combo.price,
           branchId: combo.branchId,
         });

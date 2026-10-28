@@ -9,6 +9,10 @@ import { Showtime, ShowtimeDocument } from '../domain/schemas/showtime.schema';
 import { Movie, MovieDocument } from '../../movie/domain/schemas/movie.schema';
 import { Room, RoomDocument } from '../../room/domain/schemas/room.schema';
 import { Seat, SeatDocument } from '../../room/domain/schemas/seat.schema';
+import {
+  Branch,
+  BranchDocument,
+} from '../../branch/domain/schemas/branch.schema';
 import { SeatShowtimeDetailDto, ShowtimeContract } from './showtime.contract';
 
 @Injectable()
@@ -21,6 +25,8 @@ export class ShowtimeContractImpl implements ShowtimeContract {
     @InjectModel(Movie.name) private readonly movieModel: Model<MovieDocument>,
     @InjectModel(Room.name) private readonly roomModel: Model<RoomDocument>,
     @InjectModel(Seat.name) private readonly seatModel: Model<SeatDocument>,
+    @InjectModel(Branch.name)
+    private readonly branchModel: Model<BranchDocument>,
   ) {}
 
   async getSeatShowtimeDetail(
@@ -44,6 +50,10 @@ export class ShowtimeContractImpl implements ShowtimeContract {
       this.roomModel.findOne({ roomId: showtime.roomId }).lean().exec(),
     ]);
     if (!movie || !room) return null;
+    const branch = await this.branchModel
+      .findOne({ branchId: room.branchId })
+      .lean()
+      .exec();
     return {
       seatShowtimeId: seatShowtime.seatShowtimeId,
       showtimeId: showtime.showtimeId,
@@ -57,6 +67,9 @@ export class ShowtimeContractImpl implements ShowtimeContract {
       price: showtime.basePrice,
       startTime: showtime.startTime,
       endTime: showtime.endTime,
+      branchId: room.branchId,
+      branchName: branch?.branchName ?? '',
+      branchAddress: branch?.address,
     };
   }
 }

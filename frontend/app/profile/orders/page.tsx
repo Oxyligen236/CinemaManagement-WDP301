@@ -20,6 +20,9 @@ import {
   ShieldCheck,
   AlertTriangle,
   CreditCard,
+  Building2,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
 
 export default function CustomerOrderHistoryPage() {
@@ -38,6 +41,12 @@ export default function CustomerOrderHistoryPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Cancel order state
+  const [cancellingOrder, setCancellingOrder] = useState<OrderSummary | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('cinema_access_token') || localStorage.getItem('access_token');
@@ -77,6 +86,22 @@ export default function CustomerOrderHistoryPage() {
       isCancelled = true;
     };
   }, [page, limit, status, reloadKey, router]);
+
+  const handleCancelOrder = async () => {
+    if (!cancellingOrder) return;
+    try {
+      setIsCancelling(true);
+      setCancelError(null);
+      await orderApi.cancelOrder(cancellingOrder.orderId, cancelReason.trim() || undefined);
+      setCancellingOrder(null);
+      setCancelReason('');
+      setReloadKey((k) => k + 1);
+    } catch (err: unknown) {
+      setCancelError(err instanceof Error ? err.message : 'Hủy đơn hàng thất bại');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const handleOpenDetail = async (orderId: string) => {
     setIsLoadingDetail(true);
@@ -270,6 +295,12 @@ export default function CustomerOrderHistoryPage() {
                     <Calendar className="h-3.5 w-3.5 text-[#6f6247]" />
                     <span>Thời gian đặt: {formatDateTime(order.createdAt)}</span>
                   </p>
+                  {order.branchName && (
+                    <p className="text-[12px] text-[#6f6247] flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-[#da291c]" />
+                      <span className="font-semibold text-[#231f20]">{order.branchName}</span>
+                    </p>
+                  )}
                   <div className="flex items-center gap-3 text-[12px] text-[#6f6247]">
                     <span className="flex items-center gap-1">
                       <Ticket className="h-3.5 w-3.5 text-[#da291c]" />
@@ -293,13 +324,27 @@ export default function CustomerOrderHistoryPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {order.status === 'PENDING' && (
-                      <Link
-                        href={`/booking/summary/${order.orderId}`}
-                        className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#efebdb] hover:bg-[#dad2b4] text-[#6f6247] hover:text-[#231f20] border border-[#dad2b4] px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
-                      >
-                        <CreditCard className="w-3.5 h-3.5 text-[#da291c]" />
-                        <span>Thanh toán ngay</span>
-                      </Link>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCancellingOrder(order);
+                            setCancelReason('');
+                            setCancelError(null);
+                          }}
+                          className="inline-flex h-10 items-center justify-center gap-1.5 bg-white hover:bg-red-50 text-status-danger hover:text-red-800 border border-red-300 px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Hủy đơn</span>
+                        </button>
+                        <Link
+                          href={`/booking/summary/${order.orderId}`}
+                          className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#efebdb] hover:bg-[#dad2b4] text-[#6f6247] hover:text-[#231f20] border border-[#dad2b4] px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
+                        >
+                          <CreditCard className="w-3.5 h-3.5 text-[#da291c]" />
+                          <span>Thanh toán ngay</span>
+                        </Link>
+                      </>
                     )}
                     <button
                       type="button"
@@ -370,7 +415,88 @@ export default function CustomerOrderHistoryPage() {
           }}
           order={selectedOrderDetail}
           mode="customer"
+          onOrderUpdated={() => setReloadKey((k) => k + 1)}
         />
+
+        {/* Modal xác nhận hủy đơn */}
+        {cancellingOrder && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-sans animate-in fade-in duration-150"
+          >
+            <div className="bg-white w-full max-w-md border border-[#dad2b4] p-5 sm:p-6 shadow-2xl space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-red-100 text-[#da291c] rounded-full shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-[16px] text-[#231f20]">
+                    Xác nhận hủy đơn hàng
+                  </h4>
+                  <p className="text-[12px] text-[#666] font-mono mt-0.5">
+                    Mã đơn: #{cancellingOrder.orderId.slice(0, 8).toUpperCase()}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-[13px] text-[#555] leading-relaxed">
+                Bạn có chắc chắn muốn hủy đơn hàng này không? Ghế và các dịch vụ giữ chỗ sẽ được giải phóng ngay lập tức.
+              </p>
+
+              <div>
+                <label className="block text-[12px] font-bold text-[#231f20] mb-1.5">
+                  Lý do hủy (không bắt buộc)
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Nhập lý do bạn muốn hủy đơn..."
+                  rows={3}
+                  className="w-full text-[13px] border border-[#dad2b4] p-2.5 bg-[#fcfbfa] text-[#231f20] placeholder:text-[#999] focus:outline-none focus:border-[#da291c] transition-all resize-none"
+                />
+              </div>
+
+              {cancelError && (
+                <p className="text-[12px] text-[#991b1b] bg-[#fee2e2] p-2.5 border border-[#f87171]">
+                  {cancelError}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={isCancelling}
+                  onClick={() => {
+                    setCancellingOrder(null);
+                    setCancelError(null);
+                  }}
+                  className="px-4 py-2 text-[12px] font-bold uppercase tracking-wider border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Không, giữ đơn
+                </button>
+                <button
+                  type="button"
+                  disabled={isCancelling}
+                  onClick={handleCancelOrder}
+                  className="px-4 py-2 text-[12px] font-bold uppercase tracking-wider bg-[#da291c] hover:bg-[#b82116] text-white transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isCancelling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Đang hủy...</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-4 h-4" />
+                      <span>Xác nhận hủy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

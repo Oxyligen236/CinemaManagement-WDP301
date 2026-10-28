@@ -148,6 +148,94 @@ describe('ProductService', () => {
       expect(result.combos[0].availableStock).toBe(10);
     });
 
+    it('trả imageUrl tuyệt đối, chuẩn hóa key có slash và bỏ raw key khi thiếu base URL', async () => {
+      const previousPublicUrl = process.env.STORAGE_PUBLIC_URL;
+      process.env.STORAGE_PUBLIC_URL = 'https://cdn.example.test/';
+      mockBranchModel.findOne.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue({
+            branchId: 'BRANCH-1',
+            branchStatus: BranchStatus.ACTIVE,
+          }),
+        }),
+      });
+      const items = [
+        {
+          itemId: 'ITEM-1',
+          name: 'Item',
+          category: ItemCategory.POPCORN,
+          price: 1,
+          stockQuantity: 2,
+          status: ItemStatus.AVAILABLE,
+          imageKey: '/items/item.png',
+        },
+        {
+          itemId: 'ITEM-2',
+          name: 'Item absolute',
+          category: ItemCategory.POPCORN,
+          price: 1,
+          stockQuantity: 2,
+          status: ItemStatus.AVAILABLE,
+          imageKey: 'https://images.example.test/item.png',
+        },
+      ];
+      mockItemModel.find
+        .mockReturnValueOnce({
+          sort: jest.fn().mockReturnValue({
+            lean: jest
+              .fn()
+              .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+          }),
+        })
+        .mockReturnValueOnce({
+          lean: jest
+            .fn()
+            .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+        });
+      mockComboModel.find.mockReturnValue({
+        lean: jest
+          .fn()
+          .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
+      });
+
+      try {
+        const result = await service.getBranchConcessions('BRANCH-1');
+        expect(result.items.map((item) => item.imageUrl)).toEqual([
+          'https://cdn.example.test/items/item.png',
+          'https://images.example.test/item.png',
+        ]);
+        delete process.env.STORAGE_PUBLIC_URL;
+        mockItemModel.find
+          .mockReturnValueOnce({
+            sort: jest.fn().mockReturnValue({
+              lean: jest
+                .fn()
+                .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+            }),
+          })
+          .mockReturnValueOnce({
+            lean: jest
+              .fn()
+              .mockReturnValue({ exec: jest.fn().mockResolvedValue(items) }),
+          });
+        mockComboModel.find.mockReturnValue({
+          lean: jest
+            .fn()
+            .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
+        });
+        const unsetImageUrlResult =
+          await service.getBranchConcessions('BRANCH-1');
+        expect(unsetImageUrlResult.items.map((item) => item.imageUrl)).toEqual([
+          null,
+          'https://images.example.test/item.png',
+        ]);
+      } finally {
+        if (previousPublicUrl === undefined)
+          delete process.env.STORAGE_PUBLIC_URL;
+        else process.env.STORAGE_PUBLIC_URL = previousPublicUrl;
+      }
+    });
+
     it('bỏ qua combo nếu có món con không đủ tồn kho hoặc không khả dụng', async () => {
       mockBranchModel.findOne.mockReturnValue({
         lean: jest.fn().mockReturnValue({
@@ -199,7 +287,7 @@ describe('ProductService', () => {
 
   describe('deductConcessionStock', () => {
     it('không thực hiện gì khi danh sách sản phẩm rỗng', async () => {
-      await service.deductConcessionStock( []);
+      await service.deductConcessionStock([]);
       expect(mockItemModel.find).not.toHaveBeenCalled();
     });
 
@@ -230,7 +318,7 @@ describe('ProductService', () => {
         }),
       });
 
-      await service.deductConcessionStock( [
+      await service.deductConcessionStock([
         { productId: 'ITEM-1', quantity: 2 },
       ]);
 
@@ -273,7 +361,7 @@ describe('ProductService', () => {
         exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       });
 
-      await service.deductConcessionStock( [
+      await service.deductConcessionStock([
         { productId: 'ITEM-1', quantity: 2 },
       ]);
 
@@ -313,7 +401,7 @@ describe('ProductService', () => {
       });
 
       // Mua 2 combo: ITEM-POPCORN cần trừ 2*2=4, ITEM-COKE cần trừ 1*2=2
-      await service.deductConcessionStock( [
+      await service.deductConcessionStock([
         { productId: 'COMBO-1', quantity: 2 },
       ]);
 
@@ -343,7 +431,7 @@ describe('ProductService', () => {
       });
 
       await expect(
-        service.deductConcessionStock( [
+        service.deductConcessionStock([
           { productId: 'UNKNOWN-ID', quantity: 1 },
         ]),
       ).rejects.toThrow(NotFoundException);
@@ -383,7 +471,7 @@ describe('ProductService', () => {
       });
 
       await expect(
-        service.deductConcessionStock( [{ productId: 'ITEM-1', quantity: 5 }]),
+        service.deductConcessionStock([{ productId: 'ITEM-1', quantity: 5 }]),
       ).rejects.toThrow(ConflictException);
     });
   });
@@ -399,5 +487,3 @@ describe('ProductService', () => {
     });
   });
 });
-
-

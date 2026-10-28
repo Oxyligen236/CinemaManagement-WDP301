@@ -104,15 +104,15 @@ export class PosProductItemReq {
 }
 
 export class CreatePosOrderReq {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  showtimeId!: string;
+  showtimeId?: string;
 
+  @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
   @ArrayUnique()
   @IsString({ each: true })
-  seatShowtimeIds!: string[];
+  seatShowtimeIds?: string[];
 
   @IsOptional()
   @IsArray()
@@ -133,6 +133,13 @@ export class InitiatePosQrPaymentReq {
 }
 
 export class CancelPosOrderReq {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  reason?: string;
+}
+
+export class CancelOrderReq {
   @IsOptional()
   @IsString()
   @MaxLength(255)

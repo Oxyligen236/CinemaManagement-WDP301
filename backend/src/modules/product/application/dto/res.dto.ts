@@ -132,6 +132,7 @@ export class BranchConcessionItemRes {
   price!: number;
   stockQuantity!: number;
   imageKey?: string | null;
+  imageUrl?: string | null;
   description?: string | null;
 }
 
@@ -147,6 +148,7 @@ export class BranchConcessionComboRes {
   price!: number;
   availableStock!: number;
   imageKey?: string | null;
+  imageUrl?: string | null;
   description?: string | null;
   items!: BranchConcessionComboItemRes[];
 }

@@ -1,5 +1,6 @@
 services:
   backend:
+    image: ghcr.io/oxyligen236/wdp-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -11,6 +12,7 @@ services:
       - "8010:8010"
 
   frontend:
+    image: ghcr.io/oxyligen236/wdp-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile

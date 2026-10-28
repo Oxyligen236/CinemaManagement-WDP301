@@ -176,13 +176,46 @@ describe('PosOrderService', () => {
   });
 
   describe('createPosBookingOrder', () => {
-    it('should throw BadRequestException if seatShowtimeIds is empty', async () => {
+    it('should throw BadRequestException if seatShowtimeIds is empty and products is empty', async () => {
       await expect(
         service.createPosBookingOrder(staffContext, {
           showtimeId: 'st-01',
           seatShowtimeIds: [],
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('cho phep dat don chi co F&B (khong co ghe)', async () => {
+      const prodMap = new Map();
+      prodMap.set('prod-1', {
+        productId: 'prod-1',
+        productName: 'Combo Solo',
+        unitPrice: 60000,
+        branchId: 'branch-hn-01',
+      });
+      (mockProductContract.getProductsByIds as jest.Mock).mockResolvedValue(
+        prodMap,
+      );
+      mockOrderModel.create.mockResolvedValue({});
+      mockProductOrderModel.insertMany.mockResolvedValue([]);
+
+      const result = await service.createPosBookingOrder(staffContext, {
+        products: [{ productId: 'prod-1', quantity: 2 }],
+      });
+
+      expect(result).toBeDefined();
+      expect(result.status).toBe(OrderStatus.PENDING);
+      expect(result.totalAmount).toBe(120000);
+      expect(result.seats).toHaveLength(0);
+      expect(mockShowtimeBooking.reserveSeats).not.toHaveBeenCalled();
+      expect(mockSeatOrderModel.insertMany).not.toHaveBeenCalled();
+      expect(mockOrderModel.create).toHaveBeenCalledWith({
+        orderId: expect.any(String),
+        userId: staffContext.staffId,
+        branchId: staffContext.branchId,
+        totalAmount: 120000,
+        status: OrderStatus.PENDING,
+      });
     });
 
     it('should throw ForbiddenException if reserved seats belong to different branch', async () => {
@@ -286,6 +319,7 @@ describe('PosOrderService', () => {
       const expectedCreatedOrder: Record<string, unknown> = {
         orderId: expect.any(String),
         userId: staffContext.staffId,
+        branchId: staffContext.branchId,
         totalAmount: 150000,
         status: OrderStatus.PENDING,
       };

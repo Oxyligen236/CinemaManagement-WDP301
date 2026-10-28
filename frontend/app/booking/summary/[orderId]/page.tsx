@@ -448,6 +448,11 @@ export default function BookingSummaryPage({
                     <p className="font-bold text-[#231f20]">
                       Latte Cinema Nam Sài Gòn
                     </p>
+                    {summary.branchAddress && (
+                      <p className="text-[12px] text-[#666]">
+                        {summary.branchAddress}
+                      </p>
+                    )}
                     <p className="text-[12px] text-[#666]">
                       {summary.roomName || "Phòng chiếu tiêu chuẩn"}
                     </p>

@@ -30,7 +30,13 @@ import {
 import { OrderCreatedEvent } from '../../domain/events/order-created.event';
 import { OrderExpiredEvent } from '../../domain/events/order-expired.event';
 import { OrderPaidEvent } from '../../domain/events/order-paid.event';
-import { PaymentContract, PAYMENT_CONTRACT } from '../../contracts/payment.contract';
+import { OrderCancelledEvent } from '../../domain/events/order-cancelled.event';
+import { Role } from '../../../auth/infra/decorators/role.decorator';
+import { BranchQueryService } from '../../../branch/application/services/branch-query.service';
+import {
+  PaymentContract,
+  PAYMENT_CONTRACT,
+} from '../../contracts/payment.contract';
 import {
   TicketContract,
   TICKET_CONTRACT,
@@ -58,6 +64,7 @@ import {
 } from '../../../infra/event/application/internal-event-bus.interface';
 import {
   ApplyPromotionReq,
+  CancelOrderReq,
   CreateBookingOrderReq,
   QueryAdminOrdersReq,
   QueryMyOrdersReq,
@@ -67,6 +74,7 @@ import {
   BookingProductRes,
   BookingSeatRes,
   BookingSummaryRes,
+  CancelOrderRes,
   OrderDetailRes,
   OrderItemProductRes,
   OrderItemTicketRes,
@@ -81,6 +89,7 @@ import { GetMyOrderHistoryUsecase } from '../usecase/get-my-order-history.usecas
 import { GetOrderDetailUsecase } from '../usecase/get-order-detail.usecase';
 import { QueryStaffOrdersUsecase } from '../usecase/query-staff-orders.usecase';
 import { QueryAdminOrdersUsecase } from '../usecase/query-admin-orders.usecase';
+import { CancelOrderUsecase } from '../usecase/cancel-order.usecase';
 
 @Injectable()
 export class OrderService
@@ -92,7 +101,8 @@ export class OrderService
     GetMyOrderHistoryUsecase,
     GetOrderDetailUsecase,
     QueryStaffOrdersUsecase,
-    QueryAdminOrdersUsecase
+    QueryAdminOrdersUsecase,
+    CancelOrderUsecase
 {
   private readonly logger = new Logger(OrderService.name);
 
@@ -118,16 +128,28 @@ export class OrderService
     private readonly queueService: QueueService,
     @Inject(INTERNAL_EVENT_BUS)
     private readonly internalEventBus: InternalEventBus,
+    private readonly branchQueryService: BranchQueryService,
   ) {}
 
   async createVnpayPayment(userId: string, orderId: string, ipAddr: string) {
     const order = await this.orderModel.findOne({ orderId }).exec();
-    if (!order) throw new NotFoundException(`Order with ID ${orderId} not found`);
-    if (order.userId !== userId) throw new ForbiddenException('You do not have access to this order');
-    if (order.status !== OrderStatus.PENDING) throw new BadRequestException('Đơn hàng không ở trạng thái chờ thanh toán');
+    if (!order)
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    if (order.userId !== userId)
+      throw new ForbiddenException('You do not have access to this order');
+    if (order.status !== OrderStatus.PENDING)
+      throw new BadRequestException(
+        'Đơn hàng không ở trạng thái chờ thanh toán',
+      );
     const returnUrl = process.env.VNPAY_RETURN_URL;
-    if (!returnUrl) throw new BadRequestException('VNPAY_RETURN_URL chưa được cấu hình');
-    return this.paymentContract.createVnpayPayment({ orderId, amount: order.totalAmount, ipAddr, returnUrl });
+    if (!returnUrl)
+      throw new BadRequestException('VNPAY_RETURN_URL chưa được cấu hình');
+    return this.paymentContract.createVnpayPayment({
+      orderId,
+      amount: order.totalAmount,
+      ipAddr,
+      returnUrl,
+    });
   }
 
   async handleVnpayReturn(query: Record<string, string | string[]>) {
@@ -140,7 +162,8 @@ export class OrderService
 
   async handleVnpayIpn(query: Record<string, string | string[]>) {
     const result = await this.paymentContract.verifyVnpayIpn(query);
-    if (result.RspCode !== '00' || !result.isSuccess || !result.orderId) return result;
+    if (result.RspCode !== '00' || !result.isSuccess || !result.orderId)
+      return result;
     await this.fulfillVnpayOrder(result.orderId);
     return { RspCode: '00', Message: 'Confirm Success' };
   }
@@ -150,37 +173,82 @@ export class OrderService
     if (!order) {
       return { RspCode: '01', Message: 'Order not found' };
     }
-    if (order.status === OrderStatus.PAID) return { RspCode: '00', Message: 'Confirm Success' };
-    if (order.status !== OrderStatus.PENDING) return { RspCode: '02', Message: 'Order not pending' };
+    if (order.status === OrderStatus.PAID)
+      return { RspCode: '00', Message: 'Confirm Success' };
+    if (order.status !== OrderStatus.PENDING)
+      return { RspCode: '02', Message: 'Order not pending' };
 
-    const seatOrders = await this.seatOrderModel.find({ orderId: order.orderId }).lean().exec();
+    const seatOrders = await this.seatOrderModel
+      .find({ orderId: order.orderId })
+      .lean()
+      .exec();
     const seatShowtimeIds = seatOrders.map((seat) => seat.seatShowtimeId);
     const session = await this.connection.startSession();
     try {
       await session.withTransaction(async () => {
-        const currentOrder = await this.orderModel.findOne({ orderId: order.orderId }).session(session).exec();
+        const currentOrder = await this.orderModel
+          .findOne({ orderId: order.orderId })
+          .session(session)
+          .exec();
         if (currentOrder?.status === OrderStatus.PAID) return;
-        if (!currentOrder || currentOrder.status !== OrderStatus.PENDING) throw new ConflictException('Order is not pending');
-        const seatOrdersInTx = await this.seatOrderModel.find({ orderId: order.orderId }).session(session).lean().exec();
-        const seatIds = seatOrdersInTx.map(({ seatShowtimeId }) => seatShowtimeId);
-        await this.showtimeBookingService.confirmSeats(seatIds, session);
-        await this.ticketContract.createTicketsForOrder({ orderId: order.orderId, seatShowtimeIds: seatIds }, session);
-        const productsInTx = await this.productOrderModel.find({ orderId: order.orderId }).session(session).lean().exec();
-        if (productsInTx.length) await this.productContract.deductConcessionStock(productsInTx.map(({ productId, quantity }) => ({ productId, quantity })), session);
-        const update = await this.orderModel.updateOne(
-          { orderId: order.orderId, status: OrderStatus.PENDING },
-          { $set: { status: OrderStatus.PAID } },
-          { session },
-        ).exec();
-        if (update.modifiedCount !== 1) throw new ConflictException('Could not confirm order');
+        if (!currentOrder || currentOrder.status !== OrderStatus.PENDING)
+          throw new ConflictException('Order is not pending');
+        const seatOrdersInTx = await this.seatOrderModel
+          .find({ orderId: order.orderId })
+          .session(session)
+          .lean()
+          .exec();
+        const seatIds = seatOrdersInTx.map(
+          ({ seatShowtimeId }) => seatShowtimeId,
+        );
+        if (seatIds.length > 0) {
+          await this.showtimeBookingService.confirmSeats(seatIds, session);
+          await this.ticketContract.createTicketsForOrder(
+            { orderId: order.orderId, seatShowtimeIds: seatIds },
+            session,
+          );
+        }
+        const productsInTx = await this.productOrderModel
+          .find({ orderId: order.orderId })
+          .session(session)
+          .lean()
+          .exec();
+        if (productsInTx.length)
+          await this.productContract.deductConcessionStock(
+            productsInTx.map(({ productId, quantity }) => ({
+              productId,
+              quantity,
+            })),
+            session,
+          );
+        const update = await this.orderModel
+          .updateOne(
+            { orderId: order.orderId, status: OrderStatus.PENDING },
+            { $set: { status: OrderStatus.PAID } },
+            { session },
+          )
+          .exec();
+        if (update.modifiedCount !== 1)
+          throw new ConflictException('Could not confirm order');
       });
     } finally {
       await session.endSession();
     }
     try {
-      await this.internalEventBus.publish(new OrderPaidEvent(order.orderId, order.userId, undefined, order.totalAmount, 'VNPAY', new Date()));
+      await this.internalEventBus.publish(
+        new OrderPaidEvent(
+          order.orderId,
+          order.userId,
+          undefined,
+          order.totalAmount,
+          'VNPAY',
+          new Date(),
+        ),
+      );
     } catch (err) {
-      this.logger.warn(`Failed to publish OrderPaidEvent for order ${order.orderId}: ${(err as Error).message}`);
+      this.logger.warn(
+        `Failed to publish OrderPaidEvent for order ${order.orderId}: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -294,6 +362,7 @@ export class OrderService
       await this.orderModel.create({
         orderId,
         userId,
+        branchId: reservedSeatDetails[0]?.branchId,
         promotionId: appliedPromotionId,
         totalAmount,
         status: OrderStatus.PENDING,
@@ -728,6 +797,10 @@ export class OrderService
         t.roomName,
         t.seatLabel,
         t.startTime,
+        t.endTime,
+        t.branchId,
+        t.branchName,
+        t.branchAddress,
       ),
     );
 
@@ -756,8 +829,24 @@ export class OrderService
             seat.roomName,
             `${seat.rowPosition}${seat.columnPosition}`,
             seat.startTime,
+            seat.endTime,
+            seat.branchId,
           );
         });
+      }
+    }
+
+    const branchId =
+      tickets[0]?.branchId ||
+      (order as unknown as { branchId?: string }).branchId;
+    let branchName = tickets[0]?.branchName;
+    const branchAddress = tickets[0]?.branchAddress;
+
+    if (branchId && (!branchName || !branchAddress)) {
+      const branchSummary =
+        await this.branchQueryService.getBranchSummary(branchId);
+      if (branchSummary) {
+        branchName = branchName || branchSummary.branchName;
       }
     }
 
@@ -812,6 +901,9 @@ export class OrderService
       tickets,
       products,
       promotion,
+      branchId,
+      branchName,
+      branchAddress,
     );
   }
 
@@ -856,8 +948,28 @@ export class OrderService
       hasProductsMap.add(po.orderId);
     }
 
-    const items: OrderSummaryRes[] = orders.map((o) =>
-      OrderSummaryRes.of(
+    const branchIds = Array.from(
+      new Set(
+        orders
+          .map((o) => (o as unknown as { branchId?: string }).branchId)
+          .filter(Boolean),
+      ),
+    ) as string[];
+    const branchNameMap = new Map<string, string>();
+    if (branchIds.length > 0) {
+      await Promise.all(
+        branchIds.map(async (bId) => {
+          const summary = await this.branchQueryService.getBranchSummary(bId);
+          if (summary) {
+            branchNameMap.set(bId, summary.branchName);
+          }
+        }),
+      );
+    }
+
+    const items: OrderSummaryRes[] = orders.map((o) => {
+      const bId = (o as unknown as { branchId?: string }).branchId;
+      return OrderSummaryRes.of(
         o.orderId,
         o.userId,
         o.totalAmount,
@@ -865,9 +977,92 @@ export class OrderService
         (o as unknown as { createdAt?: Date }).createdAt ?? new Date(),
         ticketCountMap.get(o.orderId) ?? 0,
         hasProductsMap.has(o.orderId),
-      ),
-    );
+        bId,
+        bId ? branchNameMap.get(bId) : undefined,
+      );
+    });
 
     return Page.from(items, total, page, limit);
+  }
+
+  async cancelOrder(
+    orderId: string,
+    actor: { userId: string; role: string; branchId?: string },
+    reason?: string,
+  ): Promise<CancelOrderRes> {
+    const order = await this.orderModel.findOne({ orderId }).exec();
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng với ID ${orderId}`);
+    }
+
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        'Chỉ có thể hủy đơn hàng đang chờ thanh toán (PENDING)',
+      );
+    }
+
+    if (actor.role === Role.USER || actor.role === 'CUSTOMER') {
+      if (order.userId !== actor.userId) {
+        throw new ForbiddenException('Bạn không có quyền hủy đơn hàng này');
+      }
+    } else if (actor.role === Role.STAFF) {
+      let orderBranchId = order.branchId;
+      if (!orderBranchId) {
+        const seatOrders = await this.seatOrderModel
+          .find({ orderId })
+          .lean()
+          .exec();
+        const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+        if (seatShowtimeIds.length) {
+          const seatDetails =
+            await this.showtimeBookingService.getSeatBookingDetails(
+              seatShowtimeIds,
+            );
+          orderBranchId = seatDetails[0]?.branchId;
+        }
+      }
+      if (orderBranchId && actor.branchId && orderBranchId !== actor.branchId) {
+        throw new ForbiddenException(
+          'Đơn hàng không thuộc chi nhánh của nhân viên',
+        );
+      }
+    }
+
+    const seatOrders = await this.seatOrderModel
+      .find({ orderId })
+      .lean()
+      .exec();
+    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+
+    if (seatShowtimeIds.length > 0) {
+      await this.showtimeBookingService.releaseSeats(seatShowtimeIds);
+    }
+
+    order.status = OrderStatus.CANCELLED;
+    await order.save();
+
+    const cancelledAt = new Date();
+    try {
+      await this.internalEventBus.publish(
+        new OrderCancelledEvent(
+          orderId,
+          actor.userId,
+          seatShowtimeIds,
+          reason || 'Hủy đơn hàng',
+          cancelledAt,
+        ),
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to publish OrderCancelledEvent for order ${orderId}: ${(err as Error)?.message}`,
+      );
+    }
+
+    return CancelOrderRes.of(
+      orderId,
+      OrderStatus.CANCELLED,
+      'Đã hủy đơn hàng thành công',
+      cancelledAt,
+    );
   }
 }

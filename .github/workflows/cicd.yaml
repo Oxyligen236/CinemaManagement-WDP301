@@ -6,6 +6,10 @@ name: CI/CD
   pull_request:
     branches: [main, master, develop]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   backend:
     name: Backend (NestJS)
@@ -65,20 +69,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build Backend image
-        run: docker build -t wdp-backend:ci ./backend
-
-      - name: Build Frontend image
-        run: docker build -t wdp-frontend:ci ./frontend
+      - name: Check Docker build
+        run: docker compose build backend frontend
 
   deploy:
-    name: Deploy to VPS
+    name: Build, Push Image & Deploy to VPS
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Write env files from secrets
         env:
@@ -88,9 +96,10 @@ jobs:
           printf "%s\n" "$BE_ENV" > backend/.env
           printf "%s\n" "$FE_ENV" > frontend/.env
 
-      - name: Build Docker images
+      - name: Build and push Docker images
         run: |
           docker compose build backend frontend
+          docker compose push backend frontend
 
       - name: Prepare SSH key
         env:
@@ -99,14 +108,14 @@ jobs:
           printf "%s\n" "$VPS_SSH_KEY" | sed 's/\\n/\n/g' | tr -d '\r' > .deploy_key
           chmod 644 .deploy_key
 
-      - name: Sync files to VPS
+      - name: Sync docker-compose.yml to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key_path: .deploy_key
           port: ${{ secrets.VPS_PORT || 22 }}
-          source: "docker-compose.yml,backend,frontend,backend/.env,frontend/.env"
+          source: "docker-compose.yml"
           target: ${{ secrets.VPS_TARGET_DIR }}
           strip_components: 0
 
@@ -115,18 +124,24 @@ jobs:
         env:
           BE_ENV: ${{ secrets.BE_ENV }}
           FE_ENV: ${{ secrets.FE_ENV }}
+          CR_PAT: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER || 'root' }}
           key_path: .deploy_key
           port: ${{ secrets.VPS_PORT || 22 }}
-          envs: BE_ENV,FE_ENV
+          envs: BE_ENV,FE_ENV,CR_PAT
           script: |
             set -e
             cd ${{ secrets.VPS_TARGET_DIR }}
+            mkdir -p backend frontend
             printf "%s\n" "$BE_ENV" > backend/.env
             printf "%s\n" "$FE_ENV" > frontend/.env
-            docker compose up -d --build backend frontend
+
+            echo "$CR_PAT" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose pull backend frontend
+            docker compose up -d --no-build backend frontend
+            docker logout ghcr.io
 
             echo "Waiting for services to start up..."
             sleep 10

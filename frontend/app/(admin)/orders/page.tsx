@@ -18,6 +18,7 @@ export default function AdminOrdersPage() {
   const [limit] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Filters
   const [userIdFilter, setUserIdFilter] = useState('');
@@ -29,6 +30,12 @@ export default function AdminOrdersPage() {
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<OrderDetail | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Cancel order state
+  const [cancellingOrder, setCancellingOrder] = useState<OrderSummary | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -67,7 +74,23 @@ export default function AdminOrdersPage() {
     return () => {
       ignore = true;
     };
-  }, [page, limit, userIdFilter, statusFilter, fromDate, toDate]);
+  }, [page, limit, userIdFilter, statusFilter, fromDate, toDate, refreshKey]);
+
+  const handleCancelOrder = async () => {
+    if (!cancellingOrder) return;
+    try {
+      setIsCancelling(true);
+      setCancelError(null);
+      await orderApi.cancelAdminOrder(cancellingOrder.orderId, cancelReason.trim() || undefined);
+      setCancellingOrder(null);
+      setCancelReason('');
+      setRefreshKey((k) => k + 1);
+    } catch (err: unknown) {
+      setCancelError(err instanceof Error ? err.message : 'Hủy đơn hàng thất bại');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const handleOpenDetail = async (orderId: string) => {
     setIsLoadingDetail(true);
@@ -192,7 +215,7 @@ export default function AdminOrdersPage() {
 
       {/* Orders Table */}
       {isLoading ? (
-        <TableSkeleton rows={6} cols={7} />
+        <TableSkeleton rows={6} cols={9} />
       ) : orders.length === 0 ? (
         <div className="p-10 text-center bg-surface rounded-xl border border-border-main space-y-2">
           <p className="text-sm font-semibold text-text-main">Không tìm thấy đơn hàng nào</p>
@@ -204,6 +227,7 @@ export default function AdminOrdersPage() {
             <thead className="bg-surface-muted text-xs font-semibold uppercase tracking-wider text-text-sub border-b border-border-main">
               <tr>
                 <th className="px-4 py-3">Mã đơn hàng</th>
+                <th className="px-4 py-3">Chi nhánh / Rạp</th>
                 <th className="px-4 py-3">Khách hàng / User ID</th>
                 <th className="px-4 py-3">Ngày tạo</th>
                 <th className="px-4 py-3 text-center">Số lượng vé</th>
@@ -218,6 +242,9 @@ export default function AdminOrdersPage() {
                 <tr key={o.orderId} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-mono font-bold text-xs text-text-main">
                     #{o.orderId.slice(0, 8).toUpperCase()}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-text-main font-medium">
+                    {o.branchName || '-'}
                   </td>
                   <td className="px-4 py-3 text-xs text-text-sub font-mono">
                     {o.userId}
@@ -248,14 +275,29 @@ export default function AdminOrdersPage() {
                     <OrderStatusBadge status={o.status} />
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleOpenDetail(o.orderId)}
-                      isLoading={isLoadingDetail && selectedOrderDetail?.orderId === o.orderId}
-                    >
-                      Xem chi tiết
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      {o.status === 'PENDING' && (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => {
+                            setCancellingOrder(o);
+                            setCancelReason('');
+                            setCancelError(null);
+                          }}
+                        >
+                          Hủy đơn
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleOpenDetail(o.orderId)}
+                        isLoading={isLoadingDetail && selectedOrderDetail?.orderId === o.orderId}
+                      >
+                        Xem chi tiết
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -303,7 +345,79 @@ export default function AdminOrdersPage() {
         }}
         order={selectedOrderDetail}
         mode="admin"
+        onOrderUpdated={() => setRefreshKey((k) => k + 1)}
       />
+
+      {/* Admin Cancel Order Modal */}
+      {cancellingOrder && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-sans animate-in fade-in duration-150"
+        >
+          <div className="bg-surface w-full max-w-md rounded-xl border border-border-main p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-red-100 text-status-danger rounded-full shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-[16px] text-text-main">
+                  Quản trị viên hủy đơn hàng
+                </h4>
+                <p className="text-[12px] text-text-muted font-mono mt-0.5">
+                  Mã đơn: #{cancellingOrder.orderId.slice(0, 8).toUpperCase()}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-[13px] text-text-sub leading-relaxed">
+              Bạn có chắc chắn muốn hủy đơn hàng này không? Ghế và các dịch vụ giữ chỗ sẽ được hoàn lại hệ thống ngay lập tức.
+            </p>
+
+            <div>
+              <label className="block text-[12px] font-bold text-text-main mb-1.5">
+                Lý do hủy đơn (tùy chọn)
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Nhập lý do quản trị viên hủy đơn..."
+                rows={3}
+                className="w-full text-[13px] border border-border-main rounded-lg p-2.5 bg-surface text-text-main placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-primary-600 focus:border-primary-600 transition-all resize-none"
+              />
+            </div>
+
+            {cancelError && (
+              <p className="text-[12px] text-status-danger bg-red-50 p-2.5 rounded-lg border border-red-200">
+                {cancelError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={isCancelling}
+                onClick={() => {
+                  setCancellingOrder(null);
+                  setCancelError(null);
+                }}
+              >
+                Đóng
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={isCancelling}
+                isLoading={isCancelling}
+                onClick={handleCancelOrder}
+              >
+                Xác nhận hủy
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
