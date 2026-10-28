@@ -123,6 +123,10 @@ function BranchStaffContent() {
     event.preventDefault();
     if (!selected || !form) return;
 
+    // Thông báo thành công của lần lưu trước phải mất ngay khi bấm lưu lại,
+    // nếu không nó sẽ hiển thị cạnh lỗi validate của lần này.
+    setMessage("");
+
     // AF-1: kiểm tra phía client trước khi gửi (máy chủ vẫn kiểm tra lại)
     const missing = [
       !form.lastName.trim() && "lastName",

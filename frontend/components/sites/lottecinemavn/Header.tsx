@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type User = {
   email: string;
@@ -12,6 +13,7 @@ type User = {
 };
 
 export function Header() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function Header() {
     localStorage.removeItem("cinema_user");
     localStorage.removeItem("cinema_access_token");
     setUser(null);
+    router.replace("/");
   }
 
   return (

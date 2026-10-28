@@ -665,8 +665,9 @@ export default function ManageUsersPage() {
                   }
                   value={form.branchId}
                   disabled={
-                    !creating &&
-                    (editingSelf || selectedUser?.isActive === false)
+                    (form.role !== "MANAGER" && form.role !== "STAFF") ||
+                    (!creating &&
+                      (editingSelf || selectedUser?.isActive === false))
                   }
                   onChange={(event) =>
                     setForm({
@@ -717,15 +718,22 @@ export default function ManageUsersPage() {
                     !creating &&
                     (editingSelf || selectedUser?.isActive === false)
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const role = event.target.value as Role;
                     setForm({
                       ...form,
-                      role: event.target.value as Role,
-                    })
-                  }
+                      role,
+                      branchId:
+                        role === "MANAGER" || role === "STAFF"
+                          ? form.branchId
+                          : "",
+                    });
+                  }}
                   className={INPUT_CLASS}
                 >
-                  <option value="ADMIN">Quản trị viên</option>
+                  {form.role === "ADMIN" && (
+                    <option value="ADMIN">Quản trị viên</option>
+                  )}
                   <option value="MANAGER">Quản lý Chi nhánh</option>
                   <option value="STAFF">Nhân viên</option>
                   <option value="USER">Khách hàng</option>
