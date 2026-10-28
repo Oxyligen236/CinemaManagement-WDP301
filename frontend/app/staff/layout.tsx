@@ -24,6 +24,11 @@ interface NavItem {
 
 const STAFF_NAV_ITEMS: NavItem[] = [
   {
+    label: 'Ca làm của tôi',
+    href: '/staff/my-shifts',
+    icon: ClipboardList,
+  },
+  {
     label: 'Bán vé tại quầy (POS)',
     href: '/staff/pos',
     icon: MonitorPlay,
