@@ -15,6 +15,8 @@ export class TicketContractImpl implements TicketContract {
     orderId: string;
     seatShowtimeIds: string[];
   }, session?: ClientSession): Promise<TicketItemSummaryDto[]> {
-    return this.ticketService.createTicketsForOrder(params, session);
+    return session
+      ? this.ticketService.createTicketsForOrder(params, session)
+      : this.ticketService.createTicketsForOrder(params);
   }
 }
