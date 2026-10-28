@@ -89,6 +89,18 @@ export class ProductService
       itemMap.set(it.itemId, it);
     }
 
+    const storagePublicUrl =
+      process.env.STORAGE_PUBLIC_URL?.trim().replace(/\/+$/, '') || '';
+    const resolveImageUrl = (key?: string | null): string | null => {
+      if (!key) return null;
+      const trimmed = key.trim();
+      if (!trimmed) return null;
+      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      if (!storagePublicUrl) return null;
+      const cleanKey = trimmed.replace(/^\/+/, '');
+      return cleanKey ? `${storagePublicUrl}/${cleanKey}` : null;
+    };
+
     const validCombos: BranchConcessionComboRes[] = [];
     for (const combo of combos) {
       if (!combo.items || combo.items.length === 0) continue;
@@ -118,6 +130,7 @@ export class ProductService
           price: combo.price,
           availableStock: minStock,
           imageKey: combo.imageKey ?? null,
+          imageUrl: resolveImageUrl(combo.imageKey),
           description: combo.description ?? null,
           items: combo.items.map((it) => ({
             itemId: it.itemId,
@@ -138,6 +151,7 @@ export class ProductService
         price: it.price,
         stockQuantity: it.stockQuantity,
         imageKey: it.imageKey ?? null,
+        imageUrl: resolveImageUrl(it.imageKey),
         description: it.description ?? null,
       })),
       combos: validCombos,

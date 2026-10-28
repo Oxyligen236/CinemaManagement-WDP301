@@ -17,6 +17,7 @@ import {
   type PosShowtime,
 } from "@/lib/api/pos.api";
 import { ThermalReceiptModal } from "@/components/staff/pos/thermal-receipt-modal";
+import { ConcessionCard } from "@/components/staff/pos/concession-card";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 import {
@@ -172,13 +173,21 @@ export default function StaffPosPage() {
         const raw = localStorage.getItem("cinema_user");
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (parsed?.branchId) {
-            branchId = parsed.branchId;
-          }
+          if (parsed?.branchId) branchId = parsed.branchId;
         }
       } catch {
         // Ignore
       }
+    }
+
+    if (!branchId) {
+      setShowtimes([]);
+      setCatalog(null);
+      setErrorBanner(
+        "Tài khoản chưa được gán chi nhánh. Vui lòng liên hệ quản trị viên để được hỗ trợ.",
+      );
+      setLoading(false);
+      return;
     }
 
     try {
@@ -896,6 +905,14 @@ export default function StaffPosPage() {
                   <div className="h-64 flex items-center justify-center text-[#888] text-[13px]">
                     Đang tải danh sách suất chiếu hôm nay...
                   </div>
+                ) : !staffUser?.branchId ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-[#fffbeb] border border-[#f59e0b] text-[#b45309]">
+                    <AlertTriangle className="h-8 w-8 text-[#d97706] mb-2" />
+                    <p className="font-bold text-[14px]">Chưa gán chi nhánh trực thuộc</p>
+                    <p className="text-[12px] text-[#92400e] mt-1 max-w-md">
+                      Tài khoản nhân viên chưa được phân công chi nhánh làm việc. Vui lòng liên hệ Quản trị viên để gán chi nhánh trước khi tải suất chiếu.
+                    </p>
+                  </div>
                 ) : filteredShowtimes.length === 0 ? (
                   <div className="h-64 flex flex-col items-center justify-center text-[#888] text-[13px]">
                     <p>
@@ -1091,94 +1108,32 @@ export default function StaffPosPage() {
                     {catalog.combos.map((combo) => {
                       const inCart = productCart.get(combo.comboId);
                       const qty = inCart ? inCart.quantity : 0;
-                      const isOutOfStock = combo.availableStock <= 0;
 
                       return (
-                        <div
+                        <ConcessionCard
                           key={combo.comboId}
-                          className={`p-3.5 border transition-all ${
-                            qty > 0
-                              ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm"
-                              : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687]"
-                          }`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h5 className="font-bold text-[13px] text-[#231f20] uppercase">
-                                {combo.name}
-                              </h5>
-                              <p className="text-[11px] text-[#666] mt-0.5">
-                                {combo.items
-                                  .map((i) => `${i.name} x${i.quantity}`)
-                                  .join(" + ")}
-                              </p>
-                            </div>
-                            <span className="text-[13px] font-bold text-[#da291c]">
-                              {formatCurrency(combo.price)}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#efebdb]">
-                            <span className="text-[11px] text-[#666]">
-                              Tồn kho:{" "}
-                              <strong
-                                className={
-                                  combo.availableStock <= 5
-                                    ? "text-[#da291c]"
-                                    : "text-[#231f20]"
-                                }
-                              >
-                                {combo.availableStock}
-                              </strong>
-                            </span>
-
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                disabled={qty <= 0}
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: combo.comboId,
-                                      name: combo.name,
-                                      price: combo.price,
-                                      maxStock: combo.availableStock,
-                                      isCombo: true,
-                                    },
-                                    -1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#efebdb] border border-[#dad2b4] text-[#231f20] hover:bg-[#dad2b4] disabled:opacity-40 text-sm font-bold flex items-center justify-center cursor-pointer"
-                              >
-                                -
-                              </button>
-                              <span className="font-bold text-xs w-6 text-center font-mono">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={
-                                  isOutOfStock || qty >= combo.availableStock
-                                }
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: combo.comboId,
-                                      name: combo.name,
-                                      price: combo.price,
-                                      maxStock: combo.availableStock,
-                                      isCombo: true,
-                                    },
-                                    1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#da291c] hover:bg-[#b91c1c] disabled:opacity-40 text-sm font-bold flex items-center justify-center text-white cursor-pointer"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                          id={combo.comboId}
+                          name={combo.name}
+                          price={combo.price}
+                          stock={combo.availableStock}
+                          imageUrl={combo.imageUrl}
+                          description={combo.description}
+                          comboItems={combo.items}
+                          isCombo
+                          quantity={qty}
+                          onQuantityChange={(delta) =>
+                            updateProductQuantity(
+                              {
+                                id: combo.comboId,
+                                name: combo.name,
+                                price: combo.price,
+                                maxStock: combo.availableStock,
+                                isCombo: true,
+                              },
+                              delta,
+                            )
+                          }
+                        />
                       );
                     })}
                   </div>
@@ -1196,94 +1151,32 @@ export default function StaffPosPage() {
                     {catalog.items.map((item) => {
                       const inCart = productCart.get(item.itemId);
                       const qty = inCart ? inCart.quantity : 0;
-                      const isOutOfStock = item.stockQuantity <= 0;
 
                       return (
-                        <div
+                        <ConcessionCard
                           key={item.itemId}
-                          className={`p-3.5 border transition-all ${
-                            qty > 0
-                              ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm"
-                              : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687]"
-                          }`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <h5 className="font-bold text-[13px] text-[#231f20]">
-                                {item.name}
-                              </h5>
-                              <p className="text-[11px] text-[#666] mt-0.5">
-                                {item.size
-                                  ? `Size: ${item.size}`
-                                  : item.category}
-                              </p>
-                            </div>
-                            <span className="text-[13px] font-bold text-[#15803d]">
-                              {formatCurrency(item.price)}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 flex items-center justify-between pt-2 border-t border-[#efebdb]">
-                            <span className="text-[11px] text-[#666]">
-                              Kho:{" "}
-                              <strong
-                                className={
-                                  item.stockQuantity <= 5
-                                    ? "text-[#da291c]"
-                                    : "text-[#231f20]"
-                                }
-                              >
-                                {item.stockQuantity}
-                              </strong>
-                            </span>
-
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                disabled={qty <= 0}
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: item.itemId,
-                                      name: item.name,
-                                      price: item.price,
-                                      maxStock: item.stockQuantity,
-                                      isCombo: false,
-                                    },
-                                    -1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#efebdb] border border-[#dad2b4] text-[#231f20] hover:bg-[#dad2b4] disabled:opacity-40 text-sm font-bold flex items-center justify-center cursor-pointer"
-                              >
-                                -
-                              </button>
-                              <span className="font-bold text-xs w-6 text-center font-mono">
-                                {qty}
-                              </span>
-                              <button
-                                type="button"
-                                disabled={
-                                  isOutOfStock || qty >= item.stockQuantity
-                                }
-                                onClick={() =>
-                                  updateProductQuantity(
-                                    {
-                                      id: item.itemId,
-                                      name: item.name,
-                                      price: item.price,
-                                      maxStock: item.stockQuantity,
-                                      isCombo: false,
-                                    },
-                                    1,
-                                  )
-                                }
-                                className="w-7 h-7 bg-[#da291c] hover:bg-[#b91c1c] disabled:opacity-40 text-sm font-bold flex items-center justify-center text-white cursor-pointer"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                          id={item.itemId}
+                          name={item.name}
+                          price={item.price}
+                          stock={item.stockQuantity}
+                          imageUrl={item.imageUrl}
+                          category={item.category}
+                          size={item.size}
+                          description={item.description}
+                          quantity={qty}
+                          onQuantityChange={(delta) =>
+                            updateProductQuantity(
+                              {
+                                id: item.itemId,
+                                name: item.name,
+                                price: item.price,
+                                maxStock: item.stockQuantity,
+                                isCombo: false,
+                              },
+                              delta,
+                            )
+                          }
+                        />
                       );
                     })}
                   </div>
