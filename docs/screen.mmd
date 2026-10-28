@@ -11,6 +11,7 @@ flowchart TD
     Login -->|"Đăng nhập thành công (User)"| Home
     Login -->|"Sai email/mật khẩu hoặc tài khoản bị vô hiệu hóa (hiện lỗi, ở lại trang)"| Login
     Login -->|Quên mật khẩu| ForgotPassword
+    Login -->|Về Trang chủ| Home
     Register -->|Đăng ký thành công| VerifyEmail
     VerifyEmail -->|Xác thực thành công| Login
     VerifyEmail -->|"Gửi lại mã (hết cooldown 60s, ở lại trang)"| VerifyEmail
@@ -57,6 +58,7 @@ flowchart TD
         StaffOrders -->|Soát vé| StaffScan
         StaffOrders -->|Xem chi tiết đơn| StaffOrderDetail
         StaffScan -->|Quét mã| ScanResultBanner
+        StaffPOS -->|Đăng xuất| Home
     end
 
     %% Admin Management Flow
@@ -72,6 +74,7 @@ flowchart TD
         AdminDashboard -->|Quản lý Khuyến mãi| AdminPromotions
         AdminDashboard -->|Quản lý Đơn hàng| AdminOrders
         AdminOrders -->|Xem chi tiết| AdminOrderDetail
+        AdminDashboard -->|Đăng xuất| Home
     end
 
     %% Branch Manager Portal Flow
@@ -111,6 +114,7 @@ flowchart TD
         ImportExcelModal -->|Import hoàn tất / Báo cáo kết quả| ManageProducts
         ComboModal -->|Lưu thành công| ManageProducts
         ChangeStatusDialog -->|Xác nhận thành công| ManageProducts
+        BMDashboard -->|Đăng xuất| Home
     end
     %% Admin Portal
     AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
