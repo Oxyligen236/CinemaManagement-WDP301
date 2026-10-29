@@ -22,6 +22,7 @@ import {
 } from '../../domain/schemas/showtime.schema';
 import { SeatBookingDetail } from '../../contract/seat-booking-detail';
 import { ConfirmShowtimeSeatsUsecase } from '../usecase/confirm-showtime-seats.usecase';
+import { SEAT_BOOKING_MESSAGES } from '../../domain/showtime.rules';
 
 @Injectable()
 export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
@@ -51,7 +52,7 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
       !seatShowtimeIds.length ||
       new Set(seatShowtimeIds).size !== seatShowtimeIds.length
     ) {
-      throw new ConflictException('Seat selection must contain unique seats');
+      throw new ConflictException(SEAT_BOOKING_MESSAGES.DUPLICATED_SEATS);
     }
 
     const seats = await this.seatShowtimeModel
@@ -63,9 +64,7 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
       seats.some((seat) => seat.seatStatus !== SeatShowtimeStatus.EMPTY) ||
       new Set(seats.map((seat) => seat.showtimeId)).size !== 1
     ) {
-      throw new ConflictException(
-        'Seats are unavailable or belong to different showtimes',
-      );
+      throw new ConflictException(SEAT_BOOKING_MESSAGES.SEATS_UNAVAILABLE);
     }
 
     const showtimeId = seats[0].showtimeId;
@@ -83,7 +82,9 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
           )
           .exec();
         if (result.modifiedCount !== 1)
-          throw new ConflictException('Seat is no longer available');
+          throw new ConflictException(
+            SEAT_BOOKING_MESSAGES.SEAT_NO_LONGER_AVAILABLE,
+          );
         reserved.push(id);
       }
       return await this.getSeatBookingDetails(seatShowtimeIds);
