@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   CalendarClock,
   MonitorPlay,
-  Tags,
   ClipboardList,
   Users,
   BarChart3,
@@ -48,11 +47,6 @@ const MANAGER_NAV_ITEMS: NavItem[] = [
     label: 'Quản lý Bắp nước & Combo',
     href: '/manager/products',
     icon: Popcorn,
-  },
-  {
-    label: 'Cấu hình Giá vé',
-    href: '/manager/pricing',
-    icon: Tags,
   },
   {
     label: 'Lịch làm việc Nhân viên',

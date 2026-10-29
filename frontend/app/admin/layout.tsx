@@ -14,6 +14,7 @@ import {
   Clock3,
   Film,
   ShieldCheck,
+  BarChart3,
   Menu,
   X,
   LogOut,
@@ -57,6 +58,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     icon: Tags,
   },
   { label: "Ca làm việc", href: "/admin/work-schedules", icon: Clock3 },
+  { label: "Báo cáo Thống kê", href: "/admin/statistics", icon: BarChart3 },
 ];
 
 export default function SystemAdminLayout({
