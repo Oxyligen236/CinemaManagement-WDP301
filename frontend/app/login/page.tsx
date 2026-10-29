@@ -100,24 +100,22 @@ function LoginForm() {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(
+        // Dịch đúng một lần tại nơi còn biết `status`, tránh chạy lại message
+        // đã dịch qua bộ phân loại và nhận về thông báo sai ngữ cảnh.
+        setError(
           getFriendlyErrorMessage(
             { status: response.status, message: result.message },
             "Đăng nhập không thành công. Vui lòng kiểm tra lại thông tin.",
           ),
         );
+        return;
       }
 
       localStorage.setItem("cinema_access_token", result.accessToken);
       localStorage.setItem("cinema_user", JSON.stringify(result.user));
       router.replace(getRedirectPathByRole(result.user?.role));
-    } catch (submitError) {
-      setError(
-        getFriendlyErrorMessage(
-          submitError,
-          "Không thể đăng nhập. Vui lòng thử lại sau.",
-        ),
-      );
+    } catch {
+      setError("Không thể đăng nhập. Vui lòng thử lại sau.");
     } finally {
       setIsSubmitting(false);
     }
