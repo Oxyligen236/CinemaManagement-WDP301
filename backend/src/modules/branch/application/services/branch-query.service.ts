@@ -29,7 +29,9 @@ export class BranchQueryService
       return null;
     }
     return {
-      branchId: String((doc as unknown as { _id: unknown })._id),
+      branchId: String(
+        (doc as unknown as { _id?: unknown })._id ?? doc.branchId,
+      ),
       branchName: doc.branchName,
     };
   }
@@ -49,13 +51,13 @@ export class BranchQueryService
     }
     const docs = await this.branchModel
       .find(filter)
-      .select('_id branchName address hotline branchStatus')
+      .select('branchId branchName address hotline branchStatus')
       .sort({ branchName: 1 })
       .lean()
       .exec();
 
     return docs.map((d) => ({
-      branchId: String(d._id),
+      branchId: String((d as unknown as { _id?: unknown })._id ?? d.branchId),
       branchName: d.branchName,
       address: d.address,
       hotline: d.hotline || '1900 2224',
