@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { PageRequest } from '../../../../common/dto/page.dto';
 import { RoomStatus } from '../../domain/enums/room-status.enum';
@@ -28,6 +29,27 @@ export class BranchRoomQueryDto extends PageRequest {
   @IsOptional()
   @IsEnum(RoomStatus)
   roomStatus?: RoomStatus;
+}
+
+export class CreateCustomSeatDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsString()
+  @IsNotEmpty()
+  rowPosition!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  columnPosition!: number;
+
+  @IsEnum(SeatType)
+  seatType!: SeatType;
+
+  @IsOptional()
+  @IsEnum(SeatStatus)
+  status?: SeatStatus;
 }
 
 export class CreateBranchRoomDto {
@@ -54,6 +76,13 @@ export class CreateBranchRoomDto {
   @Min(4)
   @Max(20)
   columnsPerRow?: number;
+
+  /** Danh sách ghế tùy biến từ layout designer */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCustomSeatDto)
+  customSeats?: CreateCustomSeatDto[];
 }
 
 export class UpdateBranchRoomDto {
@@ -84,4 +113,12 @@ export class UpdateRoomSeatsDto {
   @IsOptional()
   @IsEnum(SeatType)
   seatType?: SeatType;
+}
+
+export class ReplaceRoomLayoutDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => CreateCustomSeatDto)
+  seats!: CreateCustomSeatDto[];
 }

@@ -121,6 +121,11 @@ export default function BookingSeatPage({
     });
   }, [seats]);
 
+  const maxColumn = useMemo(() => {
+    if (seats.length === 0) return 10;
+    return Math.max(...seats.map((s) => s.columnPosition), 1);
+  }, [seats]);
+
   const toggleSeat = (seat: SeatShowtime) => {
     if (seat.seatStatus !== 'EMPTY') return;
     setSelectedSeatIds((prev) => {
@@ -287,36 +292,49 @@ export default function BookingSeatPage({
 
                   {/* Seat Columns */}
                   <div className="flex gap-1.5 sm:gap-2">
-                    {items.map((seat) => {
-                      const isSelected = selectedSeatIds.includes(seat.seatShowtimeId);
-                      const isReserved = seat.seatStatus === 'RESERVED';
-                      const isBooked = seat.seatStatus === 'BOOKED';
-                      const isEmpty = seat.seatStatus === 'EMPTY';
+                    {(() => {
+                      const colMap = new Map(items.map((s) => [s.columnPosition, s]));
+                      return Array.from({ length: maxColumn }, (_, i) => i + 1).map((colNum) => {
+                        const seat = colMap.get(colNum);
+                        if (!seat) {
+                          return (
+                            <div
+                              key={`aisle-${rowKey}-${colNum}`}
+                              className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center select-none"
+                            />
+                          );
+                        }
 
-                      let seatClasses =
-                        'bg-white border-[#dad2b4] text-[#444] hover:border-[#da291c] hover:text-[#da291c] hover:bg-[#fff9f9]';
-                      if (isSelected) {
-                        seatClasses = 'bg-[#da291c] border-[#da291c] text-white font-bold shadow-xs';
-                      } else if (isReserved) {
-                        seatClasses = 'bg-[#fef3c7] border-[#f59e0b] text-[#b45309] cursor-not-allowed';
-                      } else if (isBooked) {
-                        seatClasses = 'bg-[#e5e7eb] border-[#d1d5db] text-[#9ca3af] cursor-not-allowed';
-                      }
+                        const isSelected = selectedSeatIds.includes(seat.seatShowtimeId);
+                        const isReserved = seat.seatStatus === 'RESERVED';
+                        const isBooked = seat.seatStatus === 'BOOKED';
+                        const isEmpty = seat.seatStatus === 'EMPTY';
 
-                      return (
-                        <button
-                          key={seat.seatShowtimeId}
-                          type="button"
-                          disabled={!isEmpty || submitting}
-                          onClick={() => toggleSeat(seat)}
-                          aria-label={`Ghế ${seat.rowPosition}${seat.columnPosition} - ${seat.seatStatus}`}
-                          className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center border text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer ${seatClasses}`}
-                          title={`Ghế ${seat.rowPosition}${seat.columnPosition}`}
-                        >
-                          {seat.columnPosition}
-                        </button>
-                      );
-                    })}
+                        let seatClasses =
+                          'bg-white border-[#dad2b4] text-[#444] hover:border-[#da291c] hover:text-[#da291c] hover:bg-[#fff9f9]';
+                        if (isSelected) {
+                          seatClasses = 'bg-[#da291c] border-[#da291c] text-white font-bold shadow-xs';
+                        } else if (isReserved) {
+                          seatClasses = 'bg-[#fef3c7] border-[#f59e0b] text-[#b45309] cursor-not-allowed';
+                        } else if (isBooked) {
+                          seatClasses = 'bg-[#e5e7eb] border-[#d1d5db] text-[#9ca3af] cursor-not-allowed';
+                        }
+
+                        return (
+                          <button
+                            key={seat.seatShowtimeId}
+                            type="button"
+                            disabled={!isEmpty || submitting}
+                            onClick={() => toggleSeat(seat)}
+                            aria-label={`Ghế ${seat.rowPosition}${seat.columnPosition} - ${seat.seatStatus}`}
+                            className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center border text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer ${seatClasses}`}
+                            title={`Ghế ${seat.rowPosition}${seat.columnPosition}`}
+                          >
+                            {seat.columnPosition}
+                          </button>
+                        );
+                      });
+                    })()}
                   </div>
 
                   {/* Right Row Indicator */}
