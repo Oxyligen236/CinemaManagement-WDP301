@@ -31,6 +31,7 @@ import {
   PendingRegistrationService,
   PendingUser,
 } from './pending-registration.service';
+import { REGISTRATION_MESSAGES as MSG } from '../../domain/constants/auth-message.constants';
 
 const CODE_TTL_SECONDS = 300;
 const MAX_ATTEMPTS = 5;
@@ -68,7 +69,7 @@ export class UserRegistrationService {
       typeof input.firstName !== 'string' ||
       typeof input.lastName !== 'string'
     ) {
-      throw new BadRequestException('Invalid registration data');
+      throw new BadRequestException(MSG.INVALID_DATA);
     }
 
     const email = input.email.trim().toLowerCase();
@@ -76,17 +77,17 @@ export class UserRegistrationService {
     const lastName = input.lastName.trim();
 
     if (!email || !input.password.trim() || !firstName || !lastName) {
-      throw new BadRequestException('All fields are required');
+      throw new BadRequestException(MSG.ALL_FIELDS_REQUIRED);
     }
 
     if (await this.userModel.exists({ email })) {
-      throw new ConflictException('Email is already registered');
+      throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
     }
 
     const existing = this.pendingRegistrations.get(email);
     if (existing && Date.now() - existing.lastSentAt < RESEND_COOLDOWN_MS) {
       throw new HttpException(
-        'Please wait before requesting another code',
+        MSG.RESEND_COOLDOWN,
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -184,31 +185,29 @@ export class UserRegistrationService {
       .toLowerCase();
 
     if (!email) {
-      throw new BadRequestException('Email is required');
+      throw new BadRequestException(MSG.EMAIL_REQUIRED);
     }
 
     if (await this.userModel.exists({ email })) {
-      throw new ConflictException('Email is already registered');
+      throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
     }
 
     const pending = this.pendingRegistrations.get(email);
 
     if (!pending) {
-      throw new BadRequestException(
-        'No pending registration found, please register again',
-      );
+      throw new BadRequestException(MSG.NO_PENDING_REGISTRATION);
     }
 
     if (Date.now() - pending.lastSentAt < RESEND_COOLDOWN_MS) {
       throw new HttpException(
-        'Please wait before requesting another code',
+        MSG.RESEND_COOLDOWN,
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
     if (pending.resendCount >= MAX_RESENDS) {
       throw new HttpException(
-        'Resend limit reached, please register again',
+        MSG.RESEND_LIMIT_REACHED,
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -234,12 +233,12 @@ export class UserRegistrationService {
     const pending = this.pendingRegistrations.get(email);
 
     if (!pending) {
-      throw new BadRequestException('Code is invalid or has expired');
+      throw new BadRequestException(MSG.CODE_INVALID_OR_EXPIRED);
     }
 
     if (pending.attempts >= MAX_ATTEMPTS) {
       this.pendingRegistrations.delete(email);
-      throw new BadRequestException('Too many attempts, please register again');
+      throw new BadRequestException(MSG.TOO_MANY_ATTEMPTS);
     }
 
     const provided = Buffer.from(this.hashCode(email, String(code ?? '')));
@@ -250,7 +249,7 @@ export class UserRegistrationService {
 
     if (!ok) {
       pending.attempts += 1;
-      throw new BadRequestException('Code is invalid or has expired');
+      throw new BadRequestException(MSG.CODE_INVALID_OR_EXPIRED);
     }
 
     let user: UserDocument;
@@ -268,7 +267,7 @@ export class UserRegistrationService {
     } catch (err: any) {
       if (err?.code === 11000) {
         this.pendingRegistrations.delete(email);
-        throw new ConflictException('Email is already registered');
+        throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
       }
       throw err;
     }

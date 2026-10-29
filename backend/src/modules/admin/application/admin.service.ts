@@ -20,6 +20,7 @@ import {
   ManageUsersQueryDto,
   UpdateUserDto,
 } from './dto/manage-user.dto';
+import { REGISTRATION_MESSAGES } from '../../user/domain/constants/auth-message.constants';
 
 @Injectable()
 export class AdminService {
@@ -331,7 +332,9 @@ export class AdminService {
         'code' in error &&
         error.code === 11000
       ) {
-        throw new ConflictException('Email is already registered');
+        throw new ConflictException(
+          REGISTRATION_MESSAGES.EMAIL_ALREADY_REGISTERED,
+        );
       }
       throw error;
     }
