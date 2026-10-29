@@ -15,6 +15,7 @@ import {
   MAIL_SERVICE,
   MailService,
 } from '../../../infra/mail/application/interface/mail-service.interface';
+import { PASSWORD_RESET_MESSAGES as MSG } from '../../domain/constants/auth-message.constants';
 
 const CODE_TTL_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -58,7 +59,7 @@ export class PasswordResetService {
       .toLowerCase();
 
     if (!email) {
-      throw new BadRequestException('Email is required');
+      throw new BadRequestException(MSG.EMAIL_REQUIRED);
     }
 
     const response = {
@@ -86,7 +87,7 @@ export class PasswordResetService {
       Date.now() - existingRequest.lastSentAt < RESEND_COOLDOWN_MS
     ) {
       throw new HttpException(
-        'Please wait before requesting another reset code',
+        MSG.RESEND_COOLDOWN,
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -128,15 +129,11 @@ export class PasswordResetService {
     const code = String(rawCode ?? '').trim();
 
     if (!email || !/^\d{6}$/.test(code)) {
-      throw new BadRequestException(
-        'Email and a valid 6-digit code are required',
-      );
+      throw new BadRequestException(MSG.EMAIL_AND_CODE_REQUIRED);
     }
 
     if (!newPassword || newPassword.trim().length < 8) {
-      throw new BadRequestException(
-        'New password must contain at least 8 characters',
-      );
+      throw new BadRequestException(MSG.NEW_PASSWORD_MIN);
     }
 
     this.removeExpiredRequest(email);
@@ -144,15 +141,13 @@ export class PasswordResetService {
     const request = this.resetRequests.get(email);
 
     if (!request) {
-      throw new BadRequestException('Code is invalid or has expired');
+      throw new BadRequestException(MSG.CODE_INVALID_OR_EXPIRED);
     }
 
     if (request.attempts >= MAX_ATTEMPTS) {
       this.resetRequests.delete(email);
 
-      throw new BadRequestException(
-        'Too many attempts, please request a new code',
-      );
+      throw new BadRequestException(MSG.TOO_MANY_ATTEMPTS);
     }
 
     const expectedHash = Buffer.from(request.codeHash);
@@ -165,7 +160,7 @@ export class PasswordResetService {
     if (!validCode) {
       request.attempts += 1;
 
-      throw new BadRequestException('Code is invalid or has expired');
+      throw new BadRequestException(MSG.CODE_INVALID_OR_EXPIRED);
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -182,7 +177,7 @@ export class PasswordResetService {
     if (result.matchedCount === 0) {
       this.resetRequests.delete(email);
 
-      throw new BadRequestException('Account was not found');
+      throw new BadRequestException(MSG.ACCOUNT_NOT_FOUND);
     }
 
     this.resetRequests.delete(email);

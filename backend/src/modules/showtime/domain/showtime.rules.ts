@@ -39,6 +39,21 @@ export const SHOWTIME_MESSAGES = {
 } as const;
 
 /**
+ * Thông báo cho luồng giữ ghế khi đặt vé (khách online và quầy POS).
+ *
+ * Viết bằng tiếng Việt vì được trả thẳng cho client: nếu để tiếng Anh, frontend
+ * không nhận ra đây là thông báo nghiệp vụ và sẽ thay bằng câu chung chung,
+ * khiến người dùng không biết phải chọn lại ghế.
+ */
+export const SEAT_BOOKING_MESSAGES = {
+  DUPLICATED_SEATS: 'Danh sách ghế bị trùng, vui lòng chọn lại.',
+  SEATS_UNAVAILABLE:
+    'Một số ghế bạn chọn vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.',
+  SEAT_NO_LONGER_AVAILABLE:
+    'Ghế này vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.',
+} as const;
+
+/**
  * BR-BRM-02: Tính thời gian kết thúc dựa trên thời lượng phim (phút).
  */
 export const calculateShowtimeEndTime = (

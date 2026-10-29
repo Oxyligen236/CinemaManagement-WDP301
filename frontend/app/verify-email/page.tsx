@@ -100,24 +100,20 @@ function VerifyEmailForm() {
       const data = (await response.json().catch(() => ({}))) as VerifyResponse;
 
       if (!response.ok) {
-        throw new Error(
+        setError(
           getFriendlyErrorMessage(
             { status: response.status, message: data.message },
             "Không thể gửi lại mã xác thực.",
           ),
         );
+        return;
       }
 
       setNotice("Đã gửi mã xác thực mới. Vui lòng kiểm tra hộp thư.");
       setForm((current) => ({ ...current, code: "" }));
       setCooldown(RESEND_COOLDOWN_SECONDS);
-    } catch (resendError) {
-      setError(
-        getFriendlyErrorMessage(
-          resendError,
-          "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
-        ),
-      );
+    } catch {
+      setError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
     } finally {
       setResending(false);
     }
@@ -144,22 +140,18 @@ function VerifyEmailForm() {
       const data = (await response.json().catch(() => ({}))) as VerifyResponse;
 
       if (!response.ok) {
-        throw new Error(
+        setError(
           getFriendlyErrorMessage(
             { status: response.status, message: data.message },
             "Mã xác thực không hợp lệ hoặc đã hết hạn.",
           ),
         );
+        return;
       }
 
       router.push(`/login?email=${encodeURIComponent(form.email.trim())}`);
-    } catch (submitError) {
-      setError(
-        getFriendlyErrorMessage(
-          submitError,
-          "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
-        ),
-      );
+    } catch {
+      setError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
     } finally {
       setSubmitting(false);
     }

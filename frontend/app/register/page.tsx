@@ -98,23 +98,22 @@ export default function RegisterPage() {
         .catch(() => ({}))) as RegisterResponse;
 
       if (!response.ok) {
-        throw new Error(
+        // Không bọc lại thành `Error` rồi dịch lần hai: chạy message đã dịch
+        // qua `getFriendlyErrorMessage` một lần nữa có thể khớp sai nhánh và
+        // trả về thông báo của nghiệp vụ khác.
+        setError(
           getFriendlyErrorMessage(
             { status: response.status, message: data.message },
             "Không thể tạo tài khoản của bạn.",
           ),
         );
+        return;
       }
 
       const email = data.email ?? form.email.trim();
       router.push(`/verify-email?email=${encodeURIComponent(email)}`);
-    } catch (submitError) {
-      setError(
-        getFriendlyErrorMessage(
-          submitError,
-          "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
-        ),
-      );
+    } catch {
+      setError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
     } finally {
       setSubmitting(false);
     }
