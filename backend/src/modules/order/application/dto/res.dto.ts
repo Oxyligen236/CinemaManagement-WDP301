@@ -291,8 +291,16 @@ export class PosReceiptTicketRes {
   movieTitle!: string;
   roomName!: string;
   seatLabel!: string;
+  seatName?: string;
+  seatType?: string;
   startTime!: Date;
   endTime!: Date;
+  price!: number;
+}
+
+export class PosReceiptSeatRes {
+  seatName!: string;
+  seatType!: string;
   price!: number;
 }
 
@@ -305,6 +313,7 @@ export class PosReceiptItemRes {
 
 export class PosReceiptRes {
   orderId!: string;
+  orderCode?: string;
   branchName!: string;
   branchAddress!: string;
   staffName!: string;
@@ -313,6 +322,11 @@ export class PosReceiptRes {
   totalAmount!: number;
   cashReceived?: number;
   changeAmount?: number;
+  movieTitle?: string;
+  roomName?: string;
+  showtime?: string;
+  showDate?: string;
+  seats?: PosReceiptSeatRes[];
   tickets!: PosReceiptTicketRes[];
   products!: PosReceiptItemRes[];
 }

@@ -647,7 +647,45 @@ export class PosOrderService
       );
     }
 
-    const tickets = await this.ticketContract.getTicketsByOrderId(orderId);
+    let tickets = await this.ticketContract.getTicketsByOrderId(orderId);
+    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
+    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+
+    if (!tickets.length && seatShowtimeIds.length) {
+      tickets = await this.ticketContract.createTicketsForOrder({
+        orderId,
+        seatShowtimeIds,
+      });
+    }
+
+    let seatBookingMap = new Map<string, string>();
+    if (seatShowtimeIds.length) {
+      try {
+        const seatDetails =
+          await this.showtimeBookingService.getSeatBookingDetails(
+            seatShowtimeIds,
+          );
+        seatBookingMap = new Map(
+          seatDetails.map((s) => [s.seatShowtimeId, s.seatType]),
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to get seat booking details for receipt ${orderId}: ${(err as Error)?.message}`,
+        );
+      }
+    }
+
+    const firstTicket = tickets[0];
+    const showtime = firstTicket?.startTime
+      ? new Date(firstTicket.startTime).toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : undefined;
+    const showDate = firstTicket?.startTime
+      ? new Date(firstTicket.startTime).toLocaleDateString('vi-VN')
+      : undefined;
+
     const productOrders = await this.productOrderModel.find({ orderId }).exec();
     const productIds = productOrders.map((po) => po.productId);
     const productsMap: Map<string, ProductSummaryDto> = productIds.length
@@ -656,25 +694,51 @@ export class PosOrderService
 
     return {
       orderId,
+      orderCode: order.orderId.slice(-8).toUpperCase(),
       branchName:
-        staffContext.branchName || `MyCast Chi nhánh ${staffContext.branchId}`,
+        firstTicket?.branchName ||
+        staffContext.branchName ||
+        `MyCast Chi nhánh ${staffContext.branchId}`,
       branchAddress:
-        staffContext.branchAddress || 'Chi nhánh hệ thống rạp MyCast',
+        firstTicket?.branchAddress ||
+        staffContext.branchAddress ||
+        'Chi nhánh hệ thống rạp MyCast',
       staffName: staffContext.staffName || 'Thu ngân',
       printedAt: new Date(),
       paymentMethod,
       totalAmount: order.totalAmount,
       cashReceived: paymentMethod === 'CASH' ? order.totalAmount : undefined,
       changeAmount: 0,
-      tickets: tickets.map((t) => ({
-        ticketCode: t.ticketCode,
-        movieTitle: t.movieTitle,
-        roomName: t.roomName,
-        seatLabel: t.seatLabel,
-        startTime: t.startTime,
-        endTime: t.endTime,
-        price: t.price,
-      })),
+      movieTitle: firstTicket?.movieTitle || '',
+      roomName: firstTicket?.roomName || '',
+      showtime,
+      showDate,
+      seats: tickets.map((t) => {
+        const seatType =
+          (t.seatShowtimeId && seatBookingMap.get(t.seatShowtimeId)) ||
+          'Tiêu chuẩn';
+        return {
+          seatName: t.seatLabel,
+          seatType,
+          price: t.price,
+        };
+      }),
+      tickets: tickets.map((t) => {
+        const seatType =
+          (t.seatShowtimeId && seatBookingMap.get(t.seatShowtimeId)) ||
+          'Tiêu chuẩn';
+        return {
+          ticketCode: t.ticketCode,
+          movieTitle: t.movieTitle,
+          roomName: t.roomName,
+          seatLabel: t.seatLabel,
+          seatName: t.seatLabel,
+          seatType,
+          startTime: t.startTime,
+          endTime: t.endTime,
+          price: t.price,
+        };
+      }),
       products: productOrders.map((po) => {
         const prod = productsMap.get(po.productId);
         return {
