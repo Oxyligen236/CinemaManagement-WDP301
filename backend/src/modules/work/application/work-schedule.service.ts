@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 import {
   WorkSchedule,
   WorkScheduleDocument,
@@ -54,7 +54,10 @@ export class WorkScheduleService {
   ) {}
 
   async create(input: CreateWorkScheduleDto) {
-    if (!(await this.branchModel.exists({ branchId: input.branchId })))
+    const branchFilter = isValidObjectId(input.branchId)
+      ? { $or: [{ _id: input.branchId }, { branchId: input.branchId }] }
+      : { branchId: input.branchId };
+    if (!(await this.branchModel.exists(branchFilter)))
       throw new NotFoundException('Không tìm thấy chi nhánh');
     const toMinutes = (value: string) =>
       Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
