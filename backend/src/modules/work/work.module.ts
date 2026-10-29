@@ -18,6 +18,7 @@ import {
   ShiftAttendanceSchema,
 } from './domain/schemas/shift-attendance.schema';
 import { User, UserSchema } from '../user/domain/schemas/user.schema';
+import { ShiftAssignment, ShiftAssignmentSchema } from './domain/schemas/shift-assignment.schema';
 import { Order, OrderSchema } from '../order/domain/schemas/order.schema';
 import {
   SeatOrder,
@@ -56,6 +57,7 @@ import {
       { name: Branch.name, schema: BranchSchema },
       { name: ShiftAttendance.name, schema: ShiftAttendanceSchema },
       { name: User.name, schema: UserSchema },
+      { name: ShiftAssignment.name, schema: ShiftAssignmentSchema },
       { name: Order.name, schema: OrderSchema },
       { name: SeatOrder.name, schema: SeatOrderSchema },
       { name: ProductOrder.name, schema: ProductOrderSchema },

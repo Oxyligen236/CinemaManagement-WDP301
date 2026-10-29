@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { isValidObjectId } from 'mongoose';
 import { BranchStatus } from '../../domain/enums/branch-status.enum';
 import { Branch, BranchDocument } from '../../domain/schemas/branch.schema';
 import { GetPublicBranchesReqDto } from '../dto/req.dto';
@@ -21,13 +22,16 @@ export class BranchQueryService
     branchId: string,
   ): Promise<BranchSummaryResDto | null> {
     const doc = (await this.branchModel
-      .findOne({ branchId })
+      .findOne(isValidObjectId(branchId) ? { _id: branchId } : { branchId })
       .lean()
       .exec()) as unknown as Pick<Branch, 'branchId' | 'branchName'> | null;
     if (!doc) {
       return null;
     }
-    return { branchId: doc.branchId, branchName: doc.branchName };
+    return {
+      branchId: String((doc as unknown as { _id: unknown })._id),
+      branchName: doc.branchName,
+    };
   }
 
   async getPublicBranches(
@@ -45,13 +49,13 @@ export class BranchQueryService
     }
     const docs = await this.branchModel
       .find(filter)
-      .select('branchId branchName address hotline branchStatus')
+      .select('_id branchName address hotline branchStatus')
       .sort({ branchName: 1 })
       .lean()
       .exec();
 
     return docs.map((d) => ({
-      branchId: d.branchId,
+      branchId: String(d._id),
       branchName: d.branchName,
       address: d.address,
       hotline: d.hotline || '1900 2224',
