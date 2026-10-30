@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type WorkScheduleDocument = HydratedDocument<WorkSchedule>;
 
@@ -9,12 +8,7 @@ export type WorkScheduleDocument = HydratedDocument<WorkSchedule>;
   timestamps: true,
 })
 export class WorkSchedule {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  scheduleId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({ required: true, trim: true, maxlength: 100 })
   shiftName!: string;
@@ -36,15 +30,16 @@ export class WorkSchedule {
   isOvernight!: boolean;
 
   @Prop({
-    type: [String],
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
     default: [],
   })
-  userIds!: string[];
+  userIds!: Types.ObjectId[];
 
   @Prop({
-    trim: true,
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Branch',
   })
-  branchId?: string;
+  branchId?: Types.ObjectId;
 
   @Prop({ trim: true, maxlength: 500 })
   note?: string;

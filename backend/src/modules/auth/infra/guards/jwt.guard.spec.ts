@@ -30,6 +30,7 @@ describe('JwtGuard', () => {
     };
     const userModel = {
       findOne: jest.fn().mockReturnValue(query),
+      findById: jest.fn().mockReturnValue(query),
     } as unknown as Model<UserDocument>;
     guard = new JwtGuard({ verifyAsync } as unknown as JwtService, userModel);
   });

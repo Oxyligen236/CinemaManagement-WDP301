@@ -9,7 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { Role } from '../../user/domain/enums/role.enum';
@@ -31,12 +31,22 @@ import {
 } from './dto/branch-staff.dto';
 
 const STAFF_FIELDS =
-  'userId email firstName lastName role isActive branchId jobPosition employmentStatus createdAt updatedAt';
+  '_id email firstName lastName role isActive branchId jobPosition employmentStatus createdAt updatedAt';
 
-type StaffRecord = Pick<
-  User,
-  'userId' | 'email' | 'firstName' | 'lastName' | 'isActive' | 'branchId'
-> & {
+function toObjectId(id: string | Types.ObjectId): Types.ObjectId {
+  return typeof id === 'string' && Types.ObjectId.isValid(id)
+    ? new Types.ObjectId(id)
+    : (id as unknown as Types.ObjectId);
+}
+
+type StaffRecord = {
+  _id: Types.ObjectId;
+  userId?: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  branchId?: Types.ObjectId | string;
   jobPosition?: JobPosition;
   employmentStatus?: EmploymentStatus;
   createdAt?: Date;
@@ -78,20 +88,21 @@ export class BranchStaffService {
     return this.guard(async () => {
       const branch = await this.getManagerBranch(managerUserId);
       const conditions: Record<string, unknown>[] = [
-        { branchId: branch.branchId, role: Role.STAFF },
+        { branchId: toObjectId(branch.branchId), role: Role.STAFF },
       ];
 
       if (query.search) {
         const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(escaped, 'i');
-        conditions.push({
-          $or: [
-            { userId: regex },
-            { email: regex },
-            { firstName: regex },
-            { lastName: regex },
-          ],
-        });
+        const orConditions: Record<string, unknown>[] = [
+          { email: regex },
+          { firstName: regex },
+          { lastName: regex },
+        ];
+        if (Types.ObjectId.isValid(query.search)) {
+          orConditions.push({ _id: new Types.ObjectId(query.search) });
+        }
+        conditions.push({ $or: orConditions });
       }
       if (query.jobPosition) {
         conditions.push({ jobPosition: query.jobPosition });
@@ -155,7 +166,7 @@ export class BranchStaffService {
           lastName: input.lastName,
           role: Role.STAFF,
           // Bước 3: tự gán chi nhánh của Branch Manager (không nhận từ client)
-          branchId: branch.branchId,
+          branchId: toObjectId(branch.branchId),
           jobPosition: input.jobPosition,
           employmentStatus: status,
           isActive: isLoginAllowed(status),
@@ -212,7 +223,7 @@ export class BranchStaffService {
 
       const updated = await this.userModel
         .findOneAndUpdate(
-          { userId, branchId: branch.branchId, role: Role.STAFF },
+          { _id: toObjectId(userId), branchId: toObjectId(branch.branchId), role: Role.STAFF },
           {
             $set: set,
             ...(revokeSessions ? { $inc: { tokenVersion: 1 } } : {}),
@@ -239,8 +250,11 @@ export class BranchStaffService {
    * sau khi Admin chuyển quản lý sang chi nhánh khác.
    */
   private async getManagerBranch(managerUserId: string): Promise<ManagerBranch> {
-    const manager = await this.userModel
-      .findOne({ userId: managerUserId })
+    const userQuery =
+      typeof this.userModel.findById === 'function'
+        ? this.userModel.findById(toObjectId(managerUserId))
+        : this.userModel.findOne({ _id: toObjectId(managerUserId) });
+    const manager = await userQuery
       .select('role isActive branchId')
       .lean()
       .exec();
@@ -252,18 +266,27 @@ export class BranchStaffService {
       throw new ForbiddenException(STAFF_MESSAGES.NO_BRANCH);
     }
 
-    const branch = await this.branchModel
-      .findOne({ branchId: manager.branchId })
-      .select('branchId branchName address branchStatus')
-      .lean<ManagerBranch>()
-      .exec();
+    const branchQuery =
+      typeof this.branchModel.findById === 'function'
+        ? this.branchModel.findById(toObjectId(manager.branchId))
+        : this.branchModel.findOne({ _id: toObjectId(manager.branchId) });
+    const branch = (await branchQuery
+      .select('_id branchId branchName address branchStatus')
+      .lean()
+      .exec()) as unknown as {
+      _id?: Types.ObjectId;
+      branchId?: string;
+      branchName: string;
+      address: string;
+      branchStatus: BranchStatus;
+    } | null;
 
     if (!branch) {
       throw new ForbiddenException(STAFF_MESSAGES.NO_BRANCH);
     }
 
     return {
-      branchId: branch.branchId,
+      branchId: branch._id ? branch._id.toString() : (branch.branchId ?? ''),
       branchName: branch.branchName,
       address: branch.address,
       branchStatus: branch.branchStatus,
@@ -272,7 +295,7 @@ export class BranchStaffService {
 
   private async findBranchStaff(branchId: string, userId: string) {
     const staff = await this.userModel
-      .findOne({ userId, branchId, role: Role.STAFF })
+      .findOne({ _id: toObjectId(userId), branchId: toObjectId(branchId), role: Role.STAFF })
       .select(STAFF_FIELDS)
       .lean<StaffRecord>()
       .exec();
@@ -305,11 +328,11 @@ export class BranchStaffService {
 
   private toView(record: StaffRecord) {
     return {
-      userId: record.userId,
+      userId: record.userId ?? record._id.toString(),
       email: record.email,
       firstName: record.firstName,
       lastName: record.lastName,
-      branchId: record.branchId,
+      branchId: record.branchId ? record.branchId.toString() : '',
       jobPosition: record.jobPosition ?? null,
       employmentStatus: resolveEmploymentStatus(
         record.isActive,
@@ -330,24 +353,15 @@ export class BranchStaffService {
     );
   }
 
-  /** Exception flow: DB/service không khả dụng → 503. */
-  private async guard<T>(operation: () => Promise<T>): Promise<T> {
+  /** Bọc call ngoại trừ HTTP exception đã được định nghĩa. */
+  private async guard<T>(fn: () => Promise<T>): Promise<T> {
     try {
-      return await operation();
+      return await fn();
     } catch (error: unknown) {
-      if (error instanceof HttpException) throw error;
-      const name =
-        typeof error === 'object' && error !== null && 'name' in error
-          ? String((error as { name?: unknown }).name)
-          : '';
-      if (
-        /Mongo(ose)?(Network|ServerSelection|NotConnected|Timeout)/i.test(name)
-      ) {
-        throw new ServiceUnavailableException(
-          STAFF_MESSAGES.SERVICE_UNAVAILABLE,
-        );
+      if (error instanceof HttpException) {
+        throw error;
       }
-      throw error;
+      throw new ServiceUnavailableException(STAFF_MESSAGES.SERVICE_UNAVAILABLE);
     }
   }
 }

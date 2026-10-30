@@ -11,19 +11,19 @@ const chain = (result: unknown) => ({
 
 const BRANCH_A = 'branch-a';
 const USERS: Record<string, Record<string, unknown>> = {
-  'mgr-a': { userId: 'mgr-a', branchId: BRANCH_A, isActive: true },
-  'mgr-none': { userId: 'mgr-none', isActive: true },
-  'mgr-off': { userId: 'mgr-off', branchId: BRANCH_A, isActive: false },
+  'mgr-a': { _id: 'mgr-a', branchId: BRANCH_A, isActive: true },
+  'mgr-none': { _id: 'mgr-none', isActive: true },
+  'mgr-off': { _id: 'mgr-off', branchId: BRANCH_A, isActive: false },
 };
 
 describe('UserBranchQueryService', () => {
   let service: UserBranchQueryService;
-  const userModel = { findOne: jest.fn() };
+  const userModel = { findById: jest.fn() };
 
   beforeEach(async () => {
     jest.resetAllMocks();
-    userModel.findOne.mockImplementation((f: { userId: string }) =>
-      chain(USERS[f.userId] ?? null),
+    userModel.findById.mockImplementation((id: string) =>
+      chain(USERS[id] ?? null),
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -37,12 +37,12 @@ describe('UserBranchQueryService', () => {
 
   it('returns branchId of an active user with a branch', async () => {
     await expect(service.getBranchIdOfUser('mgr-a')).resolves.toBe(BRANCH_A);
-    expect(userModel.findOne).toHaveBeenCalledWith({ userId: 'mgr-a' });
+    expect(userModel.findById).toHaveBeenCalledWith('mgr-a');
   });
 
   it('selects only branchId and isActive', async () => {
     const query = chain(USERS['mgr-a']);
-    userModel.findOne.mockReturnValue(query);
+    userModel.findById.mockReturnValue(query);
 
     await service.getBranchIdOfUser('mgr-a');
 
@@ -62,7 +62,7 @@ describe('UserBranchQueryService', () => {
   });
 
   it('propagates database errors', async () => {
-    userModel.findOne.mockReturnValue({
+    userModel.findById.mockReturnValue({
       select: jest.fn().mockReturnThis(),
       lean: jest.fn().mockReturnThis(),
       exec: jest.fn().mockRejectedValue(new Error('mongo down')),

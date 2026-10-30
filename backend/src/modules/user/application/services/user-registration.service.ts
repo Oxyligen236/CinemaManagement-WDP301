@@ -256,7 +256,6 @@ export class UserRegistrationService {
 
     try {
       user = await this.userModel.create({
-        userId: randomUUID(),
         email,
         password: pending.passwordHash,
         firstName: pending.firstName,
@@ -292,7 +291,7 @@ export class UserRegistrationService {
 
     return {
       message: 'Email verified, account created',
-      userId: user.userId,
+      userId: (user._id ?? (user as any).userId)?.toString(),
       email: user.email,
     };
   }

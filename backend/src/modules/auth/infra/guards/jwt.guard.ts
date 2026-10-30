@@ -6,9 +6,15 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { AuthenticatedRequest, AuthUser } from '../../domain/auth-user';
 import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
+
+function toObjectId(id: string | Types.ObjectId): Types.ObjectId {
+  return typeof id === 'string' && Types.ObjectId.isValid(id)
+    ? new Types.ObjectId(id)
+    : (id as unknown as Types.ObjectId);
+}
 
 @Injectable()
 export class JwtGuard implements CanActivate {
@@ -29,7 +35,7 @@ export class JwtGuard implements CanActivate {
     try {
       const user = await this.jwtService.verifyAsync<AuthUser>(token);
       const account = await this.userModel
-        .findOne({ userId: user.sub })
+        .findById(toObjectId(user.sub))
         .select('isActive role tokenVersion')
         .lean()
         .exec();

@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { BranchStaffService } from './branch-staff.service';
 import { UserDocument } from '../../user/domain/schemas/user.schema';
 import { BranchDocument } from '../../branch/domain/schemas/branch.schema';
@@ -14,8 +14,10 @@ type ManagerRow = {
   branchId?: string;
 };
 
+const fakeBranchId = new Types.ObjectId('64b8f0f1a1a1a1a1a1a1a1a1');
 const BRANCH = {
-  branchId: 'branch-a',
+  _id: fakeBranchId,
+  branchId: fakeBranchId.toString(),
   branchName: 'Chi nhánh A',
   address: '1 Lê Lợi',
   branchStatus: BranchStatus.ACTIVE,
@@ -36,10 +38,12 @@ const buildService = (manager: ManagerRow | null, branch: unknown = BRANCH) => {
 
   const userModel = {
     findOne: jest.fn().mockReturnValue(chain(manager)),
+    findById: jest.fn().mockReturnValue(chain(manager)),
   } as unknown as Model<UserDocument>;
 
   const branchModel = {
     findOne: jest.fn().mockReturnValue(chain(branch)),
+    findById: jest.fn().mockReturnValue(chain(branch)),
   } as unknown as Model<BranchDocument>;
 
   return new BranchStaffService(userModel, branchModel);

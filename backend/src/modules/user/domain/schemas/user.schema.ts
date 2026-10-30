@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { Role } from '../enums/role.enum';
 import { JobPosition } from '../enums/job-position.enum';
 import { EmploymentStatus } from '../enums/employment-status.enum';
@@ -12,14 +11,9 @@ export type UserDocument = HydratedDocument<User>;
   timestamps: true,
 })
 export class User {
-  @Prop({
-    required: true,
-    unique: true,
-    trim: true,
-    lowercase: true,
-    default: () => randomUUID(),
-  })
-  userId!: string;
+  _id!: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
 
   @Prop({
     required: true,
@@ -76,12 +70,13 @@ export class User {
   /**
    * Quan hệ User - Branch.
    * ERD thể hiện nhiều User thuộc một Branch.
-   * Chưa có Branch model trong source hiện tại nên lưu ID dạng string.
    */
   @Prop({
-    trim: true,
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Branch',
+    required: false,
   })
-  branchId?: string;
+  branchId?: Types.ObjectId;
 
   /**
    * Vị trí công việc - chỉ áp dụng cho tài khoản STAFF (UC19 / BR-BRM-14).

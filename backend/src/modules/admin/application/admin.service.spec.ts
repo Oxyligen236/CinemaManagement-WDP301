@@ -1,11 +1,11 @@
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { AdminService } from './admin.service';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { BranchDocument } from '../../branch/domain/schemas/branch.schema';
 import { Role } from '../../user/domain/enums/role.enum';
 
 type UpdateCall = {
-  filter: Record<string, unknown>;
+  id: unknown;
   update: Record<string, unknown>;
 };
 
@@ -15,8 +15,9 @@ type UpdateCall = {
  */
 const buildService = (stored: Partial<User> = {}) => {
   const calls: UpdateCall[] = [];
+  const fakeId = new Types.ObjectId('64b8f0f1a1a1a1a1a1a1a1a1');
   const updated = {
-    userId: 'u-1',
+    _id: fakeId,
     email: 'staff@cinema.local',
     firstName: 'Minh',
     lastName: 'Nguyen',
@@ -25,11 +26,11 @@ const buildService = (stored: Partial<User> = {}) => {
   };
 
   const userModel = {
-    findOne: jest.fn().mockReturnValue({
+    findById: jest.fn().mockReturnValue({
       select: jest.fn().mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue({
-            userId: 'u-1',
+            _id: fakeId,
             role: Role.STAFF,
             branchId: 'b-1',
             ...stored,
@@ -37,9 +38,9 @@ const buildService = (stored: Partial<User> = {}) => {
         }),
       }),
     }),
-    findOneAndUpdate: jest.fn(
-      (filter: Record<string, unknown>, update: Record<string, unknown>) => {
-        calls.push({ filter, update });
+    findByIdAndUpdate: jest.fn(
+      (id: unknown, update: Record<string, unknown>) => {
+        calls.push({ id, update });
         return {
           select: jest.fn().mockReturnValue({
             lean: jest.fn().mockReturnValue({
@@ -60,10 +61,13 @@ const buildService = (stored: Partial<User> = {}) => {
 };
 
 describe('AdminService.updateUser (branch cleanup on role change)', () => {
+  const targetId = '64b8f0f1a1a1a1a1a1a1a1a1';
+  const adminId = '64b8f0f1a1a1a1a1a1a1a1a2';
+
   it('unsets branchId when a staff account becomes a customer', async () => {
     const { service, calls } = buildService();
 
-    await service.updateUser('u-1', { role: Role.USER }, 'admin-1');
+    await service.updateUser(targetId, { role: Role.USER }, adminId);
 
     expect(calls).toHaveLength(1);
     expect(calls[0].update.$unset).toEqual({ branchId: '' });
@@ -72,7 +76,7 @@ describe('AdminService.updateUser (branch cleanup on role change)', () => {
   it('unsets branchId when a branch manager becomes a customer', async () => {
     const { service, calls } = buildService({ role: Role.BRANCHMANAGER });
 
-    await service.updateUser('u-1', { role: Role.USER }, 'admin-1');
+    await service.updateUser(targetId, { role: Role.USER }, adminId);
 
     expect(calls[0].update.$unset).toEqual({ branchId: '' });
   });
@@ -80,7 +84,7 @@ describe('AdminService.updateUser (branch cleanup on role change)', () => {
   it('keeps branchId when the new role still works at a branch', async () => {
     const { service, calls } = buildService();
 
-    await service.updateUser('u-1', { role: Role.BRANCHMANAGER }, 'admin-1');
+    await service.updateUser(targetId, { role: Role.BRANCHMANAGER }, adminId);
 
     expect(calls[0].update.$unset).toBeUndefined();
     expect(calls[0].update.$set).toEqual({ role: Role.BRANCHMANAGER });
@@ -89,7 +93,7 @@ describe('AdminService.updateUser (branch cleanup on role change)', () => {
   it('keeps branchId when the update does not touch the role', async () => {
     const { service, calls } = buildService();
 
-    await service.updateUser('u-1', { firstName: 'Khanh' }, 'admin-1');
+    await service.updateUser(targetId, { firstName: 'Khanh' }, adminId);
 
     // A rename must not strip the branch the account still works at.
     expect(calls[0].update.$unset).toBeUndefined();
@@ -99,9 +103,9 @@ describe('AdminService.updateUser (branch cleanup on role change)', () => {
     const { service, calls } = buildService();
 
     await service.updateUser(
-      'u-1',
+      targetId,
       { role: Role.USER, isActive: false },
-      'admin-1',
+      adminId,
     );
 
     expect(calls[0].update.$unset).toEqual({ branchId: '' });

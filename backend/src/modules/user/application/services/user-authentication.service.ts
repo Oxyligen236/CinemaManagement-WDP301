@@ -32,23 +32,26 @@ export class UserAuthenticationService {
       throw new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED);
     }
 
+    const userIdStr = (user._id ?? (user as any).userId)?.toString();
+    const branchIdStr = user.branchId?.toString();
+
     const payload = {
-      sub: user.userId,
+      sub: userIdStr,
       email: user.email,
       role: user.role,
-      branchId: user.branchId,
+      branchId: branchIdStr,
       tokenVersion: user.tokenVersion ?? 0,
     };
 
     return {
       accessToken: await this.jwtService.signAsync(payload),
       user: {
-        userId: user.userId,
+        userId: userIdStr,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        branchId: user.branchId,
+        branchId: branchIdStr,
       },
     };
   }
