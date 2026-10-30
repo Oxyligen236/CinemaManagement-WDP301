@@ -5,7 +5,6 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
 import {
-  ApiError,
   EmploymentStatus,
   INPUT_CLASS,
   JobPosition,
@@ -14,12 +13,13 @@ import {
   STATUS_LABELS,
   Staff,
   StaffOptions,
-  getErrorMessage,
+  pickFieldErrors,
   useManagerApi,
 } from "../_lib/staff-api";
 import { ErrorBanner, FieldError, LockedBranchField } from "../_lib/feedback";
 import {
   NAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
   validateEmail,
   validateName,
   validatePassword,
@@ -34,6 +34,19 @@ type CreateForm = {
   jobPosition: JobPosition | "";
   employmentStatus: EmploymentStatus;
 };
+
+/**
+ * Các trường có mặt trên form, dùng để nhận lỗi backend trả theo tên trường.
+ * Lỗi của trường ngoài danh sách này sẽ hiện ở banner chung.
+ */
+const CREATE_FIELDS = [
+  "email",
+  "password",
+  "firstName",
+  "lastName",
+  "jobPosition",
+  "employmentStatus",
+] as const;
 
 const EMPTY_FORM: CreateForm = {
   email: "",
@@ -126,13 +139,14 @@ export default function AddBranchStaffPage() {
       );
       router.push(`/manager/staff?created=${encodeURIComponent(result.message)}`);
     } catch (submitError) {
-      // AF-2: email trùng là lỗi của một trường cụ thể, hiện ngay dưới ô
-      // nhập thay vì banner chung để người dùng biết cần sửa chỗ nào.
-      if (submitError instanceof ApiError && submitError.status === 409) {
-        setFieldErrors((current) => ({
-          ...current,
-          email: getErrorMessage(submitError),
-        }));
+      // AF-2: backend chỉ rõ trường nào sai (email trùng, vị trí ngoài danh
+      // mục...) nên hiện câu lỗi ngay dưới ô nhập đó. Chỉ khi không xác định
+      // được trường nào (lỗi quyền, mạng, chi nhánh ngừng hoạt động) mới dùng
+      // banner chung.
+      const serverFieldErrors = pickFieldErrors(submitError, CREATE_FIELDS);
+      if (Object.keys(serverFieldErrors).length > 0) {
+        setFieldErrors((current) => ({ ...current, ...serverFieldErrors }));
+        setError(null);
       } else {
         setError(submitError);
       }
@@ -234,7 +248,7 @@ export default function AddBranchStaffPage() {
               required
               autoComplete="new-password"
               minLength={8}
-              maxLength={100}
+              maxLength={PASSWORD_MAX_LENGTH}
               value={form.password}
               aria-invalid={!!fieldErrors.password}
               aria-describedby={
