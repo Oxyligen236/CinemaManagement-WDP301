@@ -1,51 +1,53 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { UserAuthenticationService } from './user-authentication.service';
-import { UserDocument } from '../../domain/schemas/user.schema';
-import { Role } from '../../domain/enums/role.enum';
+import { Role } from '@prisma/client';
 import { AUTH_MESSAGES } from '../../domain/constants/auth-message.constants';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 type StoredUser = {
-  userId: string;
+  id: string;
   email: string;
   password: string;
   isActive: boolean;
   tokenVersion?: number;
   firstName: string;
   lastName: string;
-  role: string;
+  role: Role;
+  branchId?: string | null;
 };
 
 const PASSWORD = 'Password123!';
 
 const buildUser = (overrides: Partial<StoredUser> = {}): StoredUser => ({
-  userId: 'u-1',
+  id: 'u-1',
   email: 'manager@cinema.local',
   password: bcrypt.hashSync(PASSWORD, 4),
   isActive: true,
   tokenVersion: 0,
   firstName: 'Minh',
   lastName: 'Manager',
-  role: Role.BRANCHMANAGER,
+  role: Role.MANAGER,
+  branchId: 'b-1',
   ...overrides,
 });
 
 const buildService = (user: StoredUser | null) => {
-  const userModel = {
-    findOne: jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue(user),
-      }),
-    }),
-  } as unknown as Model<UserDocument>;
+  const mockPrisma = {
+    user: {
+      findUnique: jest.fn().mockResolvedValue(user),
+    },
+  };
 
   const signAsync = jest.fn().mockResolvedValue('signed-token');
   const jwtService = { signAsync } as unknown as JwtService;
 
   return {
-    service: new UserAuthenticationService(userModel, jwtService),
+    service: new UserAuthenticationService(
+      mockPrisma as unknown as PrismaService,
+      jwtService,
+    ),
     signAsync,
   };
 };
@@ -76,9 +78,7 @@ describe('UserAuthenticationService.login', () => {
 
     await expect(
       service.login('manager@cinema.local', PASSWORD),
-    ).rejects.toThrow(
-      new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED),
-    );
+    ).rejects.toThrow(new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED));
   });
 
   it('puts the stored role into the token and the response', async () => {
@@ -86,9 +86,9 @@ describe('UserAuthenticationService.login', () => {
 
     const result = await service.login('manager@cinema.local', PASSWORD);
 
-    expect(result.user.role).toBe(Role.BRANCHMANAGER);
     expect(signAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ role: Role.BRANCHMANAGER }),
+      expect.objectContaining({ role: Role.MANAGER }),
     );
+    expect(result.user.role).toBe(Role.MANAGER);
   });
 });

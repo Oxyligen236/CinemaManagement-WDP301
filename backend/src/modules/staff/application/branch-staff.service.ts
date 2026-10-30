@@ -8,15 +8,9 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { User, UserDocument } from '../../user/domain/schemas/user.schema';
-import { Role } from '../../user/domain/enums/role.enum';
-import { EmploymentStatus } from '../../user/domain/enums/employment-status.enum';
-import { JobPosition } from '../../user/domain/enums/job-position.enum';
-import { Branch, BranchDocument } from '../../branch/domain/schemas/branch.schema';
-import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { Role, EmploymentStatus, JobPosition, BranchStatus } from '@prisma/client';
 import {
   BRANCH_ASSIGNABLE_POSITIONS,
   CREATABLE_STATUSES,
@@ -30,19 +24,6 @@ import {
   UpdateBranchStaffDto,
 } from './dto/branch-staff.dto';
 
-const STAFF_FIELDS =
-  'userId email firstName lastName role isActive branchId jobPosition employmentStatus createdAt updatedAt';
-
-type StaffRecord = Pick<
-  User,
-  'userId' | 'email' | 'firstName' | 'lastName' | 'isActive' | 'branchId'
-> & {
-  jobPosition?: JobPosition;
-  employmentStatus?: EmploymentStatus;
-  createdAt?: Date;
-  updatedAt?: Date;
-};
-
 type ManagerBranch = {
   branchId: string;
   branchName: string;
@@ -53,12 +34,7 @@ type ManagerBranch = {
 /** UC19 - Manage Branch Staff */
 @Injectable()
 export class BranchStaffService {
-  constructor(
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /** Thông tin chi nhánh (khóa) + danh mục vị trí/trạng thái cho form. */
   async getOptions(managerUserId: string) {
@@ -77,39 +53,33 @@ export class BranchStaffService {
   async listStaff(managerUserId: string, query: BranchStaffQueryDto) {
     return this.guard(async () => {
       const branch = await this.getManagerBranch(managerUserId);
-      const conditions: Record<string, unknown>[] = [
-        { branchId: branch.branchId, role: Role.STAFF },
-      ];
+      const where: any = {
+        branchId: branch.branchId,
+        role: Role.STAFF,
+      };
 
       if (query.search) {
-        const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(escaped, 'i');
-        conditions.push({
-          $or: [
-            { userId: regex },
-            { email: regex },
-            { firstName: regex },
-            { lastName: regex },
-          ],
-        });
+        where.OR = [
+          { email: { contains: query.search, mode: 'insensitive' } },
+          { firstName: { contains: query.search, mode: 'insensitive' } },
+          { lastName: { contains: query.search, mode: 'insensitive' } },
+        ];
       }
       if (query.jobPosition) {
-        conditions.push({ jobPosition: query.jobPosition });
+        where.jobPosition = query.jobPosition;
       }
       if (query.employmentStatus) {
-        conditions.push(this.statusFilter(query.employmentStatus));
+        Object.assign(where, this.statusFilter(query.employmentStatus as EmploymentStatus));
       }
 
-      const staff = await this.userModel
-        .find({ $and: conditions })
-        .select(STAFF_FIELDS)
-        .sort({ createdAt: -1 })
-        .lean<StaffRecord[]>()
-        .exec();
+      const staff = await this.prisma.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+      });
 
       return {
         branch,
-        staff: staff.map((record) => this.toView(record)),
+        staff: staff.map((record: any) => this.toView(record)),
         total: staff.length,
       };
     });
@@ -132,41 +102,40 @@ export class BranchStaffService {
         throw new BadRequestException(STAFF_MESSAGES.BRANCH_NOT_ACTIVE);
       }
 
-      // AF-2 (phòng thủ thêm ngoài DTO)
-      this.assertPositionAvailable(input.jobPosition);
-      const status = input.employmentStatus ?? EmploymentStatus.ACTIVE;
-      if (!CREATABLE_STATUSES.includes(status)) {
+      this.assertPositionAvailable(input.jobPosition as JobPosition);
+      const status = (input.employmentStatus as EmploymentStatus) ?? EmploymentStatus.ACTIVE;
+      if (!CREATABLE_STATUSES.includes(status as any)) {
         throw new BadRequestException(STAFF_MESSAGES.MSG01);
       }
 
       const email = input.email.toLowerCase();
 
-      // AF-3: tài khoản đã tồn tại
-      const exists = await this.userModel.exists({ email }).exec();
+      const exists = await this.prisma.user.findUnique({ where: { email } });
       if (exists) {
         throw new ConflictException(STAFF_MESSAGES.ACCOUNT_EXISTS);
       }
 
       try {
-        const created = await this.userModel.create({
-          email,
-          password: await bcrypt.hash(input.password, 10),
-          firstName: input.firstName,
-          lastName: input.lastName,
-          role: Role.STAFF,
-          // Bước 3: tự gán chi nhánh của Branch Manager (không nhận từ client)
-          branchId: branch.branchId,
-          jobPosition: input.jobPosition,
-          employmentStatus: status,
-          isActive: isLoginAllowed(status),
+        const created = await this.prisma.user.create({
+          data: {
+            email,
+            password: await bcrypt.hash(input.password, 10),
+            firstName: input.firstName,
+            lastName: input.lastName,
+            role: Role.STAFF,
+            branchId: branch.branchId,
+            jobPosition: input.jobPosition as JobPosition,
+            employmentStatus: status,
+            isActive: isLoginAllowed(status as any),
+          },
         });
 
         return {
           message: STAFF_MESSAGES.MSG26,
-          staff: this.toView(created.toObject()),
+          staff: this.toView(created),
         };
-      } catch (error: unknown) {
-        if (this.isDuplicateKey(error)) {
+      } catch (error: any) {
+        if (error?.code === 'P2002') {
           throw new ConflictException(STAFF_MESSAGES.ACCOUNT_EXISTS);
         }
         throw error;
@@ -189,81 +158,66 @@ export class BranchStaffService {
       const current = await this.findBranchStaff(branch.branchId, userId);
 
       if (input.jobPosition !== undefined) {
-        this.assertPositionAvailable(input.jobPosition);
+        this.assertPositionAvailable(input.jobPosition as JobPosition);
       }
 
-      const set: Record<string, unknown> = {};
-      if (input.firstName !== undefined) set.firstName = input.firstName;
-      if (input.lastName !== undefined) set.lastName = input.lastName;
-      if (input.jobPosition !== undefined) set.jobPosition = input.jobPosition;
+      const data: any = {};
+      if (input.firstName !== undefined) data.firstName = input.firstName;
+      if (input.lastName !== undefined) data.lastName = input.lastName;
+      if (input.jobPosition !== undefined) data.jobPosition = input.jobPosition;
 
       let revokeSessions = false;
       if (input.employmentStatus !== undefined) {
         const previous = resolveEmploymentStatus(
           current.isActive,
-          current.employmentStatus,
+          current.employmentStatus as any,
         );
-        const loginAllowed = isLoginAllowed(input.employmentStatus);
-        set.employmentStatus = input.employmentStatus;
-        set.isActive = loginAllowed;
-        // BR-BRM-15: chuyển sang Inactive/Resigned → thu hồi phiên đăng nhập
-        revokeSessions = !loginAllowed && previous === EmploymentStatus.ACTIVE;
+        const loginAllowed = isLoginAllowed(input.employmentStatus as any);
+        data.employmentStatus = input.employmentStatus;
+        data.isActive = loginAllowed;
+        revokeSessions = !loginAllowed && previous === (EmploymentStatus.ACTIVE as any);
+      }
+      if (revokeSessions) {
+        data.tokenVersion = { increment: 1 };
       }
 
-      const updated = await this.userModel
-        .findOneAndUpdate(
-          { userId, branchId: branch.branchId, role: Role.STAFF },
-          {
-            $set: set,
-            ...(revokeSessions ? { $inc: { tokenVersion: 1 } } : {}),
-          },
-          { new: true, runValidators: true },
-        )
-        .select(STAFF_FIELDS)
-        .lean<StaffRecord>()
-        .exec();
+      try {
+        const updated = await this.prisma.user.update({
+          where: { id: userId },
+          data,
+        });
 
-      if (!updated) {
+        return { message: STAFF_MESSAGES.MSG26, staff: this.toView(updated) };
+      } catch {
         throw new NotFoundException(STAFF_MESSAGES.STAFF_NOT_FOUND);
       }
-
-      return { message: STAFF_MESSAGES.MSG26, staff: this.toView(updated) };
     });
   }
 
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Pre-condition 2: Branch Manager chỉ quản lý nhân viên thuộc chi nhánh
-   * mình. Chi nhánh lấy từ DB (không tin client) để token cũ không dùng được
-   * sau khi Admin chuyển quản lý sang chi nhánh khác.
-   */
   private async getManagerBranch(managerUserId: string): Promise<ManagerBranch> {
-    const manager = await this.userModel
-      .findOne({ userId: managerUserId })
-      .select('role isActive branchId')
-      .lean()
-      .exec();
+    const manager = await this.prisma.user.findUnique({
+      where: { id: managerUserId },
+      select: { role: true, isActive: true, branchId: true },
+    });
 
-    if (!manager || !manager.isActive || manager.role !== Role.BRANCHMANAGER) {
+    if (!manager || !manager.isActive || (manager.role !== Role.MANAGER && (manager.role as any) !== 'BRANCHMANAGER')) {
       throw new ForbiddenException(STAFF_MESSAGES.FORBIDDEN);
     }
     if (!manager.branchId) {
       throw new ForbiddenException(STAFF_MESSAGES.NO_BRANCH);
     }
 
-    const branch = await this.branchModel
-      .findOne({ branchId: manager.branchId })
-      .select('branchId branchName address branchStatus')
-      .lean<ManagerBranch>()
-      .exec();
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: manager.branchId },
+      select: { id: true, branchName: true, address: true, branchStatus: true },
+    });
 
     if (!branch) {
       throw new ForbiddenException(STAFF_MESSAGES.NO_BRANCH);
     }
 
     return {
-      branchId: branch.branchId,
+      branchId: branch.id,
       branchName: branch.branchName,
       address: branch.address,
       branchStatus: branch.branchStatus,
@@ -271,20 +225,17 @@ export class BranchStaffService {
   }
 
   private async findBranchStaff(branchId: string, userId: string) {
-    const staff = await this.userModel
-      .findOne({ userId, branchId, role: Role.STAFF })
-      .select(STAFF_FIELDS)
-      .lean<StaffRecord>()
-      .exec();
+    const staff = await this.prisma.user.findFirst({
+      where: { id: userId, branchId, role: Role.STAFF },
+    });
     if (!staff) {
       throw new NotFoundException(STAFF_MESSAGES.STAFF_NOT_FOUND);
     }
     return staff;
   }
 
-  /** AF-2 / BR-BRM-14 */
   private assertPositionAvailable(position: JobPosition) {
-    if (!BRANCH_ASSIGNABLE_POSITIONS.includes(position)) {
+    if (!BRANCH_ASSIGNABLE_POSITIONS.includes(position as any)) {
       throw new BadRequestException(STAFF_MESSAGES.MSG01);
     }
   }
@@ -298,14 +249,14 @@ export class BranchStaffService {
       default:
         return {
           isActive: false,
-          employmentStatus: { $ne: EmploymentStatus.RESIGNED },
+          employmentStatus: { not: EmploymentStatus.RESIGNED },
         };
     }
   }
 
-  private toView(record: StaffRecord) {
+  private toView(record: any) {
     return {
-      userId: record.userId,
+      userId: record.id,
       email: record.email,
       firstName: record.firstName,
       lastName: record.lastName,
@@ -321,33 +272,12 @@ export class BranchStaffService {
     };
   }
 
-  private isDuplicateKey(error: unknown) {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      (error as { code?: unknown }).code === 11000
-    );
-  }
-
-  /** Exception flow: DB/service không khả dụng → 503. */
   private async guard<T>(operation: () => Promise<T>): Promise<T> {
     try {
       return await operation();
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
-      const name =
-        typeof error === 'object' && error !== null && 'name' in error
-          ? String((error as { name?: unknown }).name)
-          : '';
-      if (
-        /Mongo(ose)?(Network|ServerSelection|NotConnected|Timeout)/i.test(name)
-      ) {
-        throw new ServiceUnavailableException(
-          STAFF_MESSAGES.SERVICE_UNAVAILABLE,
-        );
-      }
-      throw error;
+      throw new ServiceUnavailableException('Database error: service is temporarily unavailable');
     }
   }
 }

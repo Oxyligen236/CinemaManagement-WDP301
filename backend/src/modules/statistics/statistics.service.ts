@@ -3,42 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { PrismaService } from '../infra/prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/domain/types/authenticated-user.type';
 import { Role } from '../auth/infra/decorators/role.decorator';
 import { UserBranchQueryService } from '../user/application/services/user-branch-query.service';
-import { Order, OrderDocument } from '../order/domain/schemas/order.schema';
-import {
-  SeatOrder,
-  SeatOrderDocument,
-} from '../order/domain/schemas/seat-order.schema';
-import {
-  ProductOrder,
-  ProductOrderDocument,
-} from '../order/domain/schemas/product-order.schema';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../showtime/domain/schemas/showtime.schema';
-import { Item, ItemDocument } from '../product/domain/schemas/item.schema';
-import { Combo, ComboDocument } from '../product/domain/schemas/combo.schema';
+import { OrderStatus } from '@prisma/client';
 import { FinancialStatisticsQueryDto } from './statistics.dto';
-
-const PAID = 'PAID';
 
 @Injectable()
 export class StatisticsService {
   constructor(
-    @InjectModel(Order.name) private readonly orders: Model<OrderDocument>,
-    @InjectModel(SeatOrder.name)
-    private readonly seatOrders: Model<SeatOrderDocument>,
-    @InjectModel(ProductOrder.name)
-    private readonly productOrders: Model<ProductOrderDocument>,
-    @InjectModel(Showtime.name)
-    private readonly showtimes: Model<ShowtimeDocument>,
-    @InjectModel(Item.name) private readonly items: Model<ItemDocument>,
-    @InjectModel(Combo.name) private readonly combos: Model<ComboDocument>,
+    private readonly prisma: PrismaService,
     private readonly userBranches: UserBranchQueryService,
   ) {}
 
@@ -47,97 +22,118 @@ export class StatisticsService {
     query: FinancialStatisticsQueryDto,
   ) {
     const branchId = await this.resolveBranch(user, query.branchId);
-    const { start, end, date } = this.dayRange(query.date);
-    const paidOrders = {
-      status: PAID,
-      ...(branchId ? { branchId } : {}),
-      createdAt: { $gte: start, $lt: end },
-    };
-    const orderLookup = [
-      {
-        $lookup: {
-          from: 'orders',
-          localField: 'orderId',
-          foreignField: 'orderId',
-          as: 'order',
-        },
-      },
-      { $unwind: '$order' },
-      {
-        $match: Object.fromEntries(
-          Object.entries(paidOrders).map(([key, value]) => [
-            `order.${key}`,
-            value,
-          ]),
-        ),
-      },
-    ];
-
-    const [ticketTotal, productTotal, products, movies, chart] =
-      await Promise.all([
-        this.seatOrders.aggregate([
-          ...orderLookup,
-          {
-            $group: {
-              _id: null,
-              total: { $sum: 1 },
-              revenue: { $sum: '$price' },
-            },
-          },
-        ]),
-        this.productOrders.aggregate([
-          ...orderLookup,
-          { $group: { _id: null, total: { $sum: '$quantity' } } },
-        ]),
-        this.productStatistics(orderLookup),
-        this.seatOrders.aggregate([
-          ...orderLookup,
-          {
-            $lookup: {
-              from: 'seat_showtimes',
-              localField: 'seatShowtimeId',
-              foreignField: 'seatShowtimeId',
-              as: 'seat',
-            },
-          },
-          { $unwind: '$seat' },
-          {
-            $lookup: {
-              from: 'showtimes',
-              localField: 'seat.showtimeId',
-              foreignField: 'showtimeId',
-              as: 'showtime',
-            },
-          },
-          { $unwind: '$showtime' },
-          {
-            $lookup: {
-              from: 'movies',
-              localField: 'showtime.movieId',
-              foreignField: 'movieId',
-              as: 'movie',
-            },
-          },
-          { $unwind: '$movie' },
-          {
-            $group: {
-              _id: '$movie.movieId',
-              movieName: { $first: '$movie.movieName' },
-              ticketsSold: { $sum: 1 },
-              ticketRevenue: { $sum: '$price' },
-            },
-          },
-        ]),
-        this.dailyChart(branchId, start, end),
-      ]);
-    const sorted = movies.sort(
-      (a, b) =>
-        b.ticketsSold - a.ticketsSold || a.movieName.localeCompare(b.movieName),
+    const { start, end, date, period } = this.dateRange(
+      query.date,
+      query.period,
     );
-    const productRevenue = products.reduce(
-      (total, product) => total + product.revenue,
+
+    const paidOrders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.PAID,
+        ...(branchId ? { branchId } : {}),
+        createdAt: { gte: start, lt: end },
+      },
+      select: { id: true },
+    });
+
+    const paidOrderIds = paidOrders.map((o) => o.id);
+
+    if (paidOrderIds.length === 0) {
+      return {
+        date,
+        period,
+        branchId: branchId ?? null,
+        totalTicketsSold: 0,
+        totalTicketRevenue: 0,
+        totalProductsSold: 0,
+        totalProductRevenue: 0,
+        products: [],
+        productsByCategory: [],
+        movies: [],
+        topSellingMovie: null,
+        lowestSellingMovie: null,
+        dailyShowtimeChart: [],
+      };
+    }
+
+    const [seatOrders, productOrders] = await Promise.all([
+      this.prisma.seatOrder.findMany({
+        where: { orderId: { in: paidOrderIds } },
+        include: {
+          seatShowtime: {
+            include: {
+              showtime: {
+                include: {
+                  movie: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.productOrder.findMany({
+        where: { orderId: { in: paidOrderIds } },
+      }),
+    ]);
+
+    const totalTicketsSold = seatOrders.length;
+    const totalTicketRevenue = seatOrders.reduce((sum, s) => sum + s.price, 0);
+
+    const totalProductsSold = productOrders.reduce(
+      (sum, p) => sum + p.quantity,
       0,
     );
+
+    const productIds = Array.from(
+      new Set(productOrders.map((p) => p.productId)),
+    );
+    const [items, combos] = await Promise.all([
+      this.prisma.item.findMany({ where: { id: { in: productIds } } }),
+      this.prisma.combo.findMany({ where: { id: { in: productIds } } }),
+    ]);
+
+    const itemMap = new Map(items.map((i) => [i.id, i]));
+    const comboMap = new Map(combos.map((c) => [c.id, c]));
+
+    const productAggMap = new Map<
+      string,
+      {
+        productId: string;
+        productName: string;
+        category: string;
+        quantitySold: number;
+        revenue: number;
+      }
+    >();
+
+    for (const po of productOrders) {
+      const item = itemMap.get(po.productId);
+      const combo = comboMap.get(po.productId);
+      const productName = item?.name ?? combo?.name ?? po.productId;
+      const category = item?.category ?? (combo ? 'COMBO' : 'OTHER');
+      const revenue = po.quantity * po.unitPrice;
+
+      const existing = productAggMap.get(po.productId);
+      if (existing) {
+        existing.quantitySold += po.quantity;
+        existing.revenue += revenue;
+      } else {
+        productAggMap.set(po.productId, {
+          productId: po.productId,
+          productName,
+          category,
+          quantitySold: po.quantity,
+          revenue,
+        });
+      }
+    }
+
+    const products = Array.from(productAggMap.values()).sort(
+      (a, b) =>
+        b.revenue - a.revenue || a.productName.localeCompare(b.productName),
+    );
+    const totalProductRevenue = products.reduce((sum, p) => sum + p.revenue, 0);
+
     const productsByCategory = Object.values(
       products.reduce<
         Record<
@@ -156,18 +152,55 @@ export class StatisticsService {
         return result;
       }, {}),
     );
+
+    const movieAggMap = new Map<
+      string,
+      {
+        movieId: string;
+        movieName: string;
+        ticketsSold: number;
+        ticketRevenue: number;
+      }
+    >();
+
+    for (const so of seatOrders) {
+      const movie = so.seatShowtime?.showtime?.movie;
+      const movieId = movie?.id ?? 'UNKNOWN';
+      const movieName = movie?.movieName ?? 'Phim chưa xác định';
+
+      const existing = movieAggMap.get(movieId);
+      if (existing) {
+        existing.ticketsSold += 1;
+        existing.ticketRevenue += so.price;
+      } else {
+        movieAggMap.set(movieId, {
+          movieId,
+          movieName,
+          ticketsSold: 1,
+          ticketRevenue: so.price,
+        });
+      }
+    }
+
+    const movies = Array.from(movieAggMap.values()).sort(
+      (a, b) =>
+        b.ticketsSold - a.ticketsSold || a.movieName.localeCompare(b.movieName),
+    );
+
     return {
       date,
+      period,
       branchId: branchId ?? null,
-      totalTicketsSold: ticketTotal[0]?.total ?? 0,
-      totalTicketRevenue: ticketTotal[0]?.revenue ?? 0,
-      totalProductsSold: productTotal[0]?.total ?? 0,
-      totalProductRevenue: productRevenue,
+      totalTicketsSold,
+      totalTicketRevenue,
+      totalProductsSold,
+      totalProductRevenue,
       products,
       productsByCategory,
-      topSellingMovie: sorted[0] ?? null,
-      lowestSellingMovie: sorted.at(-1) ?? null,
-      dailyShowtimeChart: chart,
+      movies,
+      topSellingMovie: movies[0] ?? null,
+      lowestSellingMovie: movies.at(-1) ?? null,
+      dailyShowtimeChart: movies,
     };
   }
 
@@ -179,166 +212,45 @@ export class StatisticsService {
     return branchId;
   }
 
-  private dayRange(input?: string) {
-    const date = input ?? new Date().toISOString().slice(0, 10);
-    const [year, month, day] = date.split('-').map(Number);
-    const start = new Date(Date.UTC(year, month - 1, day) - 7 * 60 * 60 * 1000);
-    if (Number.isNaN(start.getTime()))
-      throw new BadRequestException('Ngày không hợp lệ.');
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    return { start, end, date };
-  }
-
-  private async productStatistics(orderLookup: any[]) {
-    return this.productOrders.aggregate([
-      ...orderLookup,
-      {
-        $lookup: {
-          from: 'items',
-          localField: 'productId',
-          foreignField: 'itemId',
-          as: 'item',
-        },
-      },
-      {
-        $lookup: {
-          from: 'combos',
-          localField: 'productId',
-          foreignField: 'comboId',
-          as: 'combo',
-        },
-      },
-      {
-        $project: {
-          productId: 1,
-          quantity: 1,
-          revenue: { $multiply: ['$quantity', '$unitPrice'] },
-          productName: {
-            $ifNull: [
-              { $arrayElemAt: ['$item.name', 0] },
-              { $ifNull: [{ $arrayElemAt: ['$combo.name', 0] }, '$productId'] },
-            ],
-          },
-          category: {
-            $ifNull: [
-              { $arrayElemAt: ['$item.category', 0] },
-              { $cond: [{ $gt: [{ $size: '$combo' }, 0] }, 'COMBO', 'OTHER'] },
-            ],
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            productId: '$productId',
-            productName: '$productName',
-            category: '$category',
-          },
-          quantitySold: { $sum: '$quantity' },
-          revenue: { $sum: '$revenue' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          productId: '$_id.productId',
-          productName: '$_id.productName',
-          category: '$_id.category',
-          quantitySold: 1,
-          revenue: 1,
-        },
-      },
-      { $sort: { revenue: -1, productName: 1 } },
-    ]);
-  }
-
-  private async dailyChart(
-    branchId: string | undefined,
-    start: Date,
-    end: Date,
+  private dateRange(
+    input?: string,
+    requestedPeriod: 'day' | 'week' | 'month' = 'day',
   ) {
-    return this.showtimes.aggregate([
-      { $match: { startTime: { $gte: start, $lt: end } } },
-      {
-        $lookup: {
-          from: 'rooms',
-          localField: 'roomId',
-          foreignField: 'roomId',
-          as: 'room',
-        },
-      },
-      { $unwind: '$room' },
-      ...(branchId ? [{ $match: { 'room.branchId': branchId } }] : []),
-      {
-        $lookup: {
-          from: 'seat_showtimes',
-          localField: 'showtimeId',
-          foreignField: 'showtimeId',
-          as: 'seats',
-        },
-      },
-      { $unwind: { path: '$seats', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: 'seat_orders',
-          localField: 'seats.seatShowtimeId',
-          foreignField: 'seatShowtimeId',
-          as: 'seatOrder',
-        },
-      },
-      { $unwind: { path: '$seatOrder', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: 'orders',
-          localField: 'seatOrder.orderId',
-          foreignField: 'orderId',
-          as: 'order',
-        },
-      },
-      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: 'movies',
-          localField: 'movieId',
-          foreignField: 'movieId',
-          as: 'movie',
-        },
-      },
-      { $unwind: '$movie' },
-      {
-        $group: {
-          _id: { movieId: '$movieId', showtimeId: '$showtimeId' },
-          movieName: { $first: '$movie.movieName' },
-          ticketsSold: {
-            $sum: { $cond: [{ $eq: ['$order.status', PAID] }, 1, 0] },
-          },
-          ticketRevenue: {
-            $sum: {
-              $cond: [{ $eq: ['$order.status', PAID] }, '$seatOrder.price', 0],
-            },
-          },
-        },
-      },
-      {
-        $group: {
-          _id: '$_id.movieId',
-          movieName: { $first: '$movieName' },
-          showtimeCount: { $sum: 1 },
-          ticketsSold: { $sum: '$ticketsSold' },
-          ticketRevenue: { $sum: '$ticketRevenue' },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          movieId: '$_id',
-          movieName: 1,
-          showtimeCount: 1,
-          ticketsSold: 1,
-          ticketRevenue: 1,
-        },
-      },
-      { $sort: { ticketsSold: -1, movieName: 1 } },
-    ]);
+    const date =
+      input ??
+      new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(
+        new Date(),
+      );
+    const [year, month, day] = date.split('-').map(Number);
+    const localStart = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(localStart.getTime()) || localStart.getUTCDate() !== day)
+      throw new BadRequestException('Ngày không hợp lệ.');
+    if (requestedPeriod === 'week')
+      localStart.setUTCDate(
+        localStart.getUTCDate() - ((localStart.getUTCDay() + 6) % 7),
+      );
+    if (requestedPeriod === 'month') localStart.setUTCDate(1);
+    const start = new Date(localStart.getTime() - 7 * 60 * 60 * 1000);
+    const end = new Date(start);
+    end.setUTCDate(
+      end.getUTCDate() +
+        (requestedPeriod === 'day'
+          ? 1
+          : requestedPeriod === 'week'
+            ? 7
+            : new Date(
+                Date.UTC(
+                  localStart.getUTCFullYear(),
+                  localStart.getUTCMonth() + 1,
+                  1,
+                ),
+              ).getUTCDate()),
+    );
+    if (requestedPeriod === 'month')
+      end.setTime(
+        Date.UTC(localStart.getUTCFullYear(), localStart.getUTCMonth() + 1, 1) -
+          7 * 60 * 60 * 1000,
+      );
+    return { start, end, date, period: requestedPeriod };
   }
 }

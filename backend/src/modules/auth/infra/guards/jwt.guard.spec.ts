@@ -1,9 +1,8 @@
 ﻿import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Model } from 'mongoose';
 import { JwtGuard } from './jwt.guard';
 import { Role } from '../decorators/role.decorator';
-import { UserDocument } from '../../../user/domain/schemas/user.schema';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 const buildContext = (headers: Record<string, string>) => {
   const request: { headers: Record<string, string>; user?: unknown } = {
@@ -17,21 +16,20 @@ const buildContext = (headers: Record<string, string>) => {
 
 describe('JwtGuard', () => {
   let verifyAsync: jest.Mock;
-  let findExec: jest.Mock;
+  let mockPrisma: any;
   let guard: JwtGuard;
 
   beforeEach(() => {
     verifyAsync = jest.fn();
-    findExec = jest.fn();
-    const query = {
-      select: jest.fn().mockReturnThis(),
-      lean: jest.fn().mockReturnThis(),
-      exec: findExec,
+    mockPrisma = {
+      user: {
+        findUnique: jest.fn(),
+      },
     };
-    const userModel = {
-      findOne: jest.fn().mockReturnValue(query),
-    } as unknown as Model<UserDocument>;
-    guard = new JwtGuard({ verifyAsync } as unknown as JwtService, userModel);
+    guard = new JwtGuard(
+      { verifyAsync } as unknown as JwtService,
+      mockPrisma as unknown as PrismaService,
+    );
   });
 
   it('rejects when Authorization header is missing', async () => {
@@ -64,11 +62,27 @@ describe('JwtGuard', () => {
       role: Role.ADMIN,
       tokenVersion: 0,
     });
-    findExec.mockResolvedValue({
+    mockPrisma.user.findUnique.mockResolvedValue({
       isActive: true,
       role: Role.ADMIN,
       tokenVersion: 1,
     });
+
+    const { context } = buildContext({ authorization: 'Bearer ok' });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('Account access has been revoked'),
+    );
+  });
+
+  it('rejects when user is not found in database', async () => {
+    verifyAsync.mockResolvedValue({
+      sub: 'missing-user',
+      email: 'missing@cinema.local',
+      role: Role.USER,
+      tokenVersion: 0,
+    });
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+
     const { context } = buildContext({ authorization: 'Bearer ok' });
     await expect(guard.canActivate(context)).rejects.toThrow(
       new UnauthorizedException('Account access has been revoked'),
@@ -83,11 +97,12 @@ describe('JwtGuard', () => {
       tokenVersion: 0,
     };
     verifyAsync.mockResolvedValue(payload);
-    findExec.mockResolvedValue({
+    mockPrisma.user.findUnique.mockResolvedValue({
       isActive: true,
       role: Role.ADMIN,
       tokenVersion: 0,
     });
+
     const { context, request } = buildContext({ authorization: 'Bearer ok' });
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(verifyAsync).toHaveBeenCalledWith('ok');

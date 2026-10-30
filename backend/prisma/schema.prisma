@@ -1,0 +1,565 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// ENUMS
+// ----------------------------------------------------
+
+enum Role {
+  ADMIN
+  USER
+  MANAGER
+  STAFF
+}
+
+enum JobPosition {
+  TICKET_SELLER
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  RESIGNED
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum RoomStatus {
+  AVAILABLE
+  MAINTENANCE
+  CLOSED
+}
+
+enum SeatType {
+  STANDARD
+  VIP
+  COUPLE
+}
+
+enum SeatStatus {
+  AVAILABLE
+  BLOCKED
+  MAINTENANCE
+}
+
+enum MovieStatus {
+  COMING_SOON
+  NOW_SHOWING
+  ENDED
+}
+
+enum SeatShowtimeStatus {
+  EMPTY
+  RESERVED
+  BOOKED
+}
+
+enum ItemCategory {
+  POPCORN
+  BEVERAGE
+  SNACK
+  OTHER
+}
+
+enum ItemSize {
+  STANDARD
+  MEDIUM
+  LARGE
+  EXTRA_LARGE
+}
+
+enum ItemStatus {
+  AVAILABLE
+  OUT_OF_STOCK
+  INACTIVE
+}
+
+enum ComboStatus {
+  AVAILABLE
+  INACTIVE
+}
+
+enum ProductStatus {
+  AVAILABLE
+  OUT_OF_STOCK
+  INACTIVE
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  VNPAY
+  MOMO
+  ZALOPAY
+  CASH
+  CREDIT_CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum ShiftAttendanceStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABSENT
+}
+
+enum DayType {
+  WEEKDAY
+  WEEKEND
+  HOLIDAY
+}
+
+// ----------------------------------------------------
+// EMBEDDED TYPES
+// ----------------------------------------------------
+
+type SeatPriceSelection {
+  seatType   String
+  ruleId     String?
+  multiplier Float   @default(1)
+}
+
+type DayPriceSelection {
+  dayType    String
+  ruleId     String?
+  multiplier Float   @default(1)
+}
+
+type ComboItemRef {
+  itemId   String
+  quantity Int
+}
+
+// ----------------------------------------------------
+// MODELS
+// ----------------------------------------------------
+
+model User {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  email            String            @unique
+  password         String
+  isActive         Boolean           @default(true)
+  tokenVersion     Int               @default(0)
+  firstName        String
+  lastName         String
+  role             Role              @default(USER)
+  branchId         String?           @db.ObjectId
+  jobPosition      JobPosition?
+  employmentStatus EmploymentStatus?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  branch           Branch?           @relation(fields: [branchId], references: [id])
+  orders           Order[]
+  promotionUsages  PromotionUsage[]
+  shiftAssignments ShiftAssignment[]
+  shiftAttendances ShiftAttendance[]
+
+  @@map("users")
+}
+
+model Branch {
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  branchName   String
+  address      String
+  hotline      String?      @default("1900 2224")
+  branchStatus BranchStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  users            User[]
+  rooms            Room[]
+  items            Item[]
+  combos           Combo[]
+  products         Product[]
+  orders           Order[]
+  workSchedules    WorkSchedule[]
+  shiftAssignments ShiftAssignment[]
+  shiftAttendances ShiftAttendance[]
+
+  @@map("branches")
+}
+
+model Room {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  branchId   String     @db.ObjectId
+  roomName   String
+  roomStatus RoomStatus @default(AVAILABLE)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  branch    Branch     @relation(fields: [branchId], references: [id])
+  seats     Seat[]
+  showtimes Showtime[]
+
+  @@map("rooms")
+}
+
+model Seat {
+  id             String     @id @default(auto()) @map("_id") @db.ObjectId
+  roomId         String     @db.ObjectId
+  rowPosition    String
+  columnPosition Int
+  seatType       SeatType   @default(STANDARD)
+  status         SeatStatus @default(AVAILABLE)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  room          Room           @relation(fields: [roomId], references: [id])
+  seatShowtimes SeatShowtime[]
+
+  @@unique([roomId, rowPosition, columnPosition])
+  @@map("seats")
+}
+
+model Genre {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  genreName        String
+  genreDescription String?  @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("genres")
+}
+
+model Movie {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  movieName   String
+  duration    Int
+  status      MovieStatus @default(COMING_SOON)
+  description String?     @default("")
+  releaseDate DateTime?
+  posterKey   String
+  trailerUrl  String?
+  isActive    Boolean     @default(true)
+  genreIds    String[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  showtimes Showtime[]
+
+  @@map("movies")
+}
+
+model Showtime {
+  id                  String               @id @default(auto()) @map("_id") @db.ObjectId
+  movieId             String               @db.ObjectId
+  roomId              String               @db.ObjectId
+  startTime           DateTime
+  endTime             DateTime
+  basePrice           Float
+  dayPriceRuleId      String?
+  seatPriceRuleId     String?
+  seatPriceSelections SeatPriceSelection[]
+  dayPriceSelections  DayPriceSelection[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  movie         Movie          @relation(fields: [movieId], references: [id])
+  room          Room           @relation(fields: [roomId], references: [id])
+  seatShowtimes SeatShowtime[]
+
+  @@map("showtimes")
+}
+
+model SeatShowtime {
+  id         String             @id @default(auto()) @map("_id") @db.ObjectId
+  showtimeId String             @db.ObjectId
+  seatId     String             @db.ObjectId
+  seatStatus SeatShowtimeStatus @default(EMPTY)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  showtime   Showtime    @relation(fields: [showtimeId], references: [id])
+  seat       Seat        @relation(fields: [seatId], references: [id])
+  seatOrders SeatOrder[]
+  tickets    Ticket[]
+
+  @@unique([showtimeId, seatId])
+  @@map("seat_showtimes")
+}
+
+model Item {
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  branchId          String       @db.ObjectId
+  name              String
+  category          ItemCategory
+  size              ItemSize?
+  price             Float
+  costPrice         Float?       @default(0)
+  stockQuantity     Int          @default(0)
+  lowStockThreshold Int          @default(10)
+  status            ItemStatus   @default(AVAILABLE)
+  imageKey          String?
+  description       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@map("items")
+}
+
+model Combo {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  branchId    String         @db.ObjectId
+  name        String
+  price       Float
+  status      ComboStatus    @default(AVAILABLE)
+  imageKey    String?
+  description String?
+  items       ComboItemRef[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@map("combos")
+}
+
+model Product {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  branchId      String        @db.ObjectId
+  productName   String
+  price         Float
+  stockQuantity Int           @default(0)
+  status        ProductStatus @default(AVAILABLE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@map("products")
+}
+
+model Order {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String      @db.ObjectId
+  promotionId String?     @db.ObjectId
+  totalAmount Float       @default(0)
+  status      OrderStatus @default(PENDING)
+  branchId    String?     @db.ObjectId
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id])
+  branch        Branch?        @relation(fields: [branchId], references: [id])
+  promotion     Promotion?     @relation(fields: [promotionId], references: [id])
+  seatOrders    SeatOrder[]
+  productOrders ProductOrder[]
+  tickets       Ticket[]
+  payments      Payment[]
+
+  @@map("orders")
+}
+
+model SeatOrder {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId        String   @db.ObjectId
+  seatShowtimeId String   @db.ObjectId
+  price          Float
+  orderAt        DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  order        Order        @relation(fields: [orderId], references: [id])
+  seatShowtime SeatShowtime @relation(fields: [seatShowtimeId], references: [id])
+
+  @@map("seat_orders")
+}
+
+model ProductOrder {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @db.ObjectId
+  productId String   @db.ObjectId
+  quantity  Int
+  unitPrice Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("product_orders")
+}
+
+model Ticket {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  orderId        String       @db.ObjectId
+  seatShowtimeId String       @db.ObjectId
+  ticketCode     String       @unique
+  price          Float
+  ticketStatus   TicketStatus @default(VALID)
+  usedAt         DateTime?
+  scannedBy      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  order        Order        @relation(fields: [orderId], references: [id])
+  seatShowtime SeatShowtime @relation(fields: [seatShowtimeId], references: [id])
+
+  @@map("tickets")
+}
+
+model Payment {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  orderId       String        @db.ObjectId
+  amount        Float
+  method        PaymentMethod @default(VNPAY)
+  status        PaymentStatus @default(PENDING)
+  transactionId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+model Promotion {
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  promotionCode     String       @unique
+  discountValue     Float
+  discountType      DiscountType @default(PERCENTAGE)
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean      @default(true)
+  minOrderValue     Float?
+  maxDiscountAmount Float?
+  usageLimit        Int?
+  usedCount         Int?         @default(0)
+  title             String?
+  description       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  orders Order[]
+  usages PromotionUsage[]
+
+  @@map("promotions")
+}
+
+model PromotionUsage {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  promotionId String   @db.ObjectId
+  userId      String   @db.ObjectId
+  orderId     String   @db.ObjectId
+  usedAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  promotion Promotion @relation(fields: [promotionId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([promotionId, userId])
+  @@map("promotion_usages")
+}
+
+model WorkSchedule {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  shiftName         String
+  startTime         String
+  endTime           String
+  durationInMinutes Int
+  isOvernight       Boolean  @default(false)
+  userIds           String[]
+  branchId          String?  @db.ObjectId
+  note              String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  branch      Branch?           @relation(fields: [branchId], references: [id])
+  assignments ShiftAssignment[]
+  attendances ShiftAttendance[]
+
+  @@map("work_schedules")
+}
+
+model ShiftAssignment {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  scheduleId String   @db.ObjectId
+  userId     String   @db.ObjectId
+  date       String
+  branchId   String   @db.ObjectId
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  schedule WorkSchedule @relation(fields: [scheduleId], references: [id])
+  user     User         @relation(fields: [userId], references: [id])
+  branch   Branch       @relation(fields: [branchId], references: [id])
+
+  @@unique([userId, scheduleId, date])
+  @@map("shift_assignments")
+}
+
+model ShiftAttendance {
+  id         String                @id @default(auto()) @map("_id") @db.ObjectId
+  scheduleId String                @db.ObjectId
+  userId     String                @db.ObjectId
+  branchId   String                @db.ObjectId
+  date       String
+  checkInAt  DateTime?
+  checkOutAt DateTime?
+  status     ShiftAttendanceStatus @default(IN_PROGRESS)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  schedule WorkSchedule @relation(fields: [scheduleId], references: [id])
+  user     User         @relation(fields: [userId], references: [id])
+  branch   Branch       @relation(fields: [branchId], references: [id])
+
+  @@unique([userId, scheduleId, date])
+  @@map("shift_attendances")
+}
+
+model SeatPriceRule {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  seatType        SeatType @default(STANDARD)
+  adjustmentValue Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("seat_price_rules")
+}
+
+model DayPriceRule {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  dayType         DayType  @default(WEEKDAY)
+  adjustmentValue Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("day_price_rules")
+}

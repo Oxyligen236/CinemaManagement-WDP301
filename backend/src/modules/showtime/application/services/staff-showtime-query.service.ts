@@ -1,28 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import {
-  Branch,
-  BranchDocument,
-} from '../../../branch/domain/schemas/branch.schema';
-import {
-  Movie,
-  MovieDocument,
-} from '../../../movie/domain/schemas/movie.schema';
-import { RoomStatus } from '../../../room/domain/enums/room-status.enum';
-import { SeatStatus } from '../../../room/domain/enums/seat-status.enum';
-import { Room, RoomDocument } from '../../../room/domain/schemas/room.schema';
-import { Seat, SeatDocument } from '../../../room/domain/schemas/seat.schema';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { RoomStatus, SeatStatus, SeatShowtimeStatus } from '@prisma/client';
 import { UserBranchQueryService } from '../../../user/application/services/user-branch-query.service';
-import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
-import {
-  SeatShowtime,
-  SeatShowtimeDocument,
-} from '../../domain/schemas/seat-showtime.schema';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../../domain/schemas/showtime.schema';
 import { StaffShowtimeItemResDto } from '../dto/res.dto';
 import { GetStaffTodayShowtimesUsecase } from '../usecase/get-staff-today-showtimes.usecase';
 
@@ -30,18 +9,7 @@ import { GetStaffTodayShowtimesUsecase } from '../usecase/get-staff-today-showti
 export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase {
   constructor(
     private readonly userBranchQueryService: UserBranchQueryService,
-    @InjectModel(Showtime.name)
-    private readonly showtimeModel: Model<ShowtimeDocument>,
-    @InjectModel(Room.name)
-    private readonly roomModel: Model<RoomDocument>,
-    @InjectModel(Movie.name)
-    private readonly movieModel: Model<MovieDocument>,
-    @InjectModel(SeatShowtime.name)
-    private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
-    @InjectModel(Seat.name)
-    private readonly seatModel: Model<SeatDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
+    private readonly prisma: PrismaService,
   ) {}
 
   async getStaffTodayShowtimes(
@@ -57,27 +25,25 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
       );
     }
 
-    const branch = await this.branchModel
-      .findOne({ branchId })
-      .select('branchId branchName')
-      .lean()
-      .exec();
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+      select: { id: true, branchName: true },
+    });
 
-    const rooms = await this.roomModel
-      .find({
+    const rooms = await this.prisma.room.findMany({
+      where: {
         branchId,
         roomStatus: RoomStatus.AVAILABLE,
-      })
-      .select('roomId roomName branchId')
-      .lean()
-      .exec();
+      },
+      select: { id: true, roomName: true, branchId: true },
+    });
 
     if (rooms.length === 0) {
       return [];
     }
 
-    const roomIds = rooms.map((r) => r.roomId);
-    const roomMap = new Map(rooms.map((r) => [r.roomId, r]));
+    const roomIds = rooms.map((r) => r.id);
+    const roomMap = new Map(rooms.map((r) => [r.id, r]));
 
     const now = targetDate ? new Date(targetDate) : new Date();
     const start = new Date(
@@ -85,32 +51,29 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
     );
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
-    const showtimes = await this.showtimeModel
-      .find({
-        roomId: { $in: roomIds },
-        startTime: { $gte: start, $lt: end },
-      })
-      .sort({ startTime: 1 })
-      .lean()
-      .exec();
+    const showtimes = await this.prisma.showtime.findMany({
+      where: {
+        roomId: { in: roomIds },
+        startTime: { gte: start, lt: end },
+      },
+      orderBy: { startTime: 'asc' },
+    });
 
     if (showtimes.length === 0) {
       return [];
     }
 
     const movieIds = [...new Set(showtimes.map((s) => s.movieId))];
-    const movies = await this.movieModel
-      .find({ movieId: { $in: movieIds } })
-      .lean()
-      .exec();
-    const movieMap = new Map(movies.map((m) => [m.movieId, m]));
+    const movies = await this.prisma.movie.findMany({
+      where: { id: { in: movieIds } },
+    });
+    const movieMap = new Map(movies.map((m) => [m.id, m]));
 
-    const showtimeIds = showtimes.map((s) => s.showtimeId);
-    const seatShowtimes = await this.seatShowtimeModel
-      .find({ showtimeId: { $in: showtimeIds } })
-      .select('showtimeId seatStatus')
-      .lean()
-      .exec();
+    const showtimeIds = showtimes.map((s) => s.id);
+    const seatShowtimes = await this.prisma.seatShowtime.findMany({
+      where: { showtimeId: { in: showtimeIds } },
+      select: { showtimeId: true, seatStatus: true },
+    });
 
     const seatShowtimeStatsByShowtime = new Map<
       string,
@@ -132,7 +95,7 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
     const roomsNeedingSeatCount = [
       ...new Set(
         showtimes
-          .filter((s) => !seatShowtimeStatsByShowtime.has(s.showtimeId))
+          .filter((s) => !seatShowtimeStatsByShowtime.has(s.id))
           .map((s) => s.roomId),
       ),
     ];
@@ -143,11 +106,10 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
     >();
 
     if (roomsNeedingSeatCount.length > 0) {
-      const roomSeats = await this.seatModel
-        .find({ roomId: { $in: roomsNeedingSeatCount } })
-        .select('roomId status')
-        .lean()
-        .exec();
+      const roomSeats = await this.prisma.seat.findMany({
+        where: { roomId: { in: roomsNeedingSeatCount } },
+        select: { roomId: true, status: true },
+      });
 
       for (const seat of roomSeats) {
         let stats = roomSeatStats.get(seat.roomId);
@@ -168,31 +130,23 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
 
     return showtimes.map((st) => {
       const movie = movieMap.get(st.movieId);
-      const stats = seatShowtimeStatsByShowtime.get(st.showtimeId) ||
-        roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
       const room = roomMap.get(st.roomId);
+      const stats =
+        seatShowtimeStatsByShowtime.get(st.id) ||
+        roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
 
-      const moviePoster = movie as unknown as {
-        posterKey?: string;
-        posterUrl?: string;
-      };
-      const rawPoster = moviePoster?.posterKey || moviePoster?.posterUrl;
-      let moviePosterUrl: string | null = null;
-      if (rawPoster) {
-        const value = rawPoster.trim();
-        if (/^https?:\/\//i.test(value)) {
-          moviePosterUrl = value;
-        } else if (pubStorageUrl) {
-          const key = value.replace(/^\/+/, '');
-          moviePosterUrl = key ? `${pubStorageUrl}/${key}` : null;
-        }
-      }
+      const rawPoster = movie?.posterKey;
+      const posterUrl = rawPoster
+        ? rawPoster.startsWith('http') || rawPoster.startsWith('/')
+          ? rawPoster
+          : `${pubStorageUrl}/${rawPoster}`
+        : undefined;
 
       const item = new StaffShowtimeItemResDto();
-      item.showtimeId = st.showtimeId;
+      item.showtimeId = st.id;
       item.movieId = st.movieId;
       item.movieTitle = movie?.movieName || 'Unknown';
-      item.moviePosterUrl = moviePosterUrl;
+      item.moviePosterUrl = posterUrl ?? null;
       item.roomId = st.roomId;
       item.roomName = room?.roomName || 'Cinema';
       item.branchId = branchId;
@@ -200,7 +154,6 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
       item.startTime = st.startTime;
       item.endTime = st.endTime;
       item.basePrice = st.basePrice;
-      item.format = '2D';
       item.availableSeats = stats.available;
       item.totalSeats = stats.total;
       return item;

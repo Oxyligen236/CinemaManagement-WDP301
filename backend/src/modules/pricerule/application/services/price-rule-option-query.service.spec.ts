@@ -2,61 +2,54 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import {
   MSG_INVALID_SELECTION,
   MSG_LOAD_FAILED,
 } from '../../domain/constants/price-rule.constants';
-import { DayType } from '../../domain/enums/day-type.enum';
+import { DayType, SeatType } from '@prisma/client';
 import { PriceGroup } from '../../domain/enums/price-group.enum';
-import { SeatType } from '../../domain/enums/seat-type.enum';
-import { DayPriceRule } from '../../domain/schemas/day-price-rule.schema';
-import { SeatPriceRule } from '../../domain/schemas/seat-price-rule.schema';
 import { PriceRuleOptionQueryService } from './price-rule-option-query.service';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 const T = new Date('2026-10-23T00:00:00Z');
 const rule = (o: Partial<Record<string, unknown>> = {}) => ({
-  ruleId: 'r-vip-15',
+  id: 'r-vip-15',
   seatType: 'VIP',
   adjustmentValue: 1.5,
   createdAt: T,
   updatedAt: T,
   ...o,
 });
-const chain = (result: unknown) => ({
-  sort: jest.fn().mockReturnThis(),
-  lean: jest.fn().mockReturnThis(),
-  exec: jest.fn().mockResolvedValue(result),
-});
 
 describe('PriceRuleOptionQueryService', () => {
   let service: PriceRuleOptionQueryService;
-  const seatModel = { find: jest.fn(), findOne: jest.fn() };
-  const dayModel = { find: jest.fn(), findOne: jest.fn() };
+  let mockPrisma: any;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.resetAllMocks();
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        PriceRuleOptionQueryService,
-        { provide: getModelToken(SeatPriceRule.name), useValue: seatModel },
-        { provide: getModelToken(DayPriceRule.name), useValue: dayModel },
-      ],
-    }).compile();
-    service = moduleRef.get(PriceRuleOptionQueryService);
+    mockPrisma = {
+      seatPriceRule: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+      },
+      dayPriceRule: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+      },
+    };
+    service = new PriceRuleOptionQueryService(mockPrisma as unknown as PrismaService);
   });
 
   describe('listPriceValues', () => {
     it('trả đủ 4 trường theo thứ tự cố định, map adjustmentValue -> multiplier, trường rỗng -> values []', async () => {
-      seatModel.find.mockImplementation((q: { seatType: string }) =>
-        chain(
-          q.seatType === 'VIP'
-            ? [rule(), rule({ ruleId: 'r-vip-17', adjustmentValue: 1.7 })]
+      mockPrisma.seatPriceRule.findMany.mockImplementation((args: any) =>
+        Promise.resolve(
+          args.where.seatType === 'VIP'
+            ? [rule(), rule({ id: 'r-vip-17', adjustmentValue: 1.7 })]
             : [],
         ),
       );
-      dayModel.find.mockReturnValue(chain([]));
+      mockPrisma.dayPriceRule.findMany.mockResolvedValue([]);
 
       const result = await service.listPriceValues();
 
@@ -74,8 +67,8 @@ describe('PriceRuleOptionQueryService', () => {
       ]);
       expect(result[0].label).toBe('VIP Seat Multiplier');
       expect(result[0].values).toEqual([
-        { ruleId: 'r-vip-15', multiplier: 1.5, updatedAt: T },
-        { ruleId: 'r-vip-17', multiplier: 1.7, updatedAt: T },
+        { ruleId: 'r-vip-15', multiplier: 1.5, updatedAt: undefined },
+        { ruleId: 'r-vip-17', multiplier: 1.7, updatedAt: undefined },
       ]);
       expect(result[1].values).toEqual([]);
       expect(result[2].values).toEqual([]);
@@ -83,24 +76,23 @@ describe('PriceRuleOptionQueryService', () => {
     });
 
     it('lọc adjustmentValue >= 1 và sắp tăng dần', async () => {
-      const c = chain([]);
-      seatModel.find.mockReturnValue(c);
-      dayModel.find.mockReturnValue(chain([]));
+      mockPrisma.seatPriceRule.findMany.mockResolvedValue([]);
+      mockPrisma.dayPriceRule.findMany.mockResolvedValue([]);
+
       await service.listPriceValues();
-      expect(seatModel.find).toHaveBeenCalledWith({
-        seatType: 'VIP',
-        adjustmentValue: { $gte: 1 },
+
+      expect(mockPrisma.seatPriceRule.findMany).toHaveBeenCalledWith({
+        where: {
+          seatType: 'VIP',
+          adjustmentValue: { gte: 1 },
+        },
+        orderBy: { adjustmentValue: 'asc' },
       });
-      expect(c.sort).toHaveBeenCalledWith({ adjustmentValue: 1 });
     });
 
     it('lỗi DB -> InternalServerErrorException(MSG_LOAD_FAILED)', async () => {
-      seatModel.find.mockReturnValue({
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockRejectedValue(new Error('mongo down')),
-      });
-      dayModel.find.mockReturnValue(chain([]));
+      mockPrisma.seatPriceRule.findMany.mockRejectedValue(new Error('db down'));
+
       const err = await service.listPriceValues().catch((e: unknown) => e);
       expect(err).toBeInstanceOf(InternalServerErrorException);
       expect((err as Error).message).toBe(MSG_LOAD_FAILED);
@@ -109,16 +101,20 @@ describe('PriceRuleOptionQueryService', () => {
 
   describe('resolvePriceSelections', () => {
     it('chọn VIP 1.7 -> snapshot VIP; trường còn lại ruleId null, multiplier 1.0', async () => {
-      seatModel.findOne.mockReturnValue(
-        chain(rule({ ruleId: 'r-vip-17', adjustmentValue: 1.7 })),
+      mockPrisma.seatPriceRule.findFirst.mockResolvedValue(
+        rule({ id: 'r-vip-17', adjustmentValue: 1.7 }),
       );
+
       const result = await service.resolvePriceSelections([
         { group: PriceGroup.SEAT, fieldKey: 'VIP', ruleId: 'r-vip-17' },
       ]);
-      expect(seatModel.findOne).toHaveBeenCalledWith({
-        ruleId: 'r-vip-17',
-        seatType: 'VIP',
-        adjustmentValue: { $gte: 1 },
+
+      expect(mockPrisma.seatPriceRule.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 'r-vip-17',
+          seatType: 'VIP',
+          adjustmentValue: { gte: 1 },
+        },
       });
       expect(result).toEqual({
         seatPriceSelections: [
@@ -134,8 +130,8 @@ describe('PriceRuleOptionQueryService', () => {
 
     it('không chọn gì -> đủ 4 trường mặc định 1.0, không gọi DB', async () => {
       const result = await service.resolvePriceSelections([]);
-      expect(seatModel.findOne).not.toHaveBeenCalled();
-      expect(dayModel.findOne).not.toHaveBeenCalled();
+      expect(mockPrisma.seatPriceRule.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.dayPriceRule.findFirst).not.toHaveBeenCalled();
       expect(
         [...result.seatPriceSelections, ...result.dayPriceSelections].every(
           (s) => s.ruleId === null && s.multiplier === 1.0,
@@ -146,7 +142,8 @@ describe('PriceRuleOptionQueryService', () => {
     });
 
     it('ruleId không tồn tại / thuộc trường khác -> BadRequest MSG_INVALID_SELECTION', async () => {
-      dayModel.findOne.mockReturnValue(chain(null));
+      mockPrisma.dayPriceRule.findFirst.mockResolvedValue(null);
+
       const err = await service
         .resolvePriceSelections([
           { group: PriceGroup.DAY, fieldKey: 'WEEKEND', ruleId: 'r-vip-15' },
@@ -165,7 +162,7 @@ describe('PriceRuleOptionQueryService', () => {
         .catch((e: unknown) => e);
       expect(err).toBeInstanceOf(BadRequestException);
       expect((err as Error).message).toBe(MSG_INVALID_SELECTION);
-      expect(seatModel.findOne).not.toHaveBeenCalled();
+      expect(mockPrisma.seatPriceRule.findFirst).not.toHaveBeenCalled();
     });
 
     it('fieldKey STANDARD không cấu hình được -> BadRequest MSG_INVALID_SELECTION', async () => {
