@@ -3,18 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { ClientSession } from 'mongoose';
-import { Item, ItemDocument } from '../../domain/schemas/item.schema';
-import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
-import {
-  Branch,
-  BranchDocument,
-} from '../../../branch/domain/schemas/branch.schema';
-import { BranchStatus } from '../../../branch/domain/enums/branch-status.enum';
-import { ItemStatus } from '../../domain/enums/item-status.enum';
-import { ComboStatus } from '../../domain/enums/combo-status.enum';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { BranchStatus, ItemStatus, ComboStatus } from '@prisma/client';
 import {
   BranchConcessionCatalogRes,
   BranchConcessionComboRes,
@@ -29,85 +19,62 @@ export class ProductService
   implements GetBranchConcessionsUsecase, DeductConcessionStockUsecase
 {
   constructor(
-    @InjectModel(Item.name)
-    private readonly itemModel: Model<ItemDocument>,
-    @InjectModel(Combo.name)
-    private readonly comboModel: Model<ComboDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
+    private readonly prisma: PrismaService,
     private readonly itemService: ItemService,
   ) {}
-
-  async getProductsByIds(
-    productIds: string[],
-  ): Promise<Map<string, ProductSummaryRes>> {
-    return this.itemService.getProductsByIds(productIds);
-  }
 
   async getBranchConcessions(
     branchId: string,
   ): Promise<BranchConcessionCatalogRes> {
-    const branch = await this.branchModel
-      .findOne({ branchId, branchStatus: BranchStatus.ACTIVE })
-      .lean()
-      .exec();
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        branchStatus: BranchStatus.ACTIVE,
+      },
+    });
+
     if (!branch) {
       throw new NotFoundException(
-        'Chi nhánh không tồn tại hoặc đã ngừng hoạt động',
+        'Chi nhánh không tồn tại hoặc không còn hoạt động',
       );
     }
 
-    const items = await this.itemModel
-      .find({
-        branchId,
-        status: ItemStatus.AVAILABLE,
-        stockQuantity: { $gt: 0 },
-      })
-      .sort({ name: 1 })
-      .lean()
-      .exec();
+    const [items, combos] = await Promise.all([
+      this.prisma.item.findMany({
+        where: {
+          branchId,
+          status: ItemStatus.AVAILABLE,
+          stockQuantity: { gt: 0 },
+        },
+      }),
+      this.prisma.combo.findMany({
+        where: {
+          branchId,
+          status: ComboStatus.AVAILABLE,
+        },
+      }),
+    ]);
 
-    const combos = await this.comboModel
-      .find({
-        branchId,
-        status: ComboStatus.AVAILABLE,
-      })
-      .lean()
-      .exec();
-
-    const comboItemIds = Array.from(
-      new Set(combos.flatMap((c) => (c.items || []).map((i) => i.itemId))),
-    );
-
-    const relatedItems = await this.itemModel
-      .find({ itemId: { $in: comboItemIds } })
-      .lean()
-      .exec();
-
-    const itemMap = new Map<string, (typeof relatedItems)[0]>();
-    for (const it of relatedItems) {
-      itemMap.set(it.itemId, it);
-    }
-
+    const itemMap = new Map(items.map((i) => [i.id, i]));
     const storagePublicUrl =
       process.env.STORAGE_PUBLIC_URL?.trim().replace(/\/+$/, '') || '';
-    const resolveImageUrl = (key?: string | null): string | null => {
+
+    const formatImageUrl = (key?: string | null): string | null => {
       if (!key) return null;
-      const trimmed = key.trim();
-      if (!trimmed) return null;
-      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      if (/^https?:\/\//i.test(key)) return key;
       if (!storagePublicUrl) return null;
-      const cleanKey = trimmed.replace(/^\/+/, '');
+      const cleanKey = key.replace(/^\/+/, '');
       return cleanKey ? `${storagePublicUrl}/${cleanKey}` : null;
     };
 
     const validCombos: BranchConcessionComboRes[] = [];
     for (const combo of combos) {
-      if (!combo.items || combo.items.length === 0) continue;
+      const comboItems = (combo.items as any[]) ?? [];
+      if (!comboItems || comboItems.length === 0) continue;
       let minStock = Number.MAX_SAFE_INTEGER;
       let canServe = true;
 
-      for (const sub of combo.items) {
+      for (const sub of comboItems) {
         const itemDoc = itemMap.get(sub.itemId);
         if (
           !itemDoc ||
@@ -125,75 +92,77 @@ export class ProductService
 
       if (canServe && minStock > 0 && minStock !== Number.MAX_SAFE_INTEGER) {
         validCombos.push({
-          comboId: combo.comboId,
+          comboId: combo.id,
           name: combo.name,
           price: combo.price,
           availableStock: minStock,
-          imageKey: combo.imageKey ?? null,
-          imageUrl: resolveImageUrl(combo.imageKey),
-          description: combo.description ?? null,
-          items: combo.items.map((it) => ({
-            itemId: it.itemId,
-            name: itemMap.get(it.itemId)?.name || 'Món con',
-            quantity: it.quantity,
-          })),
+          imageUrl: formatImageUrl(combo.imageKey),
+          description: combo.description || undefined,
+          items: comboItems.map((sub) => {
+            const doc = itemMap.get(sub.itemId);
+            return {
+              itemId: sub.itemId,
+              name: doc?.name || 'Món',
+              quantity: sub.quantity,
+            };
+          }),
         });
       }
     }
 
     return {
-      branchId,
-      items: items.map((it) => ({
-        itemId: it.itemId,
-        name: it.name,
-        category: it.category,
-        size: it.size ?? null,
-        price: it.price,
-        stockQuantity: it.stockQuantity,
-        imageKey: it.imageKey ?? null,
-        imageUrl: resolveImageUrl(it.imageKey),
-        description: it.description ?? null,
+      branchId: branch.id,
+      items: items.map((i) => ({
+        itemId: i.id,
+        name: i.name,
+        category: i.category as any,
+        size: (i.size as any) ?? null,
+        price: i.price,
+        stockQuantity: i.stockQuantity,
+        imageUrl: formatImageUrl(i.imageKey),
+        description: i.description || undefined,
       })),
       combos: validCombos,
     };
   }
 
+  async getProductsByIds(
+    productIds: string[],
+  ): Promise<Map<string, ProductSummaryRes>> {
+    return this.itemService.getProductsByIds(productIds);
+  }
+
   async deductConcessionStock(
     items: Array<{ productId: string; quantity: number }>,
-    session?: ClientSession,
+    prismaTx?: any,
   ): Promise<void> {
     if (!items || items.length === 0) return;
-
-    const productIds = items.map((i) => i.productId);
-    const [foundItems, foundCombos] = await Promise.all([
-      this.itemModel
-        .find({ itemId: { $in: productIds } })
-        .lean()
-        .exec(),
-      this.comboModel
-        .find({ comboId: { $in: productIds } })
-        .lean()
-        .exec(),
-    ]);
-
-    const itemIdsSet = new Set(foundItems.map((i) => i.itemId));
-    const comboMap = new Map(foundCombos.map((c) => [c.comboId, c]));
+    const client = prismaTx ?? this.prisma;
 
     const deductMap = new Map<string, number>();
 
     for (const reqItem of items) {
-      if (reqItem.quantity <= 0) continue;
-      if (itemIdsSet.has(reqItem.productId)) {
+      const singleItem = await client.item.findUnique({
+        where: { id: reqItem.productId },
+      });
+
+      if (singleItem) {
         deductMap.set(
-          reqItem.productId,
-          (deductMap.get(reqItem.productId) || 0) + reqItem.quantity,
+          singleItem.id,
+          (deductMap.get(singleItem.id) ?? 0) + reqItem.quantity,
         );
-      } else if (comboMap.has(reqItem.productId)) {
-        const combo = comboMap.get(reqItem.productId)!;
-        for (const sub of combo.items || []) {
+        continue;
+      }
+
+      const combo = await client.combo.findUnique({
+        where: { id: reqItem.productId },
+      });
+
+      if (combo) {
+        for (const sub of (combo.items as any[]) ?? []) {
           deductMap.set(
             sub.itemId,
-            (deductMap.get(sub.itemId) || 0) + sub.quantity * reqItem.quantity,
+            (deductMap.get(sub.itemId) ?? 0) + sub.quantity * reqItem.quantity,
           );
         }
       } else {
@@ -204,43 +173,31 @@ export class ProductService
     }
 
     for (const [itemId, qty] of deductMap.entries()) {
-      const updated = await this.itemModel
-        .findOneAndUpdate(
-          {
-            itemId,
-            stockQuantity: { $gte: qty },
-          },
-          {
-            $inc: { stockQuantity: -qty },
-          },
-          { new: true, session },
-        )
-        .exec();
+      const current = await client.item.findUnique({
+        where: { id: itemId },
+        select: { id: true, name: true, stockQuantity: true, status: true },
+      });
 
-      if (!updated) {
-        const currentQuery = this.itemModel
-          .findOne({ itemId })
-          .select('name stockQuantity')
-          .lean();
-        if (session) currentQuery.session(session);
-        const current = await currentQuery.exec();
+      if (!current || current.stockQuantity < qty) {
         const itemName = current?.name || itemId;
         throw new ConflictException(
           `Sản phẩm "${itemName}" không đủ tồn kho để khấu trừ (yêu cầu: ${qty}, hiện có: ${current?.stockQuantity ?? 0})`,
         );
       }
 
-      if (
-        updated.stockQuantity === 0 &&
-        updated.status === ItemStatus.AVAILABLE
-      ) {
-        const statusUpdate = this.itemModel.updateOne(
-          { itemId },
-          { $set: { status: ItemStatus.OUT_OF_STOCK } },
-          session ? { session } : {},
-        );
-        await statusUpdate.exec();
-      }
+      const nextStock = current.stockQuantity - qty;
+      const nextStatus =
+        nextStock === 0 && current.status === ItemStatus.AVAILABLE
+          ? ItemStatus.OUT_OF_STOCK
+          : undefined;
+
+      await client.item.update({
+        where: { id: itemId },
+        data: {
+          stockQuantity: nextStock,
+          ...(nextStatus ? { status: nextStatus } : {}),
+        },
+      });
     }
   }
 }

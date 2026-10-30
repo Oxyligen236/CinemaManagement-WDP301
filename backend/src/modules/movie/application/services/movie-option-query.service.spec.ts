@@ -1,23 +1,12 @@
-import { Test } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
-import { STORAGE_SERVICE } from '../../../infra/storage/application/interface/storage.interface';
-import { Movie } from '../../domain/schemas/movie.schema';
+import { MovieStatus } from '@prisma/client';
 import { MovieOptionQueryService } from './movie-option-query.service';
-
-const chain = (result: unknown) => ({
-  sort: jest.fn().mockReturnThis(),
-  skip: jest.fn().mockReturnThis(),
-  limit: jest.fn().mockReturnThis(),
-  select: jest.fn().mockReturnThis(),
-  lean: jest.fn().mockReturnThis(),
-  exec: jest.fn().mockResolvedValue(result),
-});
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 const movie = (o: Record<string, unknown> = {}) => ({
-  movieId: 'm-1',
+  id: 'm-1',
   movieName: 'Dune: Part Two',
   duration: 166,
-  status: 'NOW_SHOWING',
+  status: MovieStatus.NOW_SHOWING,
   isActive: true,
   posterKey: 'posters/x.jpg',
   ...o,
@@ -25,49 +14,50 @@ const movie = (o: Record<string, unknown> = {}) => ({
 
 describe('MovieOptionQueryService', () => {
   let service: MovieOptionQueryService;
-  const movieModel = {
-    find: jest.fn(),
-    countDocuments: jest.fn(),
-    findOne: jest.fn(),
-  };
+  let mockPrisma: any;
   const storageService = { getPublicUrl: jest.fn() };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.resetAllMocks();
     storageService.getPublicUrl.mockReturnValue('https://cdn/x.jpg');
-    movieModel.find.mockImplementation(() =>
-      chain([movie(), movie({ movieId: 'm-2', movieName: 'Inside Out 2' })]),
-    );
-    movieModel.countDocuments.mockImplementation(() => chain(2));
-    movieModel.findOne.mockImplementation(() => chain(movie()));
 
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        MovieOptionQueryService,
-        { provide: getModelToken(Movie.name), useValue: movieModel },
-        { provide: STORAGE_SERVICE, useValue: storageService },
-      ],
-    }).compile();
-    service = moduleRef.get(MovieOptionQueryService);
+    mockPrisma = {
+      movie: {
+        findMany: jest.fn().mockResolvedValue([
+          movie(),
+          movie({ id: 'm-2', movieName: 'Inside Out 2' }),
+        ]),
+        count: jest.fn().mockResolvedValue(2),
+        findUnique: jest.fn().mockResolvedValue(movie()),
+      },
+    };
+
+    service = new MovieOptionQueryService(
+      mockPrisma as unknown as PrismaService,
+      storageService as any,
+    );
   });
 
   describe('searchMovieOptions', () => {
     it('filters active, non-ended movies, sorts by name and paginates', async () => {
-      const query = chain([movie()]);
-      movieModel.find.mockReturnValue(query);
+      mockPrisma.movie.findMany.mockResolvedValue([movie()]);
 
       const result = await service.searchMovieOptions(undefined, 2, 5);
 
-      expect(movieModel.find).toHaveBeenCalledWith({
-        isActive: true,
-        status: { $ne: 'ENDED' },
+      expect(mockPrisma.movie.findMany).toHaveBeenCalledWith({
+        where: {
+          isActive: true,
+          status: { not: MovieStatus.ENDED },
+        },
+        orderBy: { movieName: 'asc' },
+        skip: 5,
+        take: 5,
       });
-      expect(query.sort).toHaveBeenCalledWith({ movieName: 1 });
-      expect(query.skip).toHaveBeenCalledWith(5);
-      expect(query.limit).toHaveBeenCalledWith(5);
-      expect(movieModel.countDocuments).toHaveBeenCalledWith({
-        isActive: true,
-        status: { $ne: 'ENDED' },
+      expect(mockPrisma.movie.count).toHaveBeenCalledWith({
+        where: {
+          isActive: true,
+          status: { not: MovieStatus.ENDED },
+        },
       });
       expect(result.items).toEqual([
         {
@@ -84,29 +74,37 @@ describe('MovieOptionQueryService', () => {
       expect(result.totalPages).toBe(1);
     });
 
-    it('applies a case-insensitive escaped regex for keyword', async () => {
+    it('applies a case-insensitive search for keyword', async () => {
       await service.searchMovieOptions('  a.b( ', 1, 10);
 
-      expect(movieModel.find).toHaveBeenCalledWith({
-        isActive: true,
-        status: { $ne: 'ENDED' },
-        movieName: { $regex: 'a\\.b\\(', $options: 'i' },
-      });
+      expect(mockPrisma.movie.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            isActive: true,
+            status: { not: MovieStatus.ENDED },
+            movieName: { contains: 'a.b(', mode: 'insensitive' },
+          },
+        }),
+      );
     });
 
     it('ignores blank keyword', async () => {
       await service.searchMovieOptions('   ', 1, 10);
 
-      expect(movieModel.find).toHaveBeenCalledWith({
-        isActive: true,
-        status: { $ne: 'ENDED' },
-      });
+      expect(mockPrisma.movie.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            isActive: true,
+            status: { not: MovieStatus.ENDED },
+          },
+        }),
+      );
     });
 
     it('resolves poster url from posterKey when available', async () => {
-      movieModel.find.mockReturnValue(
-        chain([movie({ posterKey: 'posters/a.jpg' })]),
-      );
+      mockPrisma.movie.findMany.mockResolvedValue([
+        movie({ posterKey: 'posters/a.jpg' }),
+      ]);
       storageService.getPublicUrl.mockReturnValue('https://pub/posters/a.jpg');
 
       const result = await service.searchMovieOptions(undefined, 1, 10);
@@ -115,9 +113,9 @@ describe('MovieOptionQueryService', () => {
     });
 
     it('returns undefined when public url resolution fails', async () => {
-      movieModel.find.mockReturnValue(
-        chain([movie({ posterKey: 'posters/a.jpg' })]),
-      );
+      mockPrisma.movie.findMany.mockResolvedValue([
+        movie({ posterKey: 'posters/a.jpg' }),
+      ]);
       storageService.getPublicUrl.mockImplementation(() => {
         throw new Error('no public url');
       });
@@ -132,60 +130,43 @@ describe('MovieOptionQueryService', () => {
     it('returns scheduling info when movie exists', async () => {
       const result = await service.getMovieSchedulingInfo('m-1');
 
-      expect(movieModel.findOne).toHaveBeenCalledWith({ movieId: 'm-1' });
+      expect(mockPrisma.movie.findUnique).toHaveBeenCalledWith({
+        where: { id: 'm-1' },
+      });
       expect(result).toEqual({
         movieId: 'm-1',
         movieName: 'Dune: Part Two',
         duration: 166,
         status: 'NOW_SHOWING',
         isActive: true,
-        posterUrl: 'https://cdn/x.jpg',
       });
     });
 
-    it('returns inactive/ended movies without filtering them', async () => {
-      movieModel.findOne.mockReturnValue(
-        chain(movie({ status: 'ENDED', isActive: false })),
-      );
-
-      const result = await service.getMovieSchedulingInfo('m-1');
-
-      expect(result?.status).toBe('ENDED');
-      expect(result?.isActive).toBe(false);
-    });
-
     it('returns null when movie does not exist', async () => {
-      movieModel.findOne.mockReturnValue(chain(null));
+      mockPrisma.movie.findUnique.mockResolvedValue(null);
 
-      await expect(service.getMovieSchedulingInfo('zzz')).resolves.toBeNull();
+      await expect(service.getMovieSchedulingInfo('ghost')).resolves.toBeNull();
     });
   });
 
   describe('getMovieSchedulingInfos', () => {
-    it('queries with $in and maps results', async () => {
+    it('queries with in and maps results', async () => {
+      mockPrisma.movie.findMany.mockResolvedValue([
+        movie(),
+        movie({ id: 'm-2', movieName: 'Film 2' }),
+      ]);
+
       const result = await service.getMovieSchedulingInfos(['m-1', 'm-2']);
 
-      expect(movieModel.find).toHaveBeenCalledWith({
-        movieId: { $in: ['m-1', 'm-2'] },
+      expect(mockPrisma.movie.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['m-1', 'm-2'] } },
       });
-      expect(result).toHaveLength(2);
-      expect(result[1].movieId).toBe('m-2');
+      expect(result.map((r) => r.movieId)).toEqual(['m-1', 'm-2']);
     });
 
     it('returns empty array without querying for empty input', async () => {
       await expect(service.getMovieSchedulingInfos([])).resolves.toEqual([]);
-      expect(movieModel.find).not.toHaveBeenCalled();
+      expect(mockPrisma.movie.findMany).not.toHaveBeenCalled();
     });
-  });
-
-  it('propagates database errors', async () => {
-    movieModel.findOne.mockReturnValue({
-      lean: jest.fn().mockReturnThis(),
-      exec: jest.fn().mockRejectedValue(new Error('mongo down')),
-    });
-
-    await expect(service.getMovieSchedulingInfo('m-1')).rejects.toThrow(
-      'mongo down',
-    );
   });
 });

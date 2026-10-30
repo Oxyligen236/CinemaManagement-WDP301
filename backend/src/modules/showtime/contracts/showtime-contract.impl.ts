@@ -1,75 +1,52 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import {
-  SeatShowtime,
-  SeatShowtimeDocument,
-} from '../domain/schemas/seat-showtime.schema';
-import { Showtime, ShowtimeDocument } from '../domain/schemas/showtime.schema';
-import { Movie, MovieDocument } from '../../movie/domain/schemas/movie.schema';
-import { Room, RoomDocument } from '../../room/domain/schemas/room.schema';
-import { Seat, SeatDocument } from '../../room/domain/schemas/seat.schema';
-import {
-  Branch,
-  BranchDocument,
-} from '../../branch/domain/schemas/branch.schema';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 import { SeatShowtimeDetailDto, ShowtimeContract } from './showtime.contract';
 
 @Injectable()
 export class ShowtimeContractImpl implements ShowtimeContract {
-  constructor(
-    @InjectModel(SeatShowtime.name)
-    private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
-    @InjectModel(Showtime.name)
-    private readonly showtimeModel: Model<ShowtimeDocument>,
-    @InjectModel(Movie.name) private readonly movieModel: Model<MovieDocument>,
-    @InjectModel(Room.name) private readonly roomModel: Model<RoomDocument>,
-    @InjectModel(Seat.name) private readonly seatModel: Model<SeatDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getSeatShowtimeDetail(
     seatShowtimeId: string,
   ): Promise<SeatShowtimeDetailDto | null> {
-    const seatShowtime = await this.seatShowtimeModel
-      .findOne({ seatShowtimeId })
-      .lean()
-      .exec();
-    if (!seatShowtime) return null;
-    const [showtime, seat] = await Promise.all([
-      this.showtimeModel
-        .findOne({ showtimeId: seatShowtime.showtimeId })
-        .lean()
-        .exec(),
-      this.seatModel.findOne({ seatId: seatShowtime.seatId }).lean().exec(),
-    ]);
-    if (!showtime || !seat) return null;
-    const [movie, room] = await Promise.all([
-      this.movieModel.findOne({ movieId: showtime.movieId }).lean().exec(),
-      this.roomModel.findOne({ roomId: showtime.roomId }).lean().exec(),
-    ]);
+    const seatShowtime = await this.prisma.seatShowtime.findUnique({
+      where: { id: seatShowtimeId },
+      include: {
+        showtime: {
+          include: {
+            movie: true,
+            room: {
+              include: {
+                branch: true,
+              },
+            },
+          },
+        },
+        seat: true,
+      },
+    });
+
+    if (!seatShowtime || !seatShowtime.showtime || !seatShowtime.seat) return null;
+    const { showtime, seat } = seatShowtime;
+    const { movie, room } = showtime;
     if (!movie || !room) return null;
-    const branch = await this.branchModel
-      .findOne({ branchId: room.branchId })
-      .lean()
-      .exec();
+
     return {
-      seatShowtimeId: seatShowtime.seatShowtimeId,
-      showtimeId: showtime.showtimeId,
+      seatShowtimeId: seatShowtime.id,
+      showtimeId: showtime.id,
       movieId: showtime.movieId,
       movieTitle: movie.movieName,
-      roomId: room.roomId,
+      roomId: room.id,
       roomName: room.roomName,
-      seatId: seat.seatId,
+      seatId: seat.id,
       rowPosition: seat.rowPosition,
       columnPosition: seat.columnPosition,
       price: showtime.basePrice,
       startTime: showtime.startTime,
       endTime: showtime.endTime,
       branchId: room.branchId,
-      branchName: branch?.branchName ?? '',
-      branchAddress: branch?.address,
+      branchName: room.branch?.branchName ?? '',
+      branchAddress: room.branch?.address,
     };
   }
 }

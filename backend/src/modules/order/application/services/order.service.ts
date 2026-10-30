@@ -7,22 +7,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Connection } from 'mongoose';
-import { InjectConnection } from '@nestjs/mongoose';
-import { randomUUID } from 'crypto';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { Page } from '../../../../common/dto/page.dto';
-import { Order, OrderDocument } from '../../domain/schemas/order.schema';
-import {
-  SeatOrder,
-  SeatOrderDocument,
-} from '../../domain/schemas/seat-order.schema';
-import {
-  ProductOrder,
-  ProductOrderDocument,
-} from '../../domain/schemas/product-order.schema';
-import { OrderStatus } from '../../domain/enums/order-status.enum';
+import { OrderStatus } from '@prisma/client';
 import {
   ORDER_EXPIRATION_QUEUE,
   ORDER_HOLD_TIMEOUT_MS,
@@ -107,13 +94,7 @@ export class OrderService
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
-    @InjectModel(Order.name)
-    private readonly orderModel: Model<OrderDocument>,
-    @InjectModel(SeatOrder.name)
-    private readonly seatOrderModel: Model<SeatOrderDocument>,
-    @InjectModel(ProductOrder.name)
-    private readonly productOrderModel: Model<ProductOrderDocument>,
-    @InjectConnection() private readonly connection: Connection,
+    private readonly prisma: PrismaService,
     @Inject(PAYMENT_CONTRACT)
     private readonly paymentContract: PaymentContract,
     @Inject(TICKET_CONTRACT)
@@ -132,7 +113,7 @@ export class OrderService
   ) {}
 
   async createVnpayPayment(userId: string, orderId: string, ipAddr: string) {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order)
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     if (order.userId !== userId)
@@ -155,7 +136,6 @@ export class OrderService
   async handleVnpayReturn(query: Record<string, string | string[]>) {
     const result = await this.paymentContract.verifyVnpayReturn(query);
     if (!result.isSuccess) return result;
-    // Return URL is the completion path when VNPay IPN is unavailable.
     await this.fulfillVnpayOrder(result.orderId);
     return result;
   }
@@ -169,7 +149,7 @@ export class OrderService
   }
 
   private async fulfillVnpayOrder(orderId: string) {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       return { RspCode: '01', Message: 'Order not found' };
     }
@@ -178,66 +158,49 @@ export class OrderService
     if (order.status !== OrderStatus.PENDING)
       return { RspCode: '02', Message: 'Order not pending' };
 
-    const seatOrders = await this.seatOrderModel
-      .find({ orderId: order.orderId })
-      .lean()
-      .exec();
-    const seatShowtimeIds = seatOrders.map((seat) => seat.seatShowtimeId);
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const currentOrder = await this.orderModel
-          .findOne({ orderId: order.orderId })
-          .session(session)
-          .exec();
-        if (currentOrder?.status === OrderStatus.PAID) return;
-        if (!currentOrder || currentOrder.status !== OrderStatus.PENDING)
-          throw new ConflictException('Order is not pending');
-        const seatOrdersInTx = await this.seatOrderModel
-          .find({ orderId: order.orderId })
-          .session(session)
-          .lean()
-          .exec();
-        const seatIds = seatOrdersInTx.map(
-          ({ seatShowtimeId }) => seatShowtimeId,
-        );
-        if (seatIds.length > 0) {
-          await this.showtimeBookingService.confirmSeats(seatIds, session);
-          await this.ticketContract.createTicketsForOrder(
-            { orderId: order.orderId, seatShowtimeIds: seatIds },
-            session,
-          );
-        }
-        const productsInTx = await this.productOrderModel
-          .find({ orderId: order.orderId })
-          .session(session)
-          .lean()
-          .exec();
-        if (productsInTx.length)
-          await this.productContract.deductConcessionStock(
-            productsInTx.map(({ productId, quantity }) => ({
-              productId,
-              quantity,
-            })),
-            session,
-          );
-        const update = await this.orderModel
-          .updateOne(
-            { orderId: order.orderId, status: OrderStatus.PENDING },
-            { $set: { status: OrderStatus.PAID } },
-            { session },
-          )
-          .exec();
-        if (update.modifiedCount !== 1)
-          throw new ConflictException('Could not confirm order');
+    await this.prisma.$transaction(async (tx) => {
+      const currentOrder = await tx.order.findUnique({
+        where: { id: orderId },
       });
-    } finally {
-      await session.endSession();
-    }
+      if (currentOrder?.status === OrderStatus.PAID) return;
+      if (!currentOrder || currentOrder.status !== OrderStatus.PENDING)
+        throw new ConflictException('Order is not pending');
+
+      const seatOrdersInTx = await tx.seatOrder.findMany({
+        where: { orderId },
+      });
+      const seatIds = seatOrdersInTx.map(({ seatShowtimeId }) => seatShowtimeId);
+      if (seatIds.length > 0) {
+        await this.showtimeBookingService.confirmSeats(seatIds, tx);
+        await this.ticketContract.createTicketsForOrder(
+          { orderId, seatShowtimeIds: seatIds },
+          tx,
+        );
+      }
+
+      const productsInTx = await tx.productOrder.findMany({
+        where: { orderId },
+      });
+      if (productsInTx.length) {
+        await this.productContract.deductConcessionStock(
+          productsInTx.map(({ productId, quantity }) => ({
+            productId,
+            quantity,
+          })),
+          tx,
+        );
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.PAID },
+      });
+    });
+
     try {
       await this.internalEventBus.publish(
         new OrderPaidEvent(
-          order.orderId,
+          order.id,
           order.userId,
           undefined,
           order.totalAmount,
@@ -247,7 +210,7 @@ export class OrderService
       );
     } catch (err) {
       this.logger.warn(
-        `Failed to publish OrderPaidEvent for order ${order.orderId}: ${(err as Error).message}`,
+        `Failed to publish OrderPaidEvent for order ${order.id}: ${(err as Error).message}`,
       );
     }
   }
@@ -286,14 +249,11 @@ export class OrderService
     let productSubtotal = 0;
     const bookingProducts: BookingProductRes[] = [];
     const productOrdersData: {
-      productOrderId: string;
-      orderId: string;
       productId: string;
       quantity: number;
       unitPrice: number;
     }[] = [];
 
-    const orderId = randomUUID();
     const createdAt = new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
 
@@ -313,8 +273,6 @@ export class OrderService
           unitPrice,
         });
         productOrdersData.push({
-          productOrderId: randomUUID(),
-          orderId,
           productId: prodItem.productId,
           quantity: prodItem.quantity,
           unitPrice,
@@ -358,33 +316,38 @@ export class OrderService
       ticketSubtotal + productSubtotal - discountAmount,
     );
 
+    let orderId = '';
     try {
-      await this.orderModel.create({
-        orderId,
-        userId,
-        branchId: reservedSeatDetails[0]?.branchId,
-        promotionId: appliedPromotionId,
-        totalAmount,
-        status: OrderStatus.PENDING,
+      const createdOrder = await this.prisma.order.create({
+        data: {
+          userId,
+          branchId: reservedSeatDetails[0]?.branchId,
+          promotionId: appliedPromotionId,
+          totalAmount,
+          status: OrderStatus.PENDING,
+          seatOrders: {
+            create: reservedSeatDetails.map((seat) => ({
+              seatShowtimeId: seat.seatShowtimeId,
+              price: seat.basePrice,
+              orderAt: createdAt,
+            })),
+          },
+          ...(productOrdersData.length > 0
+            ? {
+                productOrders: {
+                  create: productOrdersData.map((po) => ({
+                    productId: po.productId,
+                    quantity: po.quantity,
+                    unitPrice: po.unitPrice,
+                  })),
+                },
+              }
+            : {}),
+        },
       });
-
-      const seatOrdersData = reservedSeatDetails.map((seat) => ({
-        seatOrderId: randomUUID(),
-        orderId,
-        seatShowtimeId: seat.seatShowtimeId,
-        price: seat.basePrice,
-        orderAt: createdAt,
-      }));
-
-      await this.seatOrderModel.insertMany(seatOrdersData);
-      if (productOrdersData.length) {
-        await this.productOrderModel.insertMany(productOrdersData);
-      }
+      orderId = createdOrder.id;
     } catch (dbError) {
       await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds);
-      await this.orderModel.deleteOne({ orderId }).exec();
-      await this.seatOrderModel.deleteMany({ orderId }).exec();
-      await this.productOrderModel.deleteMany({ orderId }).exec();
       throw dbError;
     }
 
@@ -396,9 +359,9 @@ export class OrderService
       );
     } catch (queueError) {
       await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds);
-      await this.orderModel.deleteOne({ orderId }).exec();
-      await this.seatOrderModel.deleteMany({ orderId }).exec();
-      await this.productOrderModel.deleteMany({ orderId }).exec();
+      await this.prisma.seatOrder.deleteMany({ where: { orderId } });
+      await this.prisma.productOrder.deleteMany({ where: { orderId } });
+      await this.prisma.order.delete({ where: { id: orderId } });
       throw queueError;
     }
 
@@ -434,7 +397,7 @@ export class OrderService
     return {
       orderId,
       userId,
-      status: OrderStatus.PENDING,
+      status: OrderStatus.PENDING as any,
       totalAmount,
       createdAt,
       expiresAt,
@@ -449,7 +412,9 @@ export class OrderService
     userId: string,
     orderId: string,
   ): Promise<BookingSummaryRes> {
-    const order = await this.orderModel.findOne({ orderId }).lean().exec();
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
@@ -459,8 +424,8 @@ export class OrderService
     }
 
     const [seatOrders, productOrders] = await Promise.all([
-      this.seatOrderModel.find({ orderId }).lean().exec(),
-      this.productOrderModel.find({ orderId }).lean().exec(),
+      this.prisma.seatOrder.findMany({ where: { orderId } }),
+      this.prisma.productOrder.findMany({ where: { orderId } }),
     ]);
 
     const seatShowtimeIds = seatOrders.map((s) => s.seatShowtimeId);
@@ -495,8 +460,7 @@ export class OrderService
       unitPrice: po.unitPrice,
     }));
 
-    const createdAt =
-      (order as unknown as { createdAt?: Date }).createdAt ?? new Date();
+    const createdAt = order.createdAt ?? new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
     const remainingSeconds =
       order.status === OrderStatus.PENDING
@@ -535,9 +499,9 @@ export class OrderService
     }
 
     return {
-      orderId: order.orderId,
+      orderId: order.id,
       userId: order.userId,
-      status: order.status,
+      status: order.status as any,
       totalAmount: order.totalAmount,
       createdAt,
       expiresAt,
@@ -553,7 +517,9 @@ export class OrderService
     orderId: string,
     request: ApplyPromotionReq,
   ): Promise<BookingSummaryRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
@@ -568,16 +534,15 @@ export class OrderService
       );
     }
 
-    const createdAt =
-      (order as unknown as { createdAt?: Date }).createdAt ?? new Date();
+    const createdAt = order.createdAt ?? new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
     if (Date.now() > expiresAt.getTime()) {
       throw new BadRequestException('Order hold duration has expired');
     }
 
     const [seatOrders, productOrders] = await Promise.all([
-      this.seatOrderModel.find({ orderId }).lean().exec(),
-      this.productOrderModel.find({ orderId }).lean().exec(),
+      this.prisma.seatOrder.findMany({ where: { orderId } }),
+      this.prisma.productOrder.findMany({ where: { orderId } }),
     ]);
 
     const ticketSubtotal = seatOrders.reduce((sum, s) => sum + s.price, 0);
@@ -606,9 +571,13 @@ export class OrderService
     const discountAmount = Math.max(0, validationResult.discountAmount);
     const finalAmount = Math.max(0, baseAmount - discountAmount);
 
-    order.promotionId = validationResult.promotionId;
-    order.totalAmount = finalAmount;
-    await order.save();
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        promotionId: validationResult.promotionId,
+        totalAmount: finalAmount,
+      },
+    });
 
     const seatShowtimeIds = seatOrders.map((s) => s.seatShowtimeId);
     const seatDetails = seatShowtimeIds.length
@@ -656,9 +625,9 @@ export class OrderService
     );
 
     return {
-      orderId: order.orderId,
+      orderId: order.id,
       userId: order.userId,
-      status: order.status,
+      status: order.status as any,
       totalAmount: finalAmount,
       createdAt,
       expiresAt,
@@ -670,23 +639,18 @@ export class OrderService
   }
 
   async expireOrder(orderId: string): Promise<boolean> {
-    const updatedOrder = await this.orderModel
-      .findOneAndUpdate(
-        { orderId, status: OrderStatus.PENDING },
-        { $set: { status: OrderStatus.EXPIRED } },
-        { new: true },
-      )
-      .lean()
-      .exec();
+    const updated = await this.prisma.order.updateMany({
+      where: { id: orderId, status: OrderStatus.PENDING },
+      data: { status: OrderStatus.EXPIRED },
+    });
 
-    if (!updatedOrder) {
+    if (updated.count === 0) {
       return false;
     }
 
-    const seatOrders = await this.seatOrderModel
-      .find({ orderId })
-      .lean()
-      .exec();
+    const seatOrders = await this.prisma.seatOrder.findMany({
+      where: { orderId },
+    });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
     if (seatShowtimeIds.length > 0) {
@@ -710,29 +674,29 @@ export class OrderService
     userId: string,
     query: QueryMyOrdersReq,
   ): Promise<Page<OrderSummaryRes>> {
-    const filter: Record<string, unknown> = { userId };
+    const where: any = { userId };
     if (query.status) {
-      const statuses = query.status.split(',').filter(Boolean);
+      const statuses = query.status.split(',').filter(Boolean) as OrderStatus[];
       if (statuses.length === 1) {
-        filter.status = statuses[0];
+        where.status = statuses[0];
       } else if (statuses.length > 1) {
-        filter.status = { $in: statuses };
+        where.status = { in: statuses };
       }
     }
 
-    return this.paginateOrders(filter, query.page, query.limit);
+    return this.paginateOrders(where, query.page, query.limit);
   }
 
   async queryStaffOrders(
     query: QueryStaffOrdersReq,
   ): Promise<Page<OrderSummaryRes>> {
-    const filter: Record<string, unknown> = {};
+    const where: any = {};
     if (query.status) {
-      const statuses = query.status.split(',').filter(Boolean);
+      const statuses = query.status.split(',').filter(Boolean) as OrderStatus[];
       if (statuses.length === 1) {
-        filter.status = statuses[0];
+        where.status = statuses[0];
       } else if (statuses.length > 1) {
-        filter.status = { $in: statuses };
+        where.status = { in: statuses };
       }
     }
     if (query.date) {
@@ -740,50 +704,52 @@ export class OrderService
       start.setHours(0, 0, 0, 0);
       const end = new Date(query.date);
       end.setHours(23, 59, 59, 999);
-      filter.createdAt = { $gte: start, $lte: end };
+      where.createdAt = { gte: start, lte: end };
     }
 
-    return this.paginateOrders(filter, query.page, query.limit);
+    return this.paginateOrders(where, query.page, query.limit);
   }
 
   async queryAdminOrders(
     query: QueryAdminOrdersReq,
   ): Promise<Page<OrderSummaryRes>> {
-    const filter: Record<string, unknown> = {};
+    const where: any = {};
     if (query.userId) {
-      filter.userId = query.userId;
+      where.userId = query.userId;
     }
     if (query.status) {
-      const statuses = query.status.split(',').filter(Boolean);
+      const statuses = query.status.split(',').filter(Boolean) as OrderStatus[];
       if (statuses.length === 1) {
-        filter.status = statuses[0];
+        where.status = statuses[0];
       } else if (statuses.length > 1) {
-        filter.status = { $in: statuses };
+        where.status = { in: statuses };
       }
     }
     if (query.fromDate || query.toDate) {
-      const dateFilter: { $gte?: Date; $lte?: Date } = {};
+      const dateFilter: { gte?: Date; lte?: Date } = {};
       if (query.fromDate) {
-        dateFilter.$gte = new Date(query.fromDate);
+        dateFilter.gte = new Date(query.fromDate);
       }
       if (query.toDate) {
-        dateFilter.$lte = new Date(query.toDate);
+        dateFilter.lte = new Date(query.toDate);
       }
-      filter.createdAt = dateFilter;
+      where.createdAt = dateFilter;
     }
 
-    return this.paginateOrders(filter, query.page, query.limit);
+    return this.paginateOrders(where, query.page, query.limit);
   }
 
   async getOrderDetail(orderId: string): Promise<OrderDetailRes> {
-    const order = await this.orderModel.findOne({ orderId }).lean().exec();
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
 
     const [ticketsFromContract, productOrders] = await Promise.all([
       this.ticketContract.getTicketsByOrderId(orderId),
-      this.productOrderModel.find({ orderId }).lean().exec(),
+      this.prisma.productOrder.findMany({ where: { orderId } }),
     ]);
 
     let tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
@@ -805,10 +771,9 @@ export class OrderService
     );
 
     if (tickets.length === 0) {
-      const seatOrders = await this.seatOrderModel
-        .find({ orderId })
-        .lean()
-        .exec();
+      const seatOrders = await this.prisma.seatOrder.findMany({
+        where: { orderId },
+      });
       if (seatOrders.length > 0) {
         const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
         const seatBookingDetails =
@@ -836,9 +801,7 @@ export class OrderService
       }
     }
 
-    const branchId =
-      tickets[0]?.branchId ||
-      (order as unknown as { branchId?: string }).branchId;
+    const branchId = tickets[0]?.branchId || order.branchId;
     let branchName = tickets[0]?.branchName;
     const branchAddress = tickets[0]?.branchAddress;
 
@@ -893,49 +856,46 @@ export class OrderService
     }
 
     return OrderDetailRes.of(
-      order.orderId,
+      order.id,
       order.userId,
       order.totalAmount,
-      order.status,
-      (order as unknown as { createdAt?: Date }).createdAt ?? new Date(),
+      order.status as any,
+      order.createdAt ?? new Date(),
       tickets,
       products,
       promotion,
-      branchId,
+      branchId ?? undefined,
       branchName,
       branchAddress,
     );
   }
 
   private async paginateOrders(
-    filter: Record<string, unknown>,
+    where: any,
     page: number = 1,
     limit: number = 10,
   ): Promise<Page<OrderSummaryRes>> {
     const skip = (page - 1) * limit;
 
     const [orders, total] = await Promise.all([
-      this.orderModel
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .exec(),
-      this.orderModel.countDocuments(filter).exec(),
+      this.prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.order.count({ where }),
     ]);
 
-    const orderIds = orders.map((o) => o.orderId);
+    const orderIds = orders.map((o) => o.id);
 
     const [seatOrders, productOrders] = await Promise.all([
-      this.seatOrderModel
-        .find({ orderId: { $in: orderIds } })
-        .lean()
-        .exec(),
-      this.productOrderModel
-        .find({ orderId: { $in: orderIds } })
-        .lean()
-        .exec(),
+      this.prisma.seatOrder.findMany({
+        where: { orderId: { in: orderIds } },
+      }),
+      this.prisma.productOrder.findMany({
+        where: { orderId: { in: orderIds } },
+      }),
     ]);
 
     const ticketCountMap = new Map<string, number>();
@@ -949,11 +909,7 @@ export class OrderService
     }
 
     const branchIds = Array.from(
-      new Set(
-        orders
-          .map((o) => (o as unknown as { branchId?: string }).branchId)
-          .filter(Boolean),
-      ),
+      new Set(orders.map((o) => o.branchId).filter(Boolean)),
     ) as string[];
     const branchNameMap = new Map<string, string>();
     if (branchIds.length > 0) {
@@ -968,15 +924,15 @@ export class OrderService
     }
 
     const items: OrderSummaryRes[] = orders.map((o) => {
-      const bId = (o as unknown as { branchId?: string }).branchId;
+      const bId = o.branchId ?? undefined;
       return OrderSummaryRes.of(
-        o.orderId,
+        o.id,
         o.userId,
         o.totalAmount,
-        o.status,
-        (o as unknown as { createdAt?: Date }).createdAt ?? new Date(),
-        ticketCountMap.get(o.orderId) ?? 0,
-        hasProductsMap.has(o.orderId),
+        o.status as any,
+        o.createdAt ?? new Date(),
+        ticketCountMap.get(o.id) ?? 0,
+        hasProductsMap.has(o.id),
         bId,
         bId ? branchNameMap.get(bId) : undefined,
       );
@@ -990,7 +946,7 @@ export class OrderService
     actor: { userId: string; role: string; branchId?: string },
     reason?: string,
   ): Promise<CancelOrderRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException(`Không tìm thấy đơn hàng với ID ${orderId}`);
     }
@@ -1006,12 +962,11 @@ export class OrderService
         throw new ForbiddenException('Bạn không có quyền hủy đơn hàng này');
       }
     } else if (actor.role === Role.STAFF) {
-      let orderBranchId = order.branchId;
+      let orderBranchId: string | null | undefined = order.branchId;
       if (!orderBranchId) {
-        const seatOrders = await this.seatOrderModel
-          .find({ orderId })
-          .lean()
-          .exec();
+        const seatOrders = await this.prisma.seatOrder.findMany({
+          where: { orderId },
+        });
         const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
         if (seatShowtimeIds.length) {
           const seatDetails =
@@ -1028,18 +983,19 @@ export class OrderService
       }
     }
 
-    const seatOrders = await this.seatOrderModel
-      .find({ orderId })
-      .lean()
-      .exec();
+    const seatOrders = await this.prisma.seatOrder.findMany({
+      where: { orderId },
+    });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
     if (seatShowtimeIds.length > 0) {
       await this.showtimeBookingService.releaseSeats(seatShowtimeIds);
     }
 
-    order.status = OrderStatus.CANCELLED;
-    await order.save();
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.CANCELLED },
+    });
 
     const cancelledAt = new Date();
     try {
@@ -1060,7 +1016,7 @@ export class OrderService
 
     return CancelOrderRes.of(
       orderId,
-      OrderStatus.CANCELLED,
+      OrderStatus.CANCELLED as any,
       'Đã hủy đơn hàng thành công',
       cancelledAt,
     );

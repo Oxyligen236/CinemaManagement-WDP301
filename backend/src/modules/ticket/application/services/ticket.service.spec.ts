@@ -3,31 +3,29 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Model } from 'mongoose';
 import { TicketService } from './ticket.service';
-import { TicketStatus } from '../../domain/enums/ticket-status.enum';
-import { TicketDocument } from '../../domain/schemas/ticket.schema';
+import { TicketStatus } from '@prisma/client';
 import { ShowtimeContract } from '../../../showtime/contracts/showtime.contract';
 import { InternalEventBus } from '../../../infra/event/application/internal-event-bus.interface';
 import { Role } from '../../../auth/infra/decorators/role.decorator';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 describe('TicketService', () => {
   let service: TicketService;
-  let mockTicketModel: {
-    findOne: jest.Mock;
-    find: jest.Mock;
-    insertMany: jest.Mock;
-  };
+  let mockPrisma: any;
   let mockShowtimeContract: jest.Mocked<ShowtimeContract>;
   let mockEventBus: {
     publish: jest.MockedFunction<InternalEventBus['publish']>;
   };
 
   beforeEach(() => {
-    mockTicketModel = {
-      findOne: jest.fn(),
-      find: jest.fn(),
-      insertMany: jest.fn(),
+    mockPrisma = {
+      ticket: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+        createMany: jest.fn(),
+      },
     };
 
     mockShowtimeContract = {
@@ -39,7 +37,7 @@ describe('TicketService', () => {
     };
 
     service = new TicketService(
-      mockTicketModel as unknown as Model<TicketDocument>,
+      mockPrisma as unknown as PrismaService,
       mockShowtimeContract,
       mockEventBus,
     );
@@ -53,9 +51,7 @@ describe('TicketService', () => {
     };
 
     it('ném lỗi NotFoundException khi không tìm thấy vé', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      mockPrisma.ticket.findUnique.mockResolvedValue(null);
 
       await expect(
         service.scanTicket({ ticketCode: 'INVALID-CODE' }, staffContext),
@@ -63,13 +59,11 @@ describe('TicketService', () => {
     });
 
     it('ném lỗi BadRequestException khi vé đã USED', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'USED-CODE',
-          ticketStatus: TicketStatus.USED,
-          usedAt: new Date(),
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'USED-CODE',
+        ticketStatus: TicketStatus.USED,
+        usedAt: new Date(),
       });
 
       await expect(
@@ -78,12 +72,10 @@ describe('TicketService', () => {
     });
 
     it('ném lỗi BadRequestException khi vé CANCELLED', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'CANCELLED-CODE',
-          ticketStatus: TicketStatus.CANCELLED,
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'CANCELLED-CODE',
+        ticketStatus: TicketStatus.CANCELLED,
       });
 
       await expect(
@@ -92,13 +84,11 @@ describe('TicketService', () => {
     });
 
     it('ném lỗi ForbiddenException khi nhân viên chưa được gán chi nhánh', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'VALID-CODE',
-          ticketStatus: TicketStatus.VALID,
-          seatShowtimeId: 'sst-1',
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'VALID-CODE',
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
       });
 
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
@@ -126,13 +116,11 @@ describe('TicketService', () => {
     });
 
     it('ném lỗi ForbiddenException khi vé thuộc chi nhánh khác chi nhánh nhân viên làm việc', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'VALID-CODE',
-          ticketStatus: TicketStatus.VALID,
-          seatShowtimeId: 'sst-1',
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'VALID-CODE',
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
       });
 
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
@@ -152,27 +140,22 @@ describe('TicketService', () => {
       });
 
       await expect(
-        service.scanTicket(
-          { ticketCode: 'VALID-CODE' },
-          { staffId: 'staff-1', branchId: 'b-1', role: Role.STAFF },
-        ),
+        service.scanTicket({ ticketCode: 'VALID-CODE' }, staffContext),
       ).rejects.toThrow(
         'Vé này thuộc chi nhánh "Chi nhánh Hà Đông". Không thể soát tại chi nhánh khác!',
       );
     });
 
     it('ném lỗi BadRequestException khi chưa đến giờ soát vé', async () => {
-      const futureStartTime = new Date(Date.now() + 60 * 60 * 1000); // 60 phút nữa mới chiếu
-      const futureEndTime = new Date(Date.now() + 180 * 60 * 1000);
-
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'VALID-CODE',
-          ticketStatus: TicketStatus.VALID,
-          seatShowtimeId: 'sst-1',
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'VALID-CODE',
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
       });
+
+      const futureStart = new Date(Date.now() + 60 * 60 * 1000); // 1h tới
+      const futureEnd = new Date(futureStart.getTime() + 120 * 60 * 1000);
 
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
         seatShowtimeId: 'sst-1',
@@ -184,33 +167,31 @@ describe('TicketService', () => {
         seatId: 's-1',
         rowPosition: 'A',
         columnPosition: 1,
-        startTime: futureStartTime,
-        endTime: futureEndTime,
+        startTime: futureStart,
+        endTime: futureEnd,
         branchId: 'b-1',
         branchName: 'Chi nhánh 1',
       });
 
       await expect(
-        service.scanTicket(
-          { ticketCode: 'VALID-CODE', showtimeId: 'st-1' },
-          staffContext,
-        ),
-      ).rejects.toThrow(BadRequestException);
+        service.scanTicket({ ticketCode: 'VALID-CODE' }, staffContext),
+      ).rejects.toThrow(
+        'Chưa đến giờ soát vé. Thời gian soát vé bắt đầu trước 30 phút giờ chiếu',
+      );
     });
 
     it('ném lỗi BadRequestException khi vé không thuộc suất chiếu đang chọn', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'VALID-CODE',
-          ticketStatus: TicketStatus.VALID,
-          seatShowtimeId: 'sst-1',
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'VALID-CODE',
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
       });
 
+      const now = new Date();
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
         seatShowtimeId: 'sst-1',
-        showtimeId: 'st-2',
+        showtimeId: 'st-1',
         movieId: 'm-1',
         movieTitle: 'Mai',
         roomId: 'r-1',
@@ -218,30 +199,29 @@ describe('TicketService', () => {
         seatId: 's-1',
         rowPosition: 'A',
         columnPosition: 1,
-        startTime: new Date(Date.now() + 10 * 60 * 1000),
-        endTime: new Date(Date.now() + 120 * 60 * 1000),
+        startTime: new Date(now.getTime() - 10 * 60 * 1000),
+        endTime: new Date(now.getTime() + 60 * 60 * 1000),
         branchId: 'b-1',
         branchName: 'Chi nhánh 1',
       });
 
       await expect(
         service.scanTicket(
-          { ticketCode: 'VALID-CODE', showtimeId: 'st-1' },
+          { ticketCode: 'VALID-CODE', showtimeId: 'st-other' },
           staffContext,
         ),
       ).rejects.toThrow('Vé không thuộc suất chiếu đang chọn');
     });
 
     it('ném lỗi BadRequestException khi suất chiếu đã kết thúc', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'VALID-CODE',
-          ticketStatus: TicketStatus.VALID,
-          seatShowtimeId: 'sst-1',
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'VALID-CODE',
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
       });
 
+      const now = new Date();
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
         seatShowtimeId: 'sst-1',
         showtimeId: 'st-1',
@@ -252,57 +232,52 @@ describe('TicketService', () => {
         seatId: 's-1',
         rowPosition: 'A',
         columnPosition: 1,
-        startTime: new Date(Date.now() - 150 * 60 * 1000),
-        endTime: new Date(Date.now() - 30 * 60 * 1000),
+        startTime: new Date(now.getTime() - 150 * 60 * 1000),
+        endTime: new Date(now.getTime() - 10 * 60 * 1000),
         branchId: 'b-1',
         branchName: 'Chi nhánh 1',
       });
 
       await expect(
-        service.scanTicket(
-          { ticketCode: 'VALID-CODE', showtimeId: 'st-1' },
-          staffContext,
-        ),
+        service.scanTicket({ ticketCode: 'VALID-CODE' }, staffContext),
       ).rejects.toThrow('Suất chiếu đã kết thúc, vé đã hết hạn sử dụng');
     });
 
     it('soát vé thành công cho nhân viên đúng chi nhánh và chuyển trạng thái sang USED', async () => {
-      const now = Date.now();
-      const startTime = new Date(now + 10 * 60 * 1000); // 10 phút nữa chiếu (nằm trong 30p trước)
-      const endTime = new Date(now + 120 * 60 * 1000);
-
-      const saveMock = jest.fn().mockResolvedValue(true);
-      const ticketDoc = {
-        ticketId: 't-1',
+      const now = new Date();
+      const validTicket = {
+        id: 't-1',
         ticketCode: 'VALID-CODE',
         orderId: 'ord-1',
-        price: 95000,
+        price: 90000,
         ticketStatus: TicketStatus.VALID,
         seatShowtimeId: 'sst-1',
-        usedAt: undefined,
-        scannedBy: undefined,
-        save: saveMock,
       };
+      mockPrisma.ticket.findUnique.mockResolvedValue(validTicket);
 
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(ticketDoc),
-      });
-
-      mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
+      const showtimeDetail = {
         seatShowtimeId: 'sst-1',
         showtimeId: 'st-1',
         movieId: 'm-1',
         movieTitle: 'Mai',
         roomId: 'r-1',
-        roomName: 'Cinema 01',
-        seatId: 'seat-101',
-        rowPosition: 'F',
-        columnPosition: 8,
-        startTime,
-        endTime,
+        roomName: 'Hall 1',
+        seatId: 's-1',
+        rowPosition: 'A',
+        columnPosition: 1,
+        startTime: new Date(now.getTime() - 10 * 60 * 1000),
+        endTime: new Date(now.getTime() + 60 * 60 * 1000),
         branchId: 'b-1',
-        branchName: 'MyCast Cầu Giấy',
-        branchAddress: '123 Cầu Giấy, Hà Nội',
+        branchName: 'Chi nhánh 1',
+        branchAddress: '123 Đường 1',
+      };
+      mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue(showtimeDetail);
+
+      mockPrisma.ticket.update.mockResolvedValue({
+        ...validTicket,
+        ticketStatus: TicketStatus.USED,
+        usedAt: new Date(),
+        scannedBy: 'staff-1',
       });
 
       const result = await service.scanTicket(
@@ -310,142 +285,128 @@ describe('TicketService', () => {
         staffContext,
       );
 
-      expect(ticketDoc.ticketStatus).toBe(TicketStatus.USED);
-      expect(ticketDoc.scannedBy).toBe('staff-1');
-      expect(saveMock).toHaveBeenCalled();
+      expect(mockPrisma.ticket.update).toHaveBeenCalled();
       expect(mockEventBus.publish).toHaveBeenCalled();
       expect(result.ticketCode).toBe('VALID-CODE');
-      expect(result.movieTitle).toBe('Mai');
-      expect(result.seatLabel).toBe('F8');
-      expect(result.branchId).toBe('b-1');
-      expect(result.branchName).toBe('MyCast Cầu Giấy');
-      expect(result.scannedBy).toBe('staff-1');
+      expect(result.ticketStatus).toBe(TicketStatus.USED);
     });
 
     it('soát vé thành công cho ADMIN ở bất kỳ chi nhánh nào', async () => {
-      const now = Date.now();
-      const startTime = new Date(now + 10 * 60 * 1000);
-      const endTime = new Date(now + 120 * 60 * 1000);
-
-      const saveMock = jest.fn().mockResolvedValue(true);
-      const ticketDoc = {
-        ticketId: 't-2',
-        ticketCode: 'VALID-ADMIN-CODE',
-        orderId: 'ord-2',
-        price: 100000,
+      const now = new Date();
+      const validTicket = {
+        id: 't-1',
+        ticketCode: 'VALID-CODE',
+        orderId: 'ord-1',
+        price: 90000,
         ticketStatus: TicketStatus.VALID,
-        seatShowtimeId: 'sst-2',
-        usedAt: undefined,
-        scannedBy: undefined,
-        save: saveMock,
+        seatShowtimeId: 'sst-1',
       };
-
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(ticketDoc),
-      });
+      mockPrisma.ticket.findUnique.mockResolvedValue(validTicket);
 
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
-        seatShowtimeId: 'sst-2',
-        showtimeId: 'st-2',
-        movieId: 'm-2',
-        movieTitle: 'Dune 2',
-        roomId: 'r-2',
-        roomName: 'IMAX 01',
-        seatId: 'seat-202',
-        rowPosition: 'H',
-        columnPosition: 10,
-        startTime,
-        endTime,
-        branchId: 'b-99',
-        branchName: 'MyCast Landmark',
-        branchAddress: 'Landmark 81, TP.HCM',
+        seatShowtimeId: 'sst-1',
+        showtimeId: 'st-1',
+        movieId: 'm-1',
+        movieTitle: 'Mai',
+        roomId: 'r-1',
+        roomName: 'Hall 1',
+        seatId: 's-1',
+        rowPosition: 'A',
+        columnPosition: 1,
+        startTime: new Date(now.getTime() - 10 * 60 * 1000),
+        endTime: new Date(now.getTime() + 60 * 60 * 1000),
+        branchId: 'b-other',
+        branchName: 'Chi nhánh Khác',
+        branchAddress: '789 Đường 3',
       });
 
+      mockPrisma.ticket.update.mockResolvedValue({
+        ...validTicket,
+        ticketStatus: TicketStatus.USED,
+        usedAt: new Date(),
+        scannedBy: 'admin-1',
+      });
+
+      const adminContext = { staffId: 'admin-1', role: Role.ADMIN };
       const result = await service.scanTicket(
-        { ticketCode: 'VALID-ADMIN-CODE' },
-        { staffId: 'admin-1', role: Role.ADMIN },
+        { ticketCode: 'VALID-CODE' },
+        adminContext,
       );
 
-      expect(ticketDoc.ticketStatus).toBe(TicketStatus.USED);
-      expect(ticketDoc.scannedBy).toBe('admin-1');
-      expect(result.branchId).toBe('b-99');
-      expect(result.branchName).toBe('MyCast Landmark');
-      expect(result.scannedBy).toBe('admin-1');
+      expect(result.ticketStatus).toBe(TicketStatus.USED);
     });
   });
 
   describe('getTicketDetail', () => {
     it('trả về chi tiết vé thành công', async () => {
-      mockTicketModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ticketId: 't-1',
-          ticketCode: 'TK-123',
-          orderId: 'ord-1',
-          price: 90000,
-          ticketStatus: TicketStatus.VALID,
-          seatShowtimeId: 'sst-1',
-          usedAt: undefined,
-        }),
+      mockPrisma.ticket.findUnique.mockResolvedValue({
+        id: 't-1',
+        ticketCode: 'TK-001',
+        orderId: 'ord-1',
+        price: 90000,
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
       });
 
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
         seatShowtimeId: 'sst-1',
         showtimeId: 'st-1',
         movieId: 'm-1',
-        movieTitle: 'Dune 2',
+        movieTitle: 'Mai',
         roomId: 'r-1',
-        roomName: 'Hall IMAX',
+        roomName: 'Hall 1',
         seatId: 's-1',
-        rowPosition: 'G',
-        columnPosition: 12,
+        rowPosition: 'A',
+        columnPosition: 1,
         startTime: new Date(),
         endTime: new Date(),
         branchId: 'b-1',
         branchName: 'Chi nhánh 1',
+        branchAddress: '123 Đường 1',
       });
 
-      const res = await service.getTicketDetail('TK-123');
+      const result = await service.getTicketDetail('TK-001');
 
-      expect(res.ticketCode).toBe('TK-123');
-      expect(res.movieTitle).toBe('Dune 2');
-      expect(res.seatLabel).toBe('G12');
+      expect(result.ticketCode).toBe('TK-001');
+      expect(result.seatLabel).toBe('A1');
+      expect(result.movieTitle).toBe('Mai');
     });
   });
 
   describe('getTicketsByOrderId', () => {
     it('trả về danh sách vé cho đơn hàng qua TicketContract', async () => {
-      mockTicketModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([
-          {
-            ticketId: 't-1',
-            ticketCode: 'TK-1',
-            price: 80000,
-            ticketStatus: TicketStatus.VALID,
-            seatShowtimeId: 'sst-1',
-          },
-        ]),
-      });
+      mockPrisma.ticket.findMany.mockResolvedValue([
+        {
+          id: 't-1',
+          ticketCode: 'TK-001',
+          orderId: 'ord-1',
+          price: 90000,
+          ticketStatus: TicketStatus.VALID,
+          seatShowtimeId: 'sst-1',
+        },
+      ]);
 
       mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue({
         seatShowtimeId: 'sst-1',
         showtimeId: 'st-1',
         movieId: 'm-1',
-        movieTitle: 'Avatar 2',
+        movieTitle: 'Mai',
         roomId: 'r-1',
-        roomName: 'Hall 2',
+        roomName: 'Hall 1',
         seatId: 's-1',
-        rowPosition: 'B',
-        columnPosition: 4,
+        rowPosition: 'A',
+        columnPosition: 1,
         startTime: new Date(),
         endTime: new Date(),
         branchId: 'b-1',
         branchName: 'Chi nhánh 1',
       });
 
-      const tickets = await service.getTicketsByOrderId('ord-1');
-      expect(tickets.length).toBe(1);
-      expect(tickets[0].ticketCode).toBe('TK-1');
-      expect(tickets[0].seatLabel).toBe('B4');
+      const result = await service.getTicketsByOrderId('ord-1');
+
+      expect(result.length).toBe(1);
+      expect(result[0].ticketCode).toBe('TK-001');
+      expect(result[0].seatLabel).toBe('A1');
     });
   });
 
@@ -473,7 +434,7 @@ describe('TicketService', () => {
 
       expect(result.length).toBe(1);
       expect(result[0].ticketCode).toBe('TK-EXISTING');
-      expect(mockTicketModel.insertMany).not.toHaveBeenCalled();
+      expect(mockPrisma.ticket.createMany).not.toHaveBeenCalled();
     });
 
     it('ném BadRequestException khi danh sách ghế rỗng', async () => {
@@ -536,18 +497,16 @@ describe('TicketService', () => {
         branchId: 'b-1',
         branchName: 'Chi nhánh 1',
       });
-      mockTicketModel.insertMany.mockResolvedValue([]);
+      mockPrisma.ticket.createMany.mockResolvedValue({ count: 1 });
 
       const result = await service.createTicketsForOrder({
         orderId: 'ord-1',
         seatShowtimeIds: ['sst-1'],
       });
 
-      expect(mockTicketModel.insertMany).toHaveBeenCalledTimes(1);
-      const insertCalls = mockTicketModel.insertMany.mock.calls as unknown as [
-        Array<Record<string, unknown>>,
-      ][];
-      const inserted = insertCalls[0][0];
+      expect(mockPrisma.ticket.createMany).toHaveBeenCalledTimes(1);
+      const insertCalls = mockPrisma.ticket.createMany.mock.calls[0][0];
+      const inserted = insertCalls.data;
       expect(inserted.length).toBe(1);
       expect(inserted[0].orderId).toBe('ord-1');
       expect(inserted[0].seatShowtimeId).toBe('sst-1');

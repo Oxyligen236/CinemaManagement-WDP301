@@ -39,13 +39,13 @@ export class UserController {
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   resendVerification(@Body() input: ResendVerificationDto) {
-    return this.userRegistrationService.resendVerificationCode(input.email);
+    return this.userRegistrationService.resendCode(input.email);
   }
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   verifyEmail(@Body() input: VerifyEmailDto) {
-    return this.userRegistrationService.verifyEmail(input.email, input.code);
+    return this.userRegistrationService.verifyCode(input.email, input.code);
   }
 
   @Post('login')

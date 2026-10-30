@@ -1,4 +1,11 @@
-import { Controller, Get, Query, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/infra/decorators/current-user.decorator';
 import { Role, Roles } from '../auth/infra/decorators/role.decorator';
 import { JwtGuard } from '../auth/infra/guards/jwt.guard';

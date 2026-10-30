@@ -1,85 +1,44 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import {
-  Branch,
-  BranchDocument,
-} from '../../../branch/domain/schemas/branch.schema';
-import {
-  Genre,
-  GenreDocument,
-} from '../../../movie/domain/schemas/genre.schema';
-import {
-  Movie,
-  MovieDocument,
-} from '../../../movie/domain/schemas/movie.schema';
-import { RoomStatus } from '../../../room/domain/enums/room-status.enum';
-import { SeatStatus } from '../../../room/domain/enums/seat-status.enum';
-import { Room, RoomDocument } from '../../../room/domain/schemas/room.schema';
-import { Seat, SeatDocument } from '../../../room/domain/schemas/seat.schema';
-import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
-import {
-  SeatShowtime,
-  SeatShowtimeDocument,
-} from '../../domain/schemas/seat-showtime.schema';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../../domain/schemas/showtime.schema';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { RoomStatus, SeatStatus, SeatShowtimeStatus } from '@prisma/client';
 import { GetPublicShowtimesReqDto } from '../dto/req.dto';
 import { PublicShowtimeItemResDto } from '../dto/res.dto';
 import { GetPublicShowtimesUsecase } from '../usecase/get-public-showtimes.usecase';
 
 @Injectable()
 export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
-  constructor(
-    @InjectModel(Showtime.name)
-    private readonly showtimeModel: Model<ShowtimeDocument>,
-    @InjectModel(Room.name)
-    private readonly roomModel: Model<RoomDocument>,
-    @InjectModel(Movie.name)
-    private readonly movieModel: Model<MovieDocument>,
-    @InjectModel(Genre.name)
-    private readonly genreModel: Model<GenreDocument>,
-    @InjectModel(SeatShowtime.name)
-    private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
-    @InjectModel(Seat.name)
-    private readonly seatModel: Model<SeatDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getPublicShowtimes(
     query: GetPublicShowtimesReqDto,
   ): Promise<PublicShowtimeItemResDto[]> {
-    const filter: Record<string, unknown> = {};
+    const where: any = {};
     const roomMap = new Map<string, { roomName: string; branchId: string }>();
 
     if (query.branchId) {
-      const rooms = await this.roomModel
-        .find({
+      const rooms = await this.prisma.room.findMany({
+        where: {
           branchId: query.branchId,
           roomStatus: RoomStatus.AVAILABLE,
-        })
-        .select('roomId roomName branchId')
-        .lean()
-        .exec();
+        },
+        select: { id: true, roomName: true, branchId: true },
+      });
 
       if (rooms.length === 0) {
         return [];
       }
 
       for (const r of rooms) {
-        roomMap.set(r.roomId, {
+        roomMap.set(r.id, {
           roomName: r.roomName,
           branchId: r.branchId,
         });
       }
-      filter.roomId = { $in: rooms.map((r) => r.roomId) };
+      where.roomId = { in: rooms.map((r) => r.id) };
     }
 
     if (query.movieId) {
-      filter.movieId = query.movieId;
+      where.movieId = query.movieId;
     }
 
     if (query.date) {
@@ -88,15 +47,14 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
       if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
         const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
         const end = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0, 0));
-        filter.startTime = { $gte: start, $lt: end };
+        where.startTime = { gte: start, lt: end };
       }
     }
 
-    const showtimes = await this.showtimeModel
-      .find(filter)
-      .sort({ startTime: 1 })
-      .lean()
-      .exec();
+    const showtimes = await this.prisma.showtime.findMany({
+      where,
+      orderBy: { startTime: 'asc' },
+    });
 
     if (showtimes.length === 0) {
       return [];
@@ -107,13 +65,12 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
       .filter((id) => !roomMap.has(id));
 
     if (missingRoomIds.length > 0) {
-      const extraRooms = await this.roomModel
-        .find({ roomId: { $in: missingRoomIds } })
-        .select('roomId roomName branchId')
-        .lean()
-        .exec();
+      const extraRooms = await this.prisma.room.findMany({
+        where: { id: { in: missingRoomIds } },
+        select: { id: true, roomName: true, branchId: true },
+      });
       for (const r of extraRooms) {
-        roomMap.set(r.roomId, {
+        roomMap.set(r.id, {
           roomName: r.roomName,
           branchId: r.branchId,
         });
@@ -129,38 +86,34 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
     ];
     let branchMap = new Map<string, string>();
     if (branchIds.length > 0) {
-      const branches = await this.branchModel
-        .find({ branchId: { $in: branchIds } })
-        .select('branchId branchName')
-        .lean()
-        .exec();
-      branchMap = new Map(branches.map((b) => [b.branchId, b.branchName]));
+      const branches = await this.prisma.branch.findMany({
+        where: { id: { in: branchIds } },
+        select: { id: true, branchName: true },
+      });
+      branchMap = new Map(branches.map((b) => [b.id, b.branchName]));
     }
 
     const movieIds = [...new Set(showtimes.map((s) => s.movieId))];
-    const movies = await this.movieModel
-      .find({ movieId: { $in: movieIds } })
-      .lean()
-      .exec();
-    const movieMap = new Map(movies.map((m) => [m.movieId, m]));
+    const movies = await this.prisma.movie.findMany({
+      where: { id: { in: movieIds } },
+    });
+    const movieMap = new Map(movies.map((m) => [m.id, m]));
 
     const allGenreIds = [...new Set(movies.flatMap((m) => m.genreIds || []))];
     let genreMap = new Map<string, string>();
     if (allGenreIds.length > 0) {
-      const genres = await this.genreModel
-        .find({ genreId: { $in: allGenreIds } })
-        .select('genreId genreName')
-        .lean()
-        .exec();
-      genreMap = new Map(genres.map((g) => [g.genreId, g.genreName]));
+      const genres = await this.prisma.genre.findMany({
+        where: { id: { in: allGenreIds } },
+        select: { id: true, genreName: true },
+      });
+      genreMap = new Map(genres.map((g) => [g.id, g.genreName]));
     }
 
-    const showtimeIds = showtimes.map((s) => s.showtimeId);
-    const seatShowtimes = await this.seatShowtimeModel
-      .find({ showtimeId: { $in: showtimeIds } })
-      .select('showtimeId seatStatus')
-      .lean()
-      .exec();
+    const showtimeIds = showtimes.map((s) => s.id);
+    const seatShowtimes = await this.prisma.seatShowtime.findMany({
+      where: { showtimeId: { in: showtimeIds } },
+      select: { showtimeId: true, seatStatus: true },
+    });
 
     const seatShowtimeStatsByShowtime = new Map<
       string,
@@ -182,7 +135,7 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
     const roomsNeedingSeatCount = [
       ...new Set(
         showtimes
-          .filter((s) => !seatShowtimeStatsByShowtime.has(s.showtimeId))
+          .filter((s) => !seatShowtimeStatsByShowtime.has(s.id))
           .map((s) => s.roomId),
       ),
     ];
@@ -193,11 +146,10 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
     >();
 
     if (roomsNeedingSeatCount.length > 0) {
-      const roomSeats = await this.seatModel
-        .find({ roomId: { $in: roomsNeedingSeatCount } })
-        .select('roomId status')
-        .lean()
-        .exec();
+      const roomSeats = await this.prisma.seat.findMany({
+        where: { roomId: { in: roomsNeedingSeatCount } },
+        select: { roomId: true, status: true },
+      });
 
       for (const seat of roomSeats) {
         let stats = roomSeatStats.get(seat.roomId);
@@ -214,20 +166,17 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
 
     return showtimes.map((st) => {
       const movie = movieMap.get(st.movieId);
-      const stats = seatShowtimeStatsByShowtime.get(st.showtimeId) ||
+      const stats =
+        seatShowtimeStatsByShowtime.get(st.id) ||
         roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
       const roomInfo = roomMap.get(st.roomId);
 
       const item = new PublicShowtimeItemResDto();
-      item.showtimeId = st.showtimeId;
+      item.showtimeId = st.id;
       item.movieId = st.movieId;
       item.movieName = movie?.movieName || 'Unknown';
       item.duration = movie?.duration || 120;
-      const moviePoster = movie as unknown as {
-        posterKey?: string;
-        posterUrl?: string;
-      };
-      const rawPoster = moviePoster?.posterKey || moviePoster?.posterUrl;
+      const rawPoster = movie?.posterKey;
       const pubStorageUrl =
         process.env.STORAGE_PUBLIC_URL?.replace(/\/+$/, '') || '';
       item.posterUrl = rawPoster

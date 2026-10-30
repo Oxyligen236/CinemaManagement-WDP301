@@ -4,8 +4,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import {
   DEFAULT_MULTIPLIER,
   MSG_INVALID_SELECTION,
@@ -14,18 +13,6 @@ import {
   PRICE_FIELDS,
 } from '../../domain/constants/price-rule.constants';
 import { PriceGroup } from '../../domain/enums/price-group.enum';
-import {
-  DayPriceRule,
-  DayPriceRuleDocument,
-} from '../../domain/schemas/day-price-rule.schema';
-import {
-  SeatPriceRule,
-  SeatPriceRuleDocument,
-} from '../../domain/schemas/seat-price-rule.schema';
-import {
-  PriceRuleKeyName,
-  PriceRuleRecord,
-} from '../../domain/types/price-rule-record.type';
 import { PriceSelectionInputDto } from '../dto/req.dto';
 import {
   PriceFieldResDto,
@@ -34,7 +21,6 @@ import {
   ResolvedSeatSelectionResDto,
 } from '../dto/res.dto';
 import {
-  keyNameOf,
   resolvePriceField,
   toPriceValueDto,
 } from '../helpers/price-rule.helper';
@@ -47,12 +33,7 @@ export class PriceRuleOptionQueryService
 {
   private readonly logger = new Logger(PriceRuleOptionQueryService.name);
 
-  constructor(
-    @InjectModel(SeatPriceRule.name)
-    private readonly seatModel: Model<SeatPriceRuleDocument>,
-    @InjectModel(DayPriceRule.name)
-    private readonly dayModel: Model<DayPriceRuleDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async listPriceValues(): Promise<PriceFieldResDto[]> {
     try {
@@ -65,10 +46,6 @@ export class PriceRuleOptionQueryService
     }
   }
 
-  /**
-   * Dùng nội bộ cho PriceRuleValueService để dựng field trả về.
-   * @throws BadRequestException khi trường không hợp lệ; InternalServerErrorException khi lỗi DB
-   */
   async getPriceField(
     group: PriceGroup,
     fieldKey: string,
@@ -108,23 +85,31 @@ export class PriceRuleOptionQueryService
       let multiplier = DEFAULT_MULTIPLIER;
 
       if (selected) {
-        const { model, keyName } = this.modelAndKey(field.group);
-        let doc: PriceRuleRecord | null;
+        let doc: { id: string; adjustmentValue: number } | null = null;
         try {
-          doc = await model
-            .findOne({
-              ruleId: selected.ruleId,
-              [keyName]: field.fieldKey,
-              adjustmentValue: { $gte: MULTIPLIER_MIN },
-            })
-            .lean()
-            .exec();
+          if (field.group === PriceGroup.SEAT) {
+            doc = await this.prisma.seatPriceRule.findFirst({
+              where: {
+                id: selected.ruleId,
+                seatType: field.fieldKey as any,
+                adjustmentValue: { gte: MULTIPLIER_MIN },
+              },
+            });
+          } else {
+            doc = await this.prisma.dayPriceRule.findFirst({
+              where: {
+                id: selected.ruleId,
+                dayType: field.fieldKey as any,
+                adjustmentValue: { gte: MULTIPLIER_MIN },
+              },
+            });
+          }
         } catch (error) {
           this.logger.error('Failed to resolve price selection', error);
           throw new InternalServerErrorException(MSG_LOAD_FAILED);
         }
         if (!doc) throw new BadRequestException(MSG_INVALID_SELECTION);
-        ruleId = doc.ruleId;
+        ruleId = doc.id;
         multiplier = doc.adjustmentValue;
       }
 
@@ -151,30 +136,31 @@ export class PriceRuleOptionQueryService
     fieldKey: string,
   ): Promise<PriceFieldResDto> {
     const field = resolvePriceField(group, fieldKey);
-    const { model, keyName } = this.modelAndKey(group);
-    const docs: PriceRuleRecord[] = await model
-      .find({
-        [keyName]: fieldKey,
-        adjustmentValue: { $gte: MULTIPLIER_MIN },
-      })
-      .sort({ adjustmentValue: 1 })
-      .lean()
-      .exec();
+    let docs: Array<{ id: string; adjustmentValue: number }> = [];
+
+    if (group === PriceGroup.SEAT) {
+      docs = await this.prisma.seatPriceRule.findMany({
+        where: {
+          seatType: fieldKey as any,
+          adjustmentValue: { gte: MULTIPLIER_MIN },
+        },
+        orderBy: { adjustmentValue: 'asc' },
+      });
+    } else {
+      docs = await this.prisma.dayPriceRule.findMany({
+        where: {
+          dayType: fieldKey as any,
+          adjustmentValue: { gte: MULTIPLIER_MIN },
+        },
+        orderBy: { adjustmentValue: 'asc' },
+      });
+    }
+
     return {
       group: field.group,
       fieldKey: field.fieldKey,
       label: field.label,
-      values: docs.map((d) => toPriceValueDto(d)),
+      values: docs.map((d) => toPriceValueDto({ ruleId: d.id, adjustmentValue: d.adjustmentValue })),
     };
-  }
-
-  private modelAndKey(group: PriceGroup): {
-    model: Model<PriceRuleRecord>;
-    keyName: PriceRuleKeyName;
-  } {
-    const model = (group === PriceGroup.SEAT
-      ? this.seatModel
-      : this.dayModel) as unknown as Model<PriceRuleRecord>;
-    return { model, keyName: keyNameOf(group) };
   }
 }

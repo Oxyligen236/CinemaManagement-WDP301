@@ -1,11 +1,4 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { Order, OrderSchema } from './domain/schemas/order.schema';
-import { SeatOrder, SeatOrderSchema } from './domain/schemas/seat-order.schema';
-import {
-  ProductOrder,
-  ProductOrderSchema,
-} from './domain/schemas/product-order.schema';
 import { TicketModule } from '../ticket/ticket.module';
 import { ProductModule } from '../product/product.module';
 import { PromotionModule } from '../promotion/promotion.module';
@@ -29,11 +22,6 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Order.name, schema: OrderSchema },
-      { name: SeatOrder.name, schema: SeatOrderSchema },
-      { name: ProductOrder.name, schema: ProductOrderSchema },
-    ]),
     TicketModule,
     ProductModule,
     PromotionModule,

@@ -1,16 +1,12 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PosOrderService } from './pos-order.service';
-import { Order } from '../../domain/schemas/order.schema';
-import { SeatOrder } from '../../domain/schemas/seat-order.schema';
-import { ProductOrder } from '../../domain/schemas/product-order.schema';
-import { OrderStatus } from '../../domain/enums/order-status.enum';
+import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import {
   TICKET_CONTRACT,
   TicketContract,
@@ -30,8 +26,6 @@ import {
 import {
   PAYMENT_CONTRACT,
   PaymentContract,
-  PaymentMethod,
-  PaymentStatus,
 } from '../../contracts/payment.contract';
 import {
   QUEUE_SERVICE,
@@ -42,9 +36,11 @@ import {
   InternalEventBus,
 } from '../../../infra/event/application/internal-event-bus.interface';
 import { PosCashPaymentResultRes } from '../dto/res.dto';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 describe('PosOrderService', () => {
   let service: PosOrderService;
+  let mockPrisma: any;
 
   const staffContext = {
     staffId: 'staff-001',
@@ -53,36 +49,11 @@ describe('PosOrderService', () => {
   };
 
   const mockOrder = {
-    orderId: 'order-pos-123',
+    id: 'order-pos-123',
     userId: 'staff-001',
+    branchId: 'branch-hn-01',
     totalAmount: 180000,
     status: OrderStatus.PENDING,
-    save: jest.fn().mockResolvedValue(true),
-  };
-
-  const mockOrderModel = {
-    findOne: jest.fn(),
-    find: jest.fn(),
-    create: jest.fn(),
-    deleteOne: jest
-      .fn()
-      .mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
-  };
-
-  const mockSeatOrderModel = {
-    find: jest.fn(),
-    insertMany: jest.fn(),
-    deleteMany: jest
-      .fn()
-      .mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
-  };
-
-  const mockProductOrderModel = {
-    find: jest.fn(),
-    insertMany: jest.fn(),
-    deleteMany: jest
-      .fn()
-      .mockReturnValue({ exec: jest.fn().mockResolvedValue({}) }),
   };
 
   const mockShowtimeBooking: ShowtimeBookingContract = {
@@ -126,20 +97,37 @@ describe('PosOrderService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
+    mockPrisma = {
+      order: {
+        create: jest.fn().mockImplementation((args: any) =>
+          Promise.resolve({
+            id: 'order-pos-123',
+            ...args.data,
+          }),
+        ),
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+      seatOrder: {
+        findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({}),
+      },
+      productOrder: {
+        findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({}),
+      },
+      $transaction: jest.fn((cb: any) => cb(mockPrisma)),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PosOrderService,
         {
-          provide: getModelToken(Order.name),
-          useValue: mockOrderModel,
-        },
-        {
-          provide: getModelToken(SeatOrder.name),
-          useValue: mockSeatOrderModel,
-        },
-        {
-          provide: getModelToken(ProductOrder.name),
-          useValue: mockProductOrderModel,
+          provide: PrismaService,
+          useValue: mockPrisma,
         },
         {
           provide: SHOWTIME_BOOKING,
@@ -196,8 +184,6 @@ describe('PosOrderService', () => {
       (mockProductContract.getProductsByIds as jest.Mock).mockResolvedValue(
         prodMap,
       );
-      mockOrderModel.create.mockResolvedValue({});
-      mockProductOrderModel.insertMany.mockResolvedValue([]);
 
       const result = await service.createPosBookingOrder(staffContext, {
         products: [{ productId: 'prod-1', quantity: 2 }],
@@ -208,13 +194,13 @@ describe('PosOrderService', () => {
       expect(result.totalAmount).toBe(120000);
       expect(result.seats).toHaveLength(0);
       expect(mockShowtimeBooking.reserveSeats).not.toHaveBeenCalled();
-      expect(mockSeatOrderModel.insertMany).not.toHaveBeenCalled();
-      expect(mockOrderModel.create).toHaveBeenCalledWith({
-        orderId: expect.any(String),
-        userId: staffContext.staffId,
-        branchId: staffContext.branchId,
-        totalAmount: 120000,
-        status: OrderStatus.PENDING,
+      expect(mockPrisma.order.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: staffContext.staffId,
+          branchId: staffContext.branchId,
+          totalAmount: 120000,
+          status: OrderStatus.PENDING,
+        }),
       });
     });
 
@@ -296,9 +282,6 @@ describe('PosOrderService', () => {
       (mockProductContract.getProductsByIds as jest.Mock).mockResolvedValue(
         prodMap,
       );
-      mockOrderModel.create.mockResolvedValue({});
-      mockSeatOrderModel.insertMany.mockResolvedValue([]);
-      mockProductOrderModel.insertMany.mockResolvedValue([]);
 
       const result = await service.createPosBookingOrder(staffContext, {
         showtimeId: 'st-01',
@@ -316,14 +299,14 @@ describe('PosOrderService', () => {
         (result as Record<string, unknown>).discountAmount,
       ).toBeUndefined();
       expect((result as Record<string, unknown>).finalAmount).toBeUndefined();
-      const expectedCreatedOrder: Record<string, unknown> = {
-        orderId: expect.any(String),
-        userId: staffContext.staffId,
-        branchId: staffContext.branchId,
-        totalAmount: 150000,
-        status: OrderStatus.PENDING,
-      };
-      expect(mockOrderModel.create).toHaveBeenCalledWith(expectedCreatedOrder);
+      expect(mockPrisma.order.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: staffContext.staffId,
+          branchId: staffContext.branchId,
+          totalAmount: 150000,
+          status: OrderStatus.PENDING,
+        }),
+      });
       expect(mockQueueService.publish).toHaveBeenCalled();
       expect(mockEventBus.publish).toHaveBeenCalled();
     });
@@ -331,9 +314,7 @@ describe('PosOrderService', () => {
 
   describe('cancelPosOrder & verifyOrderBranch', () => {
     it('should throw NotFoundException when order not found', async () => {
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      mockPrisma.order.findUnique.mockResolvedValue(null);
 
       await expect(
         service.cancelPosOrder(staffContext, 'non-existent'),
@@ -341,15 +322,14 @@ describe('PosOrderService', () => {
     });
 
     it('should throw ForbiddenException if order belongs to different branch via seats', async () => {
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ...mockOrder,
-          status: OrderStatus.PENDING,
-        }),
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockOrder,
+        branchId: undefined,
+        status: OrderStatus.PENDING,
       });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
-      });
+      mockPrisma.seatOrder.findMany.mockResolvedValue([
+        { seatShowtimeId: 'sst-1' },
+      ]);
       (
         mockShowtimeBooking.getSeatBookingDetails as jest.Mock
       ).mockResolvedValue([
@@ -368,14 +348,11 @@ describe('PosOrderService', () => {
       const orderToCancel = {
         ...mockOrder,
         status: OrderStatus.PENDING,
-        save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(orderToCancel),
-      });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
-      });
+      mockPrisma.order.findUnique.mockResolvedValue(orderToCancel);
+      mockPrisma.seatOrder.findMany.mockResolvedValue([
+        { seatShowtimeId: 'sst-1' },
+      ]);
       (
         mockShowtimeBooking.getSeatBookingDetails as jest.Mock
       ).mockResolvedValue([
@@ -389,7 +366,10 @@ describe('PosOrderService', () => {
       const res = await service.cancelPosOrder(staffContext, 'order-pos-123');
 
       expect(res.success).toBe(true);
-      expect(orderToCancel.status).toBe(OrderStatus.CANCELLED);
+      expect(mockPrisma.order.update).toHaveBeenCalledWith({
+        where: { id: 'order-pos-123' },
+        data: { status: OrderStatus.CANCELLED },
+      });
       expect(mockShowtimeBooking.releaseSeats).toHaveBeenCalledWith(['sst-1']);
       expect(mockEventBus.publish).toHaveBeenCalled();
     });
@@ -397,16 +377,12 @@ describe('PosOrderService', () => {
 
   describe('confirmPosCashPayment', () => {
     it('should throw BadRequestException if cash received is less than totalAmount', async () => {
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ...mockOrder,
-          status: OrderStatus.PENDING,
-          totalAmount: 150000,
-        }),
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PENDING,
+        totalAmount: 150000,
       });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([]),
-      });
+      mockPrisma.seatOrder.findMany.mockResolvedValue([]);
 
       await expect(
         service.confirmPosCashPayment(staffContext, 'order-pos-123', {
@@ -420,14 +396,11 @@ describe('PosOrderService', () => {
         ...mockOrder,
         status: OrderStatus.PENDING,
         totalAmount: 150000,
-        save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(pendingOrder),
-      });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
-      });
+      mockPrisma.order.findUnique.mockResolvedValue(pendingOrder);
+      mockPrisma.seatOrder.findMany.mockResolvedValue([
+        { seatShowtimeId: 'sst-1' },
+      ]);
       (
         mockShowtimeBooking.getSeatBookingDetails as jest.Mock
       ).mockResolvedValue([
@@ -441,11 +414,9 @@ describe('PosOrderService', () => {
         changeAmount: 50000,
         paidAt: new Date(),
       });
-      mockProductOrderModel.find.mockReturnValue({
-        exec: jest
-          .fn()
-          .mockResolvedValue([{ productId: 'prod-1', quantity: 1 }]),
-      });
+      mockPrisma.productOrder.findMany.mockResolvedValue([
+        { productId: 'prod-1', quantity: 1 },
+      ]);
       (mockShowtimeBooking.confirmSeats as jest.Mock).mockResolvedValue(1);
       (mockTicketContract.createTicketsForOrder as jest.Mock).mockResolvedValue(
         [
@@ -478,7 +449,10 @@ describe('PosOrderService', () => {
       });
       expect(mockShowtimeBooking.confirmSeats).toHaveBeenCalledWith(['sst-1']);
       expect(mockProductContract.deductConcessionStock).toHaveBeenCalled();
-      expect(pendingOrder.status).toBe(OrderStatus.PAID);
+      expect(mockPrisma.order.update).toHaveBeenCalledWith({
+        where: { id: 'order-pos-123' },
+        data: { status: OrderStatus.PAID },
+      });
       expect(mockEventBus.publish).toHaveBeenCalledWith(
         expect.objectContaining({
           orderId: 'order-pos-123',
@@ -496,14 +470,11 @@ describe('PosOrderService', () => {
         ...mockOrder,
         status: OrderStatus.PENDING,
         totalAmount: 180000,
-        save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(pendingOrder),
-      });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
-      });
+      mockPrisma.order.findUnique.mockResolvedValue(pendingOrder);
+      mockPrisma.seatOrder.findMany.mockResolvedValue([
+        { seatShowtimeId: 'sst-1' },
+      ]);
       (
         mockShowtimeBooking.getSeatBookingDetails as jest.Mock
       ).mockResolvedValue([
@@ -522,7 +493,7 @@ describe('PosOrderService', () => {
       const res = await service.initiatePosQrPayment(
         staffContext,
         'order-pos-123',
-        { paymentMethod: PaymentMethod.VNPAY },
+        { paymentMethod: PaymentMethod.BANK_TRANSFER },
       );
 
       expect(res.paymentId).toBe('pay-qr-001');
@@ -531,7 +502,7 @@ describe('PosOrderService', () => {
       expect(mockPaymentContract.generateQrPayment).toHaveBeenCalledWith({
         orderId: 'order-pos-123',
         amount: 180000,
-        method: PaymentMethod.VNPAY,
+        method: PaymentMethod.BANK_TRANSFER,
         description: 'Thanh toan ve quay order-pos-123',
       });
     });
@@ -543,14 +514,11 @@ describe('PosOrderService', () => {
         ...mockOrder,
         status: OrderStatus.PENDING,
         totalAmount: 180000,
-        save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(pendingOrder),
-      });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
-      });
+      mockPrisma.order.findUnique.mockResolvedValue(pendingOrder);
+      mockPrisma.seatOrder.findMany.mockResolvedValue([
+        { seatShowtimeId: 'sst-1' },
+      ]);
       (
         mockShowtimeBooking.getSeatBookingDetails as jest.Mock
       ).mockResolvedValue([
@@ -562,12 +530,10 @@ describe('PosOrderService', () => {
       (mockPaymentContract.checkPaymentStatus as jest.Mock).mockResolvedValue({
         paymentId: 'pay-qr-001',
         amount: 180000,
-        method: PaymentMethod.VNPAY,
+        method: PaymentMethod.BANK_TRANSFER,
         status: PaymentStatus.SUCCESS,
       });
-      mockProductOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([]),
-      });
+      mockPrisma.productOrder.findMany.mockResolvedValue([]);
       (mockShowtimeBooking.confirmSeats as jest.Mock).mockResolvedValue(1);
       (mockTicketContract.createTicketsForOrder as jest.Mock).mockResolvedValue(
         [
@@ -593,7 +559,7 @@ describe('PosOrderService', () => {
         expect.objectContaining({
           orderId: 'order-pos-123',
           totalAmount: 180000,
-          paymentMethod: PaymentMethod.VNPAY,
+          paymentMethod: 'QR',
           userId: 'staff-001',
         }),
       );
@@ -607,12 +573,10 @@ describe('PosOrderService', () => {
         status: OrderStatus.PAID,
         totalAmount: 180000,
       };
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(paidOrder),
-      });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([{ seatShowtimeId: 'sst-1' }]),
-      });
+      mockPrisma.order.findUnique.mockResolvedValue(paidOrder);
+      mockPrisma.seatOrder.findMany.mockResolvedValue([
+        { seatShowtimeId: 'sst-1' },
+      ]);
       (
         mockShowtimeBooking.getSeatBookingDetails as jest.Mock
       ).mockResolvedValue([
@@ -638,13 +602,9 @@ describe('PosOrderService', () => {
           price: 90000,
         },
       ]);
-      mockProductOrderModel.find.mockReturnValue({
-        exec: jest
-          .fn()
-          .mockResolvedValue([
-            { productId: 'prod-1', quantity: 2, unitPrice: 45000 },
-          ]),
-      });
+      mockPrisma.productOrder.findMany.mockResolvedValue([
+        { productId: 'prod-1', quantity: 2, unitPrice: 45000 },
+      ]);
       const prodMap = new Map();
       prodMap.set('prod-1', { productName: 'Bắp bơ', unitPrice: 45000 });
       (mockProductContract.getProductsByIds as jest.Mock).mockResolvedValue(
@@ -672,15 +632,11 @@ describe('PosOrderService', () => {
     });
 
     it('should throw BadRequestException if order is not PAID', async () => {
-      mockOrderModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ...mockOrder,
-          status: OrderStatus.PENDING,
-        }),
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.PENDING,
       });
-      mockSeatOrderModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([]),
-      });
+      mockPrisma.seatOrder.findMany.mockResolvedValue([]);
 
       await expect(
         service.getPosReceipt(staffContext, 'order-pos-123'),

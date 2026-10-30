@@ -24,7 +24,6 @@ export interface TicketContract {
       orderId: string;
       seatShowtimeIds: string[];
     },
-    session?: ClientSession,
+    prismaTx?: any,
   ): Promise<TicketItemSummaryDto[]>;
 }
-import { ClientSession } from 'mongoose';
