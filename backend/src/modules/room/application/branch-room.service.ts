@@ -142,7 +142,7 @@ export class BranchRoomService {
           roomId: created.id,
           rowPosition: s.rowPosition.trim().toUpperCase(),
           columnPosition: s.columnPosition,
-          seatType: s.seatType as SeatType,
+          seatType: s.seatType,
           status: s.status ?? SeatStatus.AVAILABLE,
         }));
         await this.prisma.seat.createMany({ data: seatDocs });
@@ -208,7 +208,8 @@ export class BranchRoomService {
           throw new ConflictException({
             statusCode: 409,
             error: 'Conflict',
-            message: ROOM_MESSAGES.MSG07_CANNOT_CHANGE_LAYOUT_WITH_BOOKED_TICKETS,
+            message:
+              ROOM_MESSAGES.MSG07_CANNOT_CHANGE_LAYOUT_WITH_BOOKED_TICKETS,
           });
         }
 
@@ -228,7 +229,7 @@ export class BranchRoomService {
         roomId: room.id,
         rowPosition: s.rowPosition.trim().toUpperCase(),
         columnPosition: s.columnPosition,
-        seatType: s.seatType as SeatType,
+        seatType: s.seatType,
         status: s.status ?? SeatStatus.AVAILABLE,
       }));
 
@@ -462,7 +463,9 @@ export class BranchRoomService {
             select: { seatId: true },
           });
 
-          const existingSet = new Set(existingEntries.map((e: any) => e.seatId));
+          const existingSet = new Set(
+            existingEntries.map((e: any) => e.seatId),
+          );
           const missingSeatIds = validSeatIds.filter(
             (id: any) => !existingSet.has(id),
           );
@@ -500,7 +503,9 @@ export class BranchRoomService {
   // ---------------------------------------------------------------------------
   // Private Helpers
 
-  private async buildRoomSummaries(rooms: any[]): Promise<BranchRoomSummaryDto[]> {
+  private async buildRoomSummaries(
+    rooms: any[],
+  ): Promise<BranchRoomSummaryDto[]> {
     if (rooms.length === 0) return [];
 
     const roomIds = rooms.map((r) => r.id);
@@ -544,7 +549,10 @@ export class BranchRoomService {
 
     const showtimeCountByRoom = new Map<string, number>();
     for (const st of showtimes) {
-      showtimeCountByRoom.set(st.roomId, (showtimeCountByRoom.get(st.roomId) ?? 0) + 1);
+      showtimeCountByRoom.set(
+        st.roomId,
+        (showtimeCountByRoom.get(st.roomId) ?? 0) + 1,
+      );
     }
 
     return rooms.map((room) => {
@@ -601,8 +609,8 @@ export class BranchRoomService {
       rowPosition: seat.rowPosition,
       columnPosition: seat.columnPosition,
       seatLabel: `${seat.rowPosition}${seat.columnPosition}`,
-      seatType: seat.seatType as any,
-      status: seat.status as any,
+      seatType: seat.seatType,
+      status: seat.status,
       isBroken:
         seat.status === SeatStatus.MAINTENANCE ||
         seat.status === SeatStatus.BLOCKED,
@@ -685,8 +693,7 @@ export class BranchRoomService {
         select: { role: true, isActive: true, branchId: true },
       });
 
-      const isManagerRole =
-        manager?.role === Role.MANAGER || (manager?.role as any) === 'BRANCHMANAGER';
+      const isManagerRole = manager?.role === Role.MANAGER;
       if (manager && (!manager.isActive || !isManagerRole)) {
         throw new ForbiddenException(
           'Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.',
@@ -696,7 +703,12 @@ export class BranchRoomService {
         if (manager.branchId) {
           const assignedBranch = await this.prisma.branch.findUnique({
             where: { id: manager.branchId },
-            select: { id: true, branchName: true, address: true, branchStatus: true },
+            select: {
+              id: true,
+              branchName: true,
+              address: true,
+              branchStatus: true,
+            },
           });
 
           if (assignedBranch) {
@@ -746,9 +758,7 @@ export class BranchRoomService {
       return await operation();
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
-      throw new ServiceUnavailableException(
-        ROOM_MESSAGES.SERVICE_UNAVAILABLE,
-      );
+      throw new ServiceUnavailableException(ROOM_MESSAGES.SERVICE_UNAVAILABLE);
     }
   }
 }

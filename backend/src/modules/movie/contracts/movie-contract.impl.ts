@@ -14,7 +14,9 @@ export class MovieContractImpl implements MovieContract {
   ) {}
 
   async getMovieSummary(movieId: string): Promise<MovieSummaryDto | null> {
-    const movie = await this.prisma.movie.findUnique({ where: { id: movieId } });
+    const movie = await this.prisma.movie.findUnique({
+      where: { id: movieId },
+    });
     if (!movie) {
       return null;
     }

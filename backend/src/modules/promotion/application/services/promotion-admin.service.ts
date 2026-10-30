@@ -12,7 +12,11 @@ import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
 } from '../../../infra/event/application/internal-event-bus.interface';
-import { CreatePromotionDto, QueryPromotionsDto, UpdatePromotionDto } from '../dto/req.dto';
+import {
+  CreatePromotionDto,
+  QueryPromotionsDto,
+  UpdatePromotionDto,
+} from '../dto/req.dto';
 import { PromotionResponseDto } from '../dto/res.dto';
 import { PromotionCreatedEvent } from '../../domain/events/promotion-created.event';
 import { PromotionUpdatedEvent } from '../../domain/events/promotion-updated.event';
@@ -117,7 +121,10 @@ export class PromotionAdminService
 
     const where: any = {};
     if (query.search && query.search.trim() !== '') {
-      where.promotionCode = { contains: query.search.trim(), mode: 'insensitive' };
+      where.promotionCode = {
+        contains: query.search.trim(),
+        mode: 'insensitive',
+      };
     }
     if (query.discountType) {
       where.discountType = query.discountType;
@@ -213,7 +220,8 @@ export class PromotionAdminService
 
     const data: any = {};
     if (dto.discountValue !== undefined) data.discountValue = dto.discountValue;
-    if (dto.discountType !== undefined) data.discountType = dto.discountType as any;
+    if (dto.discountType !== undefined)
+      data.discountType = dto.discountType as any;
     if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) data.endDate = new Date(dto.endDate);
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
@@ -224,11 +232,7 @@ export class PromotionAdminService
     });
 
     await this.eventBus.publish(
-      new PromotionUpdatedEvent(
-        updated.id,
-        updated.promotionCode,
-        dto,
-      ),
+      new PromotionUpdatedEvent(updated.id, updated.promotionCode, dto),
     );
 
     return PromotionResponseDto.of(

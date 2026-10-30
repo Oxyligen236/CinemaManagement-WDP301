@@ -27,7 +27,7 @@ describe('BranchQueryService', () => {
       },
     };
 
-    service = new BranchQueryService(mockPrisma as unknown as PrismaService);
+    service = new BranchQueryService(mockPrisma);
   });
 
   describe('getBranchSummary', () => {

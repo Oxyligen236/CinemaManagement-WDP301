@@ -46,7 +46,7 @@ export class AdminService {
       Object.values(Role).map((role) => [role, 0]),
     ) as Record<Role, number>;
     for (const g of roleGroups) {
-      usersByRole[g.role as Role] = g._count.id;
+      usersByRole[g.role] = g._count.id;
     }
 
     return {
@@ -223,7 +223,7 @@ export class AdminService {
     if (input.branchId) {
       if (
         input.isActive === false ||
-        (input.role !== (Role.MANAGER as any) && input.role !== Role.STAFF)
+        (input.role !== Role.MANAGER && input.role !== Role.STAFF)
       ) {
         throw new BadRequestException(
           'Only Branch Manager or Staff accounts can be assigned to a branch',
@@ -292,7 +292,7 @@ export class AdminService {
         throw new NotFoundException('User not found');
       }
 
-      if (input.role !== undefined && input.role !== (self.role as any)) {
+      if (input.role !== undefined && (input.role as unknown as Role) !== self.role) {
         throw new ForbiddenException('You cannot change your own role');
       }
 
@@ -307,7 +307,7 @@ export class AdminService {
 
     const clearBranch =
       input.role !== undefined &&
-      input.role !== (Role.MANAGER as any) &&
+      input.role !== Role.MANAGER &&
       input.role !== Role.STAFF;
 
     const data: any = { ...input };

@@ -110,9 +110,7 @@ describe('ShowtimeScheduleService', () => {
       },
     };
 
-    service = new ShowtimeScheduleService(
-      mockPrisma as unknown as PrismaService,
-    );
+    service = new ShowtimeScheduleService(mockPrisma);
   });
 
   describe('hasRoomConflict', () => {
@@ -317,7 +315,9 @@ describe('ShowtimeScheduleService', () => {
     });
 
     it('lỗi DB -> 500', async () => {
-      mockPrisma.showtime.findUnique.mockRejectedValue(new Error('prisma down'));
+      mockPrisma.showtime.findUnique.mockRejectedValue(
+        new Error('prisma down'),
+      );
       await expectHttp(
         service.updateShowtime('st-1', input()),
         InternalServerErrorException,

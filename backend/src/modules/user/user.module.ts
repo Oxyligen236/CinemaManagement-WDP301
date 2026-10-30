@@ -10,11 +10,7 @@ import { PasswordResetService } from './application/services/password-reset.serv
 import { UserBranchQueryService } from './application/services/user-branch-query.service';
 
 @Module({
-  imports: [
-    EventModule,
-    MailModule,
-    AuthModule,
-  ],
+  imports: [EventModule, MailModule, AuthModule],
   controllers: [UserController],
   providers: [
     PendingRegistrationService,

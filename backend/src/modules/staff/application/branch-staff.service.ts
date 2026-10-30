@@ -30,7 +30,7 @@ import {
 /** Mã lỗi Prisma (P2002 = trùng unique, P2025 = không tìm thấy bản ghi). */
 const prismaErrorCode = (error: unknown): string | undefined => {
   if (typeof error === 'object' && error !== null && 'code' in error) {
-    const { code } = error as { code: unknown };
+    const { code } = error;
     return typeof code === 'string' ? code : undefined;
   }
   return undefined;
@@ -114,7 +114,7 @@ export class BranchStaffService {
         throw new BadRequestException(STAFF_MESSAGES.BRANCH_NOT_ACTIVE);
       }
 
-      this.assertPositionAvailable(input.jobPosition as JobPosition);
+      this.assertPositionAvailable(input.jobPosition);
       const status = (input.employmentStatus as EmploymentStatus) ?? EmploymentStatus.ACTIVE;
       if (!CREATABLE_STATUSES.includes(status as any)) {
         throw new BadRequestException(
@@ -143,7 +143,7 @@ export class BranchStaffService {
             lastName: input.lastName,
             role: Role.STAFF,
             branchId: branch.branchId,
-            jobPosition: input.jobPosition as JobPosition,
+            jobPosition: input.jobPosition,
             employmentStatus: status,
             isActive: isLoginAllowed(status as any),
           },
@@ -179,7 +179,7 @@ export class BranchStaffService {
       const current = await this.findBranchStaff(branch.branchId, userId);
 
       if (input.jobPosition !== undefined) {
-        this.assertPositionAvailable(input.jobPosition as JobPosition);
+        this.assertPositionAvailable(input.jobPosition);
       }
 
       const data: any = {};
@@ -193,7 +193,7 @@ export class BranchStaffService {
           current.isActive,
           current.employmentStatus as any,
         );
-        const loginAllowed = isLoginAllowed(input.employmentStatus as any);
+        const loginAllowed = isLoginAllowed(input.employmentStatus);
         data.employmentStatus = input.employmentStatus;
         data.isActive = loginAllowed;
         revokeSessions = !loginAllowed && previous === (EmploymentStatus.ACTIVE as any);
@@ -227,7 +227,7 @@ export class BranchStaffService {
       select: { role: true, isActive: true, branchId: true },
     });
 
-    if (!manager || !manager.isActive || (manager.role !== Role.MANAGER && (manager.role as any) !== 'BRANCHMANAGER')) {
+    if (!manager || !manager.isActive || manager.role !== Role.MANAGER) {
       throw new ForbiddenException(STAFF_MESSAGES.FORBIDDEN);
     }
     if (!manager.branchId) {

@@ -71,7 +71,10 @@ export class PriceRuleValueService
         }
 
         const duplicated = await this.prisma.seatPriceRule.findFirst({
-          where: { seatType: field.fieldKey as any, adjustmentValue: multiplier },
+          where: {
+            seatType: field.fieldKey as any,
+            adjustmentValue: multiplier,
+          },
         });
         if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
 
@@ -83,7 +86,10 @@ export class PriceRuleValueService
         });
         return {
           message: MSG_CREATE_SUCCESS,
-          value: toPriceValueDto({ ruleId: created.id, adjustmentValue: created.adjustmentValue }),
+          value: toPriceValueDto({
+            ruleId: created.id,
+            adjustmentValue: created.adjustmentValue,
+          }),
           field: await this.optionQueryService.getPriceField(group, fieldKey),
         };
       } else {
@@ -98,7 +104,10 @@ export class PriceRuleValueService
         }
 
         const duplicated = await this.prisma.dayPriceRule.findFirst({
-          where: { dayType: field.fieldKey as any, adjustmentValue: multiplier },
+          where: {
+            dayType: field.fieldKey as any,
+            adjustmentValue: multiplier,
+          },
         });
         if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
 
@@ -110,7 +119,10 @@ export class PriceRuleValueService
         });
         return {
           message: MSG_CREATE_SUCCESS,
-          value: toPriceValueDto({ ruleId: created.id, adjustmentValue: created.adjustmentValue }),
+          value: toPriceValueDto({
+            ruleId: created.id,
+            adjustmentValue: created.adjustmentValue,
+          }),
           field: await this.optionQueryService.getPriceField(group, fieldKey),
         };
       }
@@ -151,7 +163,10 @@ export class PriceRuleValueService
 
         return {
           message: MSG03,
-          value: toPriceValueDto({ ruleId: updated.id, adjustmentValue: updated.adjustmentValue }),
+          value: toPriceValueDto({
+            ruleId: updated.id,
+            adjustmentValue: updated.adjustmentValue,
+          }),
           field: await this.optionQueryService.getPriceField(group, fieldKey),
         };
       } else {
@@ -176,7 +191,10 @@ export class PriceRuleValueService
 
         return {
           message: MSG03,
-          value: toPriceValueDto({ ruleId: updated.id, adjustmentValue: updated.adjustmentValue }),
+          value: toPriceValueDto({
+            ruleId: updated.id,
+            adjustmentValue: updated.adjustmentValue,
+          }),
           field: await this.optionQueryService.getPriceField(group, fieldKey),
         };
       }
@@ -203,7 +221,10 @@ export class PriceRuleValueService
 
         return {
           message: MSG_DELETE_SUCCESS,
-          value: toPriceValueDto({ ruleId: current.id, adjustmentValue: current.adjustmentValue }),
+          value: toPriceValueDto({
+            ruleId: current.id,
+            adjustmentValue: current.adjustmentValue,
+          }),
           field: await this.optionQueryService.getPriceField(group, fieldKey),
         };
       } else {
@@ -216,7 +237,10 @@ export class PriceRuleValueService
 
         return {
           message: MSG_DELETE_SUCCESS,
-          value: toPriceValueDto({ ruleId: current.id, adjustmentValue: current.adjustmentValue }),
+          value: toPriceValueDto({
+            ruleId: current.id,
+            adjustmentValue: current.adjustmentValue,
+          }),
           field: await this.optionQueryService.getPriceField(group, fieldKey),
         };
       }

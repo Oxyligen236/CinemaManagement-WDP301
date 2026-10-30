@@ -154,7 +154,9 @@ export class MovieService
   }
 
   async deactivateMovie(movieId: string): Promise<MovieResDto> {
-    const movie = await this.prisma.movie.findUnique({ where: { id: movieId } });
+    const movie = await this.prisma.movie.findUnique({
+      where: { id: movieId },
+    });
     if (!movie) {
       throw new NotFoundException('Movie not found.');
     }
@@ -175,7 +177,9 @@ export class MovieService
   }
 
   async getGenres(): Promise<GenreResDto[]> {
-    const genres = await this.prisma.genre.findMany({ orderBy: { genreName: 'asc' } });
+    const genres = await this.prisma.genre.findMany({
+      orderBy: { genreName: 'asc' },
+    });
     return genres.map((genre) => ({
       genreId: genre.id,
       genreName: genre.genreName,
