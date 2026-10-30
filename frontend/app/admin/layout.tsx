@@ -10,6 +10,7 @@ import {
   Users,
   Building2,
   Tags,
+  TicketPercent,
   Clock3,
   Film,
   ShieldCheck,
@@ -54,6 +55,11 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "Cấu hình giá",
     href: "/admin/price-multipliers",
     icon: Tags,
+  },
+  {
+    label: "Quản lý Khuyến mãi",
+    href: "/admin/promotions",
+    icon: TicketPercent,
   },
   { label: "Ca làm việc", href: "/admin/work-schedules", icon: Clock3 },
 ];

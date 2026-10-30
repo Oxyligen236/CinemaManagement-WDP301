@@ -68,7 +68,7 @@ export const PromotionStatsCards: React.FC<PromotionStatsCardsProps> = ({ stats,
           </div>
           <div className="mt-4">
             {isLoading ? (
-              <div className="h-8 w-24 bg-slate-200 animate-pulse rounded" />
+              <div className="h-8 w-24 bg-surface-muted animate-pulse rounded" />
             ) : (
               <div className={`text-2xl font-bold ${c.textColor}`}>{c.value}</div>
             )}

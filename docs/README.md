@@ -4,8 +4,11 @@ Tổng quan cấu trúc tài liệu thiết kế (SRS & SDS) của hệ thống 
 
 ---
 
-## 1. Cơ Sở Dữ Liệu & Sơ Đồ Thực Thể (`docs/database/`)
+## 1. Kiến Trúc Hệ Thống & Cơ Sở Dữ Liệu
 
+- **I.1 Code Packages (System Architecture & Module Dependencies):**
+  - Tài liệu chi tiết: [`code-packages.md`](./code-packages.md)
+  - Sơ đồ package tổng thể (PlantUML): [`code-packages.puml`](./code-packages.puml)
 - **I.2 Database Design (MongoDB / Mongoose):**
   - Tài liệu chi tiết: [`database-design.md`](./database/database-design.md)
   - Sơ đồ quan hệ & cấu trúc collection: [`database-design.mmd`](./database/database-design.mmd)
