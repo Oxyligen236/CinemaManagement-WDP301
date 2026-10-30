@@ -139,17 +139,17 @@ export class BranchRoomService {
 
       if (input.customSeats && input.customSeats.length > 0) {
         const seatDocs = input.customSeats.map((s) => ({
-          roomId: created.roomId,
+          roomId: created.id,
           rowPosition: s.rowPosition.trim().toUpperCase(),
           columnPosition: s.columnPosition,
-          seatType: s.seatType,
+          seatType: s.seatType as SeatType,
           status: s.status ?? SeatStatus.AVAILABLE,
         }));
-        await this.seatModel.insertMany(seatDocs, { ordered: false });
+        await this.prisma.seat.createMany({ data: seatDocs });
       } else {
         const rows = input.rowCount ?? 6;
         const cols = input.columnsPerRow ?? 10;
-        await this.generateDefaultSeatsForRoom(created.roomId, rows, cols);
+        await this.generateDefaultSeatsForRoom(created.id, rows, cols);
       }
 
       const [summary] = await this.buildRoomSummaries([created]);
@@ -176,30 +176,32 @@ export class BranchRoomService {
         throw new BadRequestException(ROOM_MESSAGES.BRANCH_NOT_ACTIVE);
       }
 
-      const room = await this.roomModel
-        .findOne({ roomId, branchId: branch.branchId })
-        .lean<Room>()
-        .exec();
+      const room = await this.prisma.room.findFirst({
+        where: { id: roomId, branchId: branch.branchId },
+      });
 
       if (!room) {
         throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
       }
 
-      const upcomingShowtimes = await this.showtimeModel
-        .find({
-          roomId: room.roomId,
-          endTime: { $gt: new Date() },
-        })
-        .select('showtimeId')
-        .lean<{ showtimeId: string }[]>()
-        .exec();
+      const upcomingShowtimes = await this.prisma.showtime.findMany({
+        where: {
+          roomId: room.id,
+          endTime: { gt: new Date() },
+        },
+        select: { id: true },
+      });
 
-      const upcomingShowtimeIds = upcomingShowtimes.map((s) => s.showtimeId);
+      const upcomingShowtimeIds = upcomingShowtimes.map((s) => s.id);
 
       if (upcomingShowtimeIds.length > 0) {
-        const soldCount = await this.seatShowtimeModel.countDocuments({
-          showtimeId: { $in: upcomingShowtimeIds },
-          seatStatus: { $in: LOCKED_UPCOMING_SEAT_STATUSES },
+        const soldCount = await this.prisma.seatShowtime.count({
+          where: {
+            showtimeId: { in: upcomingShowtimeIds },
+            seatStatus: {
+              in: [SeatShowtimeStatus.BOOKED, SeatShowtimeStatus.RESERVED],
+            },
+          },
         });
 
         if (soldCount > 0) {
@@ -211,29 +213,36 @@ export class BranchRoomService {
         }
 
         // Suất chiếu chưa có vé nào bán -> Xóa các SeatShowtime cũ
-        await this.seatShowtimeModel.deleteMany({
-          showtimeId: { $in: upcomingShowtimeIds },
+        await this.prisma.seatShowtime.deleteMany({
+          where: {
+            showtimeId: { in: upcomingShowtimeIds },
+          },
         });
       }
 
       // Xóa toàn bộ ghế cũ của phòng
-      await this.seatModel.deleteMany({ roomId: room.roomId });
+      await this.prisma.seat.deleteMany({ where: { roomId: room.id } });
 
       // Chèn danh sách ghế mới
       const seatDocs = input.seats.map((s) => ({
-        roomId: room.roomId,
+        roomId: room.id,
         rowPosition: s.rowPosition.trim().toUpperCase(),
         columnPosition: s.columnPosition,
-        seatType: s.seatType,
+        seatType: s.seatType as SeatType,
         status: s.status ?? SeatStatus.AVAILABLE,
       }));
 
-      const insertedSeats = await this.seatModel.insertMany(seatDocs, {
-        ordered: false,
+      await this.prisma.seat.createMany({
+        data: seatDocs,
       });
 
       // Tái tạo lại SeatShowtime cho các suất chiếu tương lai chưa bán vé
       if (upcomingShowtimeIds.length > 0) {
+        const insertedSeats = await this.prisma.seat.findMany({
+          where: { roomId: room.id },
+          select: { id: true },
+        });
+
         const seatShowtimesToInsert: {
           showtimeId: string;
           seatId: string;
@@ -244,15 +253,14 @@ export class BranchRoomService {
           for (const s of insertedSeats) {
             seatShowtimesToInsert.push({
               showtimeId: stId,
-              seatId: s.seatId,
+              seatId: s.id,
               seatStatus: SeatShowtimeStatus.EMPTY,
             });
           }
         }
-
         if (seatShowtimesToInsert.length > 0) {
-          await this.seatShowtimeModel.insertMany(seatShowtimesToInsert, {
-            ordered: false,
+          await this.prisma.seatShowtime.createMany({
+            data: seatShowtimesToInsert,
           });
         }
       }
