@@ -9,7 +9,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { STORAGE_SERVICE } from '../../../infra/storage/application/interface/storage.interface';
-import { ShowtimeQueryService } from '../../../showtime/application/services/showtime-query.service';
+import { Showtime } from '../../../showtime/domain/schemas/showtime.schema';
 import { Genre } from '../../domain/schemas/genre.schema';
 import { Movie } from '../../domain/schemas/movie.schema';
 import { MovieStatus } from '../../domain/enums/movie-status.enum';
@@ -57,11 +57,12 @@ describe('MovieService', () => {
     countDocuments: jest.fn(),
   };
   const genreModel = { find: jest.fn() };
-  const mockShowtimeQueryService = {
-    hasActiveShowtimes: jest.fn().mockImplementation((movieId: string) => {
-      if (movieId === 'movie-with-active-showtimes')
-        return Promise.resolve(true);
-      return Promise.resolve(false);
+  const mockShowtimeModel = {
+    exists: jest.fn().mockImplementation((query: { movieId: string }) => {
+      if (query.movieId === 'movie-with-active-showtimes') {
+        return Promise.resolve({ _id: 'st-001' });
+      }
+      return Promise.resolve(null);
     }),
   };
 
@@ -88,7 +89,7 @@ describe('MovieService', () => {
         MovieService,
         { provide: getModelToken(Movie.name), useValue: movieModel },
         { provide: getModelToken(Genre.name), useValue: genreModel },
-        { provide: ShowtimeQueryService, useValue: mockShowtimeQueryService },
+        { provide: getModelToken(Showtime.name), useValue: mockShowtimeModel },
         { provide: STORAGE_SERVICE, useValue: mockStorageService },
       ],
     }).compile();

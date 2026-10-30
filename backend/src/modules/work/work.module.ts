@@ -18,7 +18,10 @@ import {
   ShiftAttendanceSchema,
 } from './domain/schemas/shift-attendance.schema';
 import { User, UserSchema } from '../user/domain/schemas/user.schema';
-import { ShiftAssignment, ShiftAssignmentSchema } from './domain/schemas/shift-assignment.schema';
+import {
+  ShiftAssignment,
+  ShiftAssignmentSchema,
+} from './domain/schemas/shift-assignment.schema';
 import { Order, OrderSchema } from '../order/domain/schemas/order.schema';
 import {
   SeatOrder,

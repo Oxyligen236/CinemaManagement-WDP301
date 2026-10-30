@@ -1,8 +1,11 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Movie, MovieSchema } from './domain/schemas/movie.schema';
 import { Genre, GenreSchema } from './domain/schemas/genre.schema';
-import { ShowtimeModule } from '../showtime/showtime.module';
+import {
+  Showtime,
+  ShowtimeSchema,
+} from '../showtime/domain/schemas/showtime.schema';
 import { StorageModule } from '../infra/storage/storage.module';
 import { MovieController } from './infra/movie.controller';
 import { MovieService } from './application/services/movie.service';
@@ -16,8 +19,8 @@ import { MovieContractImpl } from './contracts/movie-contract.impl';
     MongooseModule.forFeature([
       { name: Movie.name, schema: MovieSchema },
       { name: Genre.name, schema: GenreSchema },
+      { name: Showtime.name, schema: ShowtimeSchema },
     ]),
-    forwardRef(() => ShowtimeModule),
     StorageModule,
   ],
   controllers: [MovieController],
