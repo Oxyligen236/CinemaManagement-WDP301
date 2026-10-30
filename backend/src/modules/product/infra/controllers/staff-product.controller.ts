@@ -5,14 +5,11 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../../auth/infra/guards/role.guard';
-import { Roles } from '../../../auth/infra/decorators/role.decorator';
+import { Role, Roles } from '../../../auth/infra/decorators/role.decorator';
 import { AuthenticatedRequest, AuthUser } from '../../../auth/domain/auth-user';
-import { Role } from '../../../user/domain/enums/role.enum';
-import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
 import { ProductService } from '../../application/services/product.service';
 import { BranchConcessionCatalogRes } from '../../application/dto/res.dto';
 
@@ -22,8 +19,7 @@ import { BranchConcessionCatalogRes } from '../../application/dto/res.dto';
 export class StaffProductController {
   constructor(
     private readonly productService: ProductService,
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get()
@@ -31,13 +27,12 @@ export class StaffProductController {
     @Req() req: AuthenticatedRequest,
   ): Promise<BranchConcessionCatalogRes> {
     const authUser = req.user as AuthUser;
-    const user = await this.userModel
-      .findOne({ userId: authUser.sub })
-      .select('branchId isActive')
-      .lean()
-      .exec();
+    const user = await this.prisma.user.findUnique({
+      where: { id: authUser.sub },
+      select: { branchId: true, isActive: true },
+    });
 
-    if (!user || !user.branchId) {
+    if (!user || !user.branchId || !user.isActive) {
       throw new ForbiddenException(
         'Tài khoản nhân viên chưa được gán chi nhánh hoạt động',
       );

@@ -5,28 +5,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import ExcelJS from 'exceljs';
-import { Item, ItemDocument } from '../../domain/schemas/item.schema';
-import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
-import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
 import {
-  Branch,
-  BranchDocument,
-} from '../../../branch/domain/schemas/branch.schema';
-import { BranchStatus } from '../../../branch/domain/enums/branch-status.enum';
-import { ItemStatus } from '../../domain/enums/item-status.enum';
-import { ItemCategory } from '../../domain/enums/item-category.enum';
-import { ItemSize } from '../../domain/enums/item-size.enum';
-import { ComboStatus } from '../../domain/enums/combo-status.enum';
+  BranchStatus,
+  ItemStatus,
+  ItemCategory,
+  ItemSize,
+  ComboStatus,
+} from '@prisma/client';
 import { StockAdjustmentType } from '../../domain/enums/stock-adjustment-type.enum';
 import { ExcelStockMode } from '../../domain/enums/excel-stock-mode.enum';
 import {
   CONCESSION_CONSTANTS,
   CONCESSION_MESSAGES,
-  escapeRegex,
   parseExcelCategory,
   parseExcelSize,
   resolveItemStockStatus,
@@ -75,55 +67,47 @@ export class ItemService
     GetItemExcelTemplateUsecase,
     GetConcessionOptionsUsecase
 {
-  constructor(
-    @InjectModel(Item.name)
-    private readonly itemModel: Model<ItemDocument>,
-    @InjectModel(Combo.name)
-    private readonly comboModel: Model<ComboDocument>,
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  private async validateManagerBranch(
-    managerUserId: string,
-  ): Promise<BranchDocument> {
-    const user = await this.userModel.findOne({ userId: managerUserId }).exec();
+  private async validateManagerBranch(managerUserId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: managerUserId },
+      select: { branchId: true },
+    });
     if (!user || !user.branchId) {
       throw new ForbiddenException(CONCESSION_MESSAGES.NO_BRANCH);
     }
 
-    const branch = await this.branchModel
-      .findOne({ branchId: user.branchId })
-      .exec();
-    if (!branch || branch.branchStatus !== BranchStatus.ACTIVE) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: user.branchId, branchStatus: BranchStatus.ACTIVE },
+    });
+    if (!branch) {
       throw new ForbiddenException(CONCESSION_MESSAGES.NO_BRANCH);
     }
 
     return branch;
   }
 
-  private mapToItemRes(item: ItemDocument | Item): ItemRes {
+  private mapToItemRes(item: any): ItemRes {
     const isLowStock =
       item.stockQuantity <= item.lowStockThreshold &&
       item.status !== ItemStatus.INACTIVE;
     return {
-      itemId: item.itemId,
+      itemId: item.id,
       branchId: item.branchId,
       name: item.name,
-      category: item.category,
+      category: item.category as any,
       size: item.size ?? null,
       price: item.price,
       costPrice: item.costPrice ?? 0,
       stockQuantity: item.stockQuantity,
       lowStockThreshold: item.lowStockThreshold,
       isLowStock,
-      status: item.status,
+      status: item.status as any,
       imageKey: item.imageKey ?? null,
       description: item.description ?? null,
-      createdAt: item.createdAt ? item.createdAt.toISOString() : undefined,
-      updatedAt: item.updatedAt ? item.updatedAt.toISOString() : undefined,
+      createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : undefined,
+      updatedAt: item.updatedAt ? new Date(item.updatedAt).toISOString() : undefined,
     };
   }
 
@@ -133,15 +117,15 @@ export class ItemService
     imageKey?: string,
   ): Promise<ItemMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchId = branch.id;
 
     const trimmedName = req.name.trim();
-    const existing = await this.itemModel
-      .findOne({
+    const existing = await this.prisma.item.findFirst({
+      where: {
         branchId,
-        name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
-      })
-      .exec();
+        name: { equals: trimmedName, mode: 'insensitive' },
+      },
+    });
 
     if (existing) {
       throw new ConflictException(CONCESSION_MESSAGES.DUPLICATE_ITEM_NAME);
@@ -150,29 +134,30 @@ export class ItemService
     const initialStock = req.stockQuantity ?? 0;
     const initialStatus = resolveItemStockStatus(
       initialStock,
-      req.status ?? ItemStatus.AVAILABLE,
+      (req.status as any) ?? ItemStatus.AVAILABLE,
     );
 
-    const item = new this.itemModel({
-      branchId,
-      name: trimmedName,
-      category: req.category,
-      size: req.size || null,
-      price: req.price,
-      costPrice: req.costPrice ?? 0,
-      stockQuantity: initialStock,
-      lowStockThreshold:
-        req.lowStockThreshold ??
-        CONCESSION_CONSTANTS.DEFAULT_LOW_STOCK_THRESHOLD,
-      status: initialStatus,
-      imageKey: imageKey || req.imageKey || null,
-      description: req.description?.trim() || null,
+    const item = await this.prisma.item.create({
+      data: {
+        branchId,
+        name: trimmedName,
+        category: req.category as ItemCategory,
+        size: (req.size as ItemSize) || null,
+        price: req.price,
+        costPrice: req.costPrice ?? 0,
+        stockQuantity: initialStock,
+        lowStockThreshold:
+          req.lowStockThreshold ??
+          CONCESSION_CONSTANTS.DEFAULT_LOW_STOCK_THRESHOLD,
+        status: initialStatus as ItemStatus,
+        imageKey: imageKey || req.imageKey || null,
+        description: req.description?.trim() || null,
+      },
     });
 
-    const saved = await item.save();
     return {
       message: CONCESSION_MESSAGES.CREATE_ITEM_SUCCESS,
-      item: this.mapToItemRes(saved),
+      item: this.mapToItemRes(item),
     };
   }
 
@@ -183,58 +168,56 @@ export class ItemService
     imageKey?: string,
   ): Promise<ItemMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchId = branch.id;
 
-    const item = await this.itemModel.findOne({ itemId, branchId }).exec();
+    const item = await this.prisma.item.findFirst({
+      where: { id: itemId, branchId },
+    });
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
 
+    const data: any = {};
+
     if (req.name && req.name.trim()) {
       const trimmedName = req.name.trim();
-      const existing = await this.itemModel
-        .findOne({
+      const existing = await this.prisma.item.findFirst({
+        where: {
           branchId,
-          itemId: { $ne: itemId },
-          name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
-        })
-        .exec();
+          id: { not: itemId },
+          name: { equals: trimmedName, mode: 'insensitive' },
+        },
+      });
 
       if (existing) {
         throw new ConflictException(CONCESSION_MESSAGES.DUPLICATE_ITEM_NAME);
       }
-      item.name = trimmedName;
+      data.name = trimmedName;
     }
 
-    if (req.category) {
-      item.category = req.category;
-    }
-    if (req.size !== undefined) {
-      item.size = req.size || null;
-    }
-    if (req.price !== undefined) {
-      item.price = req.price;
-    }
-    if (req.costPrice !== undefined) {
-      item.costPrice = req.costPrice;
-    }
-    if (req.lowStockThreshold !== undefined) {
-      item.lowStockThreshold = req.lowStockThreshold;
-    }
+    if (req.category) data.category = req.category;
+    if (req.size !== undefined) data.size = req.size || null;
+    if (req.price !== undefined) data.price = req.price;
+    if (req.costPrice !== undefined) data.costPrice = req.costPrice;
+    if (req.lowStockThreshold !== undefined) data.lowStockThreshold = req.lowStockThreshold;
     if (req.description !== undefined) {
-      item.description = req.description ? req.description.trim() : null;
+      data.description = req.description ? req.description.trim() : null;
     }
     if (imageKey) {
-      item.imageKey = imageKey;
+      data.imageKey = imageKey;
     } else if (req.imageKey !== undefined) {
-      item.imageKey = req.imageKey || null;
+      data.imageKey = req.imageKey || null;
     }
 
     if (req.status) {
-      item.status = resolveItemStockStatus(item.stockQuantity, req.status);
+      data.status = resolveItemStockStatus(item.stockQuantity, req.status as any);
     }
 
-    const updated = await item.save();
+    const updated = await this.prisma.item.update({
+      where: { id: itemId },
+      data,
+    });
+
     return {
       message: CONCESSION_MESSAGES.UPDATE_ITEM_SUCCESS,
       item: this.mapToItemRes(updated),
@@ -246,50 +229,54 @@ export class ItemService
     query: QueryBranchItemsReq,
   ): Promise<Page<ItemRes>> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchId = branch.id;
 
-    const filter: Record<string, any> = { branchId };
+    const where: any = { branchId };
 
     if (query.category) {
-      filter.category = query.category;
+      where.category = query.category;
     }
     if (query.status) {
-      filter.status = query.status;
+      where.status = query.status;
     }
     if (query.search && query.search.trim()) {
-      filter.name = {
-        $regex: escapeRegex(query.search.trim()),
-        $options: 'i',
-      };
-    }
-    if (query.lowStockOnly) {
-      filter.$expr = { $lte: ['$stockQuantity', '$lowStockThreshold'] };
-      filter.status = { $ne: ItemStatus.INACTIVE };
+      where.name = { contains: query.search.trim(), mode: 'insensitive' };
     }
 
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, query.limit || 10);
     const skip = (page - 1) * limit;
 
-    const [items, total] = await Promise.all([
-      this.itemModel
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.itemModel.countDocuments(filter).exec(),
-    ]);
+    let items = await this.prisma.item.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: query.lowStockOnly ? undefined : skip,
+      take: query.lowStockOnly ? undefined : limit,
+    });
 
-    const itemDtos = items.map((i) => this.mapToItemRes(i));
+    if (query.lowStockOnly) {
+      items = items.filter(
+        (i) => i.status !== ItemStatus.INACTIVE && i.stockQuantity <= i.lowStockThreshold,
+      );
+    }
+
+    const total = query.lowStockOnly
+      ? items.length
+      : await this.prisma.item.count({ where });
+
+    const pagedItems = query.lowStockOnly
+      ? items.slice(skip, skip + limit)
+      : items;
+
+    const itemDtos = pagedItems.map((i) => this.mapToItemRes(i));
     return Page.from(itemDtos, total, page, limit);
   }
 
   async getItemDetail(managerUserId: string, itemId: string): Promise<ItemRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
-      .exec();
+    const item = await this.prisma.item.findFirst({
+      where: { id: itemId, branchId: branch.id },
+    });
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
@@ -302,9 +289,9 @@ export class ItemService
     req: AdjustItemStockReq,
   ): Promise<StockAdjustmentRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
-      .exec();
+    const item = await this.prisma.item.findFirst({
+      where: { id: itemId, branchId: branch.id },
+    });
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
@@ -329,16 +316,22 @@ export class ItemService
       );
     }
 
-    item.stockQuantity = nextStock;
-    item.status = resolveItemStockStatus(nextStock, item.status);
-    await item.save();
+    const status = resolveItemStockStatus(nextStock, item.status as any) as ItemStatus;
+
+    await this.prisma.item.update({
+      where: { id: itemId },
+      data: {
+        stockQuantity: nextStock,
+        status,
+      },
+    });
 
     return {
       message: CONCESSION_MESSAGES.STOCK_UPDATE_SUCCESS,
-      itemId: item.itemId,
+      itemId: item.id,
       previousStock,
       currentStock: nextStock,
-      status: item.status,
+      status: status as any,
     };
   }
 
@@ -348,15 +341,18 @@ export class ItemService
     req: ChangeItemStatusReq,
   ): Promise<ItemMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
-      .exec();
+    const item = await this.prisma.item.findFirst({
+      where: { id: itemId, branchId: branch.id },
+    });
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
 
-    item.status = resolveItemStockStatus(item.stockQuantity, req.status);
-    const saved = await item.save();
+    const status = resolveItemStockStatus(item.stockQuantity, req.status as any) as ItemStatus;
+    const saved = await this.prisma.item.update({
+      where: { id: itemId },
+      data: { status },
+    });
 
     return {
       message: CONCESSION_MESSAGES.STATUS_UPDATE_SUCCESS,
@@ -369,16 +365,14 @@ export class ItemService
     itemId: string,
   ): Promise<DeleteMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
-      .exec();
+    const item = await this.prisma.item.findFirst({
+      where: { id: itemId, branchId: branch.id },
+    });
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
 
-    await this.itemModel
-      .deleteOne({ itemId, branchId: branch.branchId })
-      .exec();
+    await this.prisma.item.delete({ where: { id: itemId } });
 
     return {
       message: CONCESSION_MESSAGES.DELETE_SUCCESS,
@@ -388,66 +382,32 @@ export class ItemService
 
   async getItemExcelTemplate(): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'CinemaManagement';
-    workbook.created = new Date();
-
-    const worksheet = workbook.addWorksheet('DanhSachSanPham');
+    const worksheet = workbook.addWorksheet('Danh sách món ăn & nước uống');
 
     worksheet.columns = [
-      { header: 'Tên món (*)', key: 'name', width: 28 },
-      { header: 'Danh mục (*)', key: 'category', width: 22 },
-      { header: 'Kích cỡ', key: 'size', width: 18 },
-      { header: 'Giá bán (*)', key: 'price', width: 16 },
-      { header: 'Tồn kho (*)', key: 'stockQuantity', width: 14 },
+      { header: 'Tên món (*)', key: 'name', width: 30 },
+      { header: 'Danh mục (*)', key: 'category', width: 15 },
+      { header: 'Kích cỡ', key: 'size', width: 15 },
+      { header: 'Giá bán (*)', key: 'price', width: 15 },
+      { header: 'Giá nhập', key: 'costPrice', width: 15 },
+      { header: 'Tồn kho ban đầu (*)', key: 'stockQuantity', width: 20 },
       { header: 'Ngưỡng cảnh báo', key: 'lowStockThreshold', width: 18 },
-      { header: 'Giá vốn', key: 'costPrice', width: 16 },
-      { header: 'Mô tả', key: 'description', width: 32 },
+      { header: 'Mô tả', key: 'description', width: 35 },
     ];
 
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF2D2D2D' },
-    };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-
     worksheet.addRow({
-      name: 'Bắp rang bơ (L)',
+      name: 'Bắp rang bơ phô mai',
       category: 'POPCORN',
       size: 'LARGE',
-      price: 55000,
-      stockQuantity: 120,
-      lowStockThreshold: 15,
+      price: 65000,
       costPrice: 20000,
-      description: 'Bắp rang bơ truyền thống giòn rụm',
-    });
-
-    worksheet.addRow({
-      name: 'Coca-Cola (L)',
-      category: 'BEVERAGE',
-      size: 'LARGE',
-      price: 35000,
-      stockQuantity: 200,
-      lowStockThreshold: 20,
-      costPrice: 10000,
-      description: 'Nước ngọt có ga ly lớn mát lạnh',
-    });
-
-    worksheet.addRow({
-      name: 'Bim bim Snack khoai tây',
-      category: 'SNACK',
-      size: 'STANDARD',
-      price: 25000,
-      stockQuantity: 60,
+      stockQuantity: 100,
       lowStockThreshold: 10,
-      costPrice: 12000,
-      description: 'Snack khoai tây giòn cay',
+      description: 'Bắp rang giòn thơm vị phô mai hảo hạng',
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    return Buffer.from(buffer);
   }
 
   async importItemsExcel(
@@ -456,110 +416,70 @@ export class ItemService
     req?: ImportItemsExcelReq,
   ): Promise<ImportItemsExcelRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchId = branch.id;
 
     if (!fileBuffer || fileBuffer.length === 0) {
-      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_EMPTY_FILE);
+      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_FILE_EMPTY);
     }
 
     const workbook = new ExcelJS.Workbook();
-    try {
-      await workbook.xlsx.load(
-        fileBuffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
-      );
-    } catch {
-      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_EMPTY_FILE);
-    }
+    await workbook.xlsx.load(fileBuffer as any);
 
     const worksheet = workbook.worksheets[0];
-    if (!worksheet || worksheet.rowCount < 2) {
-      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_EMPTY_FILE);
+    if (!worksheet) {
+      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_FILE_EMPTY);
     }
 
     const errors: ExcelRowErrorRes[] = [];
+    const stockMode = req?.stockMode || ExcelStockMode.OVERWRITE;
+    let totalRows = 0;
     let successCount = 0;
     let createdCount = 0;
     let updatedCount = 0;
-    let totalRows = 0;
 
-    const stockMode = req?.stockMode ?? ExcelStockMode.OVERWRITE;
+    const rowCount = worksheet.rowCount;
+    if (rowCount <= 1) {
+      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_FILE_EMPTY);
+    }
 
-    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+    for (let rowNumber = 2; rowNumber <= rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber);
       const nameVal = row.getCell(1).text?.trim();
       const catVal = row.getCell(2).text?.trim();
       const sizeVal = row.getCell(3).text?.trim();
       const priceVal = row.getCell(4).value;
-      const stockVal = row.getCell(5).value;
-      const thresholdVal = row.getCell(6).value;
-      const costVal = row.getCell(7).value;
+      const costVal = row.getCell(5).value;
+      const stockVal = row.getCell(6).value;
+      const thresholdVal = row.getCell(7).value;
       const descVal = row.getCell(8).text?.trim();
 
-      const isRowEmpty =
-        !nameVal &&
-        !catVal &&
-        !sizeVal &&
-        priceVal === null &&
-        stockVal === null &&
-        !descVal;
-
-      if (isRowEmpty) {
+      if (!nameVal && !catVal && priceVal === null && stockVal === null) {
         continue;
       }
 
       totalRows++;
 
       if (!nameVal) {
-        errors.push({
-          rowNumber,
-          name: undefined,
-          reason: 'Tên món không được để trống.',
-        });
+        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.ITEM_NAME_REQUIRED });
         continue;
       }
 
       const parsedCategory = parseExcelCategory(catVal);
       if (!parsedCategory) {
-        errors.push({
-          rowNumber,
-          name: nameVal,
-          reason: `Danh mục không hợp lệ (${catVal || 'trống'}). Chấp nhận: POPCORN, BEVERAGE, SNACK, OTHER.`,
-        });
+        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.INVALID_CATEGORY });
         continue;
       }
 
       const parsedSize = parseExcelSize(sizeVal);
-
       const parsedPrice = Number(priceVal);
-      if (
-        priceVal === null ||
-        priceVal === undefined ||
-        isNaN(parsedPrice) ||
-        parsedPrice < 0
-      ) {
-        const priceStr =
-          typeof priceVal === 'string' || typeof priceVal === 'number'
-            ? String(priceVal)
-            : 'trống';
-        errors.push({
-          rowNumber,
-          name: nameVal,
-          reason: `Giá bán không hợp lệ (${priceStr}). Phải là số >= 0.`,
-        });
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.PRICE_POSITIVE });
         continue;
       }
 
-      const parsedStock = Number(stockVal ?? 0);
-      if (isNaN(parsedStock) || parsedStock < 0) {
-        const stockStr =
-          typeof stockVal === 'string' || typeof stockVal === 'number'
-            ? String(stockVal)
-            : 'trống';
-        errors.push({
-          rowNumber,
-          name: nameVal,
-          reason: `Tồn kho không hợp lệ (${stockStr}). Phải là số nguyên >= 0.`,
-        });
+      const parsedStock = Number(stockVal);
+      if (isNaN(parsedStock) || parsedStock < 0 || !Number.isInteger(parsedStock)) {
+        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.STOCK_POSITIVE_INT });
         continue;
       }
 
@@ -572,56 +492,55 @@ export class ItemService
       const parsedCost = Number(costVal);
       const costPrice = !isNaN(parsedCost) && parsedCost >= 0 ? parsedCost : 0;
 
-      const existing = await this.itemModel
-        .findOne({
+      const existing = await this.prisma.item.findFirst({
+        where: {
           branchId,
-          name: { $regex: new RegExp(`^${escapeRegex(nameVal)}$`, 'i') },
-        })
-        .exec();
+          name: { equals: nameVal, mode: 'insensitive' },
+        },
+      });
 
       if (existing) {
-        existing.category = parsedCategory;
-        if (parsedSize !== null) {
-          existing.size = parsedSize;
-        }
-        existing.price = parsedPrice;
-        existing.costPrice = costPrice;
-        existing.lowStockThreshold = lowStockThreshold;
-        if (descVal) {
-          existing.description = descVal;
-        }
-
         const nextStock =
           stockMode === ExcelStockMode.ACCUMULATE
             ? existing.stockQuantity + parsedStock
             : parsedStock;
 
-        existing.stockQuantity = nextStock;
-        existing.status = resolveItemStockStatus(nextStock, existing.status);
+        const status = resolveItemStockStatus(nextStock, existing.status as any) as ItemStatus;
 
-        await existing.save();
+        await this.prisma.item.update({
+          where: { id: existing.id },
+          data: {
+            category: parsedCategory as ItemCategory,
+            size: parsedSize !== null ? (parsedSize as ItemSize) : undefined,
+            price: parsedPrice,
+            costPrice,
+            lowStockThreshold,
+            description: descVal || undefined,
+            stockQuantity: nextStock,
+            status,
+          },
+        });
         updatedCount++;
       } else {
         const initialStatus = resolveItemStockStatus(
           parsedStock,
-          ItemStatus.AVAILABLE,
-        );
+          ItemStatus.AVAILABLE as any,
+        ) as ItemStatus;
 
-        const newItem = new this.itemModel({
-          itemId: randomUUID(),
-          branchId,
-          name: nameVal,
-          category: parsedCategory,
-          size: parsedSize,
-          price: parsedPrice,
-          costPrice,
-          stockQuantity: parsedStock,
-          lowStockThreshold,
-          status: initialStatus,
-          description: descVal || null,
+        await this.prisma.item.create({
+          data: {
+            branchId,
+            name: nameVal,
+            category: parsedCategory as ItemCategory,
+            size: parsedSize as ItemSize,
+            price: parsedPrice,
+            costPrice,
+            stockQuantity: parsedStock,
+            lowStockThreshold,
+            status: initialStatus,
+            description: descVal || null,
+          },
         });
-
-        await newItem.save();
         createdCount++;
       }
 
@@ -643,16 +562,16 @@ export class ItemService
     managerUserId: string,
   ): Promise<ConcessionOptionsRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchId = branch.id;
 
-    const items = await this.itemModel
-      .find({
+    const items = await this.prisma.item.findMany({
+      where: {
         branchId,
-        status: { $ne: ItemStatus.INACTIVE },
-      })
-      .select('itemId name category size price stockQuantity')
-      .sort({ name: 1 })
-      .exec();
+        status: { not: ItemStatus.INACTIVE },
+      },
+      select: { id: true, name: true, category: true, size: true, price: true, stockQuantity: true },
+      orderBy: { name: 'asc' },
+    });
 
     return {
       branch: {
@@ -660,15 +579,15 @@ export class ItemService
         branchName: branch.branchName,
         address: branch.address,
       },
-      categories: Object.values(ItemCategory),
-      sizes: Object.values(ItemSize),
-      itemStatuses: Object.values(ItemStatus),
-      comboStatuses: Object.values(ComboStatus),
+      categories: Object.values(ItemCategory) as any,
+      sizes: Object.values(ItemSize) as any,
+      itemStatuses: Object.values(ItemStatus) as any,
+      comboStatuses: Object.values(ComboStatus) as any,
       availableItemsForCombo: items.map((i) => ({
-        itemId: i.itemId,
+        itemId: i.id,
         name: i.name,
-        category: i.category,
-        size: i.size ?? null,
+        category: i.category as any,
+        size: (i.size as any) ?? null,
         price: i.price,
         stockQuantity: i.stockQuantity,
       })),
@@ -696,13 +615,13 @@ export class ItemService
       return map;
     }
 
-    const items = await this.itemModel
-      .find({ itemId: { $in: productIds } })
-      .exec();
+    const items = await this.prisma.item.findMany({
+      where: { id: { in: productIds } },
+    });
 
     for (const item of items) {
-      map.set(item.itemId, {
-        productId: item.itemId,
+      map.set(item.id, {
+        productId: item.id,
         productName: item.name,
         imageUrl: this.resolveImageUrl(item.imageKey),
         unitPrice: item.price,
@@ -712,13 +631,13 @@ export class ItemService
 
     const remainingIds = productIds.filter((id) => !map.has(id));
     if (remainingIds.length > 0) {
-      const combos = await this.comboModel
-        .find({ comboId: { $in: remainingIds } })
-        .exec();
+      const combos = await this.prisma.combo.findMany({
+        where: { id: { in: remainingIds } },
+      });
 
       for (const combo of combos) {
-        map.set(combo.comboId, {
-          productId: combo.comboId,
+        map.set(combo.id, {
+          productId: combo.id,
           productName: combo.name,
           imageUrl: this.resolveImageUrl(combo.imageKey),
           unitPrice: combo.price,

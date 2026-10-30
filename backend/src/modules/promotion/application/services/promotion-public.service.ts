@@ -1,19 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { ValidatePromotionUsecase } from '../usecase/validate-promotion.usecase';
 import { GetPublicPromotionUsecase } from '../usecase/get-public-promotion.usecase';
 import { RecordPromotionUsageUsecase } from '../usecase/record-promotion-usage.usecase';
-import {
-  Promotion,
-  PromotionDocument,
-} from '../../domain/schemas/promotion.schema';
-import {
-  PromotionUsage,
-  PromotionUsageDocument,
-} from '../../domain/schemas/promotion-usage.schema';
-import { DiscountType } from '../../domain/enums/discount-type.enum';
+import { DiscountType } from '@prisma/client';
 import { PromotionResponseDto } from '../dto/res.dto';
 
 @Injectable()
@@ -23,12 +13,7 @@ export class PromotionPublicService
     GetPublicPromotionUsecase,
     RecordPromotionUsageUsecase
 {
-  constructor(
-    @InjectModel(Promotion.name)
-    private readonly promotionModel: Model<PromotionDocument>,
-    @InjectModel(PromotionUsage.name)
-    private readonly promotionUsageModel: Model<PromotionUsageDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async validatePromotionCode(params: {
     code: string;
@@ -54,9 +39,9 @@ export class PromotionPublicService
       };
     }
 
-    const promotion = await this.promotionModel
-      .findOne({ promotionCode: normalizedCode })
-      .exec();
+    const promotion = await this.prisma.promotion.findFirst({
+      where: { promotionCode: normalizedCode },
+    });
 
     if (!promotion) {
       return {
@@ -92,6 +77,7 @@ export class PromotionPublicService
     }
 
     if (
+      promotion.minOrderValue !== null &&
       promotion.minOrderValue !== undefined &&
       promotion.minOrderValue > 0 &&
       orderAmount < promotion.minOrderValue
@@ -104,6 +90,7 @@ export class PromotionPublicService
     }
 
     if (
+      promotion.usageLimit !== null &&
       promotion.usageLimit !== undefined &&
       promotion.usageLimit > 0 &&
       (promotion.usedCount ?? 0) >= promotion.usageLimit
@@ -116,9 +103,11 @@ export class PromotionPublicService
     }
 
     if (userId) {
-      const hasUsed = await this.promotionUsageModel.exists({
-        promotionId: promotion.promotionId,
-        userId,
+      const hasUsed = await this.prisma.promotionUsage.findFirst({
+        where: {
+          promotionId: promotion.id,
+          userId,
+        },
       });
 
       if (hasUsed) {
@@ -137,6 +126,7 @@ export class PromotionPublicService
 
     if (
       promotion.discountType === DiscountType.PERCENTAGE &&
+      promotion.maxDiscountAmount !== null &&
       promotion.maxDiscountAmount !== undefined &&
       promotion.maxDiscountAmount > 0
     ) {
@@ -145,7 +135,7 @@ export class PromotionPublicService
 
     return {
       isValid: true,
-      promotionId: promotion.promotionId,
+      promotionId: promotion.id,
       promotionCode: promotion.promotionCode,
       discountType: promotion.discountType,
       discountValue: promotion.discountValue,
@@ -160,41 +150,40 @@ export class PromotionPublicService
   }): Promise<void> {
     const { promotionId, userId, orderId } = params;
     try {
-      await this.promotionUsageModel.create({
-        usageId: randomUUID(),
-        promotionId,
-        userId,
-        orderId,
-        usedAt: new Date(),
+      await this.prisma.promotionUsage.create({
+        data: {
+          promotionId,
+          userId,
+          orderId,
+          usedAt: new Date(),
+        },
       });
 
-      await this.promotionModel.updateOne(
-        { promotionId },
-        { $inc: { usedCount: 1 } },
-      );
+      await this.prisma.promotion.update({
+        where: { id: promotionId },
+        data: { usedCount: { increment: 1 } },
+      });
     } catch (err: unknown) {
-      const mongoError = err as { code?: number };
-      if (mongoError?.code === 11000) {
-        // Idempotency: Người dùng đã được ghi nhận trước đó, bỏ qua để tránh lỗi crash luồng event
-        return;
-      }
-      throw err;
+      // Idempotency: Người dùng đã được ghi nhận trước đó, bỏ qua để tránh lỗi crash luồng event
+      return;
     }
   }
 
   async getPromotionById(
     promotionId: string,
   ): Promise<PromotionResponseDto | null> {
-    const promo = await this.promotionModel.findOne({ promotionId }).exec();
+    const promo = await this.prisma.promotion.findUnique({
+      where: { id: promotionId },
+    });
     if (!promo) {
       return null;
     }
 
     return PromotionResponseDto.of(
-      promo.promotionId,
+      promo.id,
       promo.promotionCode,
       promo.discountValue,
-      promo.discountType,
+      promo.discountType as any,
       promo.startDate,
       promo.endDate,
       promo.isActive,

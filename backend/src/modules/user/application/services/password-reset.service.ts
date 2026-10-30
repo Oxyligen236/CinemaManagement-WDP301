@@ -5,12 +5,10 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 
-import { User, UserDocument } from '../../domain/schemas/user.schema';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import {
   MAIL_SERVICE,
   MailService,
@@ -34,9 +32,7 @@ export class PasswordResetService {
   private readonly resetRequests = new Map<string, PasswordResetRequest>();
 
   constructor(
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-
+    private readonly prisma: PrismaService,
     @Inject(MAIL_SERVICE)
     private readonly mailService: MailService,
   ) {}
@@ -68,11 +64,10 @@ export class PasswordResetService {
       resetCodeExpiresInSeconds: 300,
     };
 
-    const user = await this.userModel
-      .findOne({ email })
-      .select('firstName')
-      .lean()
-      .exec();
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { firstName: true },
+    });
 
     if (!user) {
       return response;
@@ -165,18 +160,15 @@ export class PasswordResetService {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    const result = await this.userModel.updateOne(
-      { email },
-      {
-        $set: {
+    try {
+      await this.prisma.user.update({
+        where: { email },
+        data: {
           password: passwordHash,
         },
-      },
-    );
-
-    if (result.matchedCount === 0) {
+      });
+    } catch {
       this.resetRequests.delete(email);
-
       throw new BadRequestException(MSG.ACCOUNT_NOT_FOUND);
     }
 

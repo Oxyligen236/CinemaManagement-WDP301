@@ -6,19 +6,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
-import { Order, OrderDocument } from '../../domain/schemas/order.schema';
-import {
-  SeatOrder,
-  SeatOrderDocument,
-} from '../../domain/schemas/seat-order.schema';
-import {
-  ProductOrder,
-  ProductOrderDocument,
-} from '../../domain/schemas/product-order.schema';
-import { OrderStatus } from '../../domain/enums/order-status.enum';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { OrderStatus } from '@prisma/client';
 import {
   ORDER_EXPIRATION_QUEUE,
   ORDER_HOLD_TIMEOUT_MS,
@@ -90,12 +79,7 @@ export class PosOrderService
   private readonly logger = new Logger(PosOrderService.name);
 
   constructor(
-    @InjectModel(Order.name)
-    private readonly orderModel: Model<OrderDocument>,
-    @InjectModel(SeatOrder.name)
-    private readonly seatOrderModel: Model<SeatOrderDocument>,
-    @InjectModel(ProductOrder.name)
-    private readonly productOrderModel: Model<ProductOrderDocument>,
+    private readonly prisma: PrismaService,
     @Inject(SHOWTIME_BOOKING)
     private readonly showtimeBookingService: ShowtimeBookingContract,
     @Inject(TICKET_CONTRACT)
@@ -185,49 +169,48 @@ export class PosOrderService
     }, 0);
     const totalAmount = ticketSubtotal + productSubtotal;
 
-    const orderId = randomUUID();
     const createdAt = new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
+    let orderId = '';
 
     try {
-      await this.orderModel.create({
-        orderId,
-        userId: staffContext.staffId,
-        branchId: staffContext.branchId,
-        totalAmount,
-        status: OrderStatus.PENDING,
+      const created = await this.prisma.order.create({
+        data: {
+          userId: staffContext.staffId,
+          branchId: staffContext.branchId,
+          totalAmount,
+          status: OrderStatus.PENDING,
+          ...(hasSeats && reservedSeats.length > 0
+            ? {
+                seatOrders: {
+                  create: reservedSeats.map((seat) => ({
+                    seatShowtimeId: seat.seatShowtimeId,
+                    price: seat.basePrice,
+                    orderAt: createdAt,
+                  })),
+                },
+              }
+            : {}),
+          ...(request.products?.length
+            ? {
+                productOrders: {
+                  create: request.products.map((item) => ({
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    unitPrice: productsMap.get(item.productId)?.unitPrice ?? 0,
+                  })),
+                },
+              }
+            : {}),
+        },
       });
-
-      if (hasSeats && reservedSeats.length > 0) {
-        const seatOrdersData = reservedSeats.map((seat) => ({
-          seatOrderId: randomUUID(),
-          orderId,
-          seatShowtimeId: seat.seatShowtimeId,
-          price: seat.basePrice,
-          orderAt: createdAt,
-        }));
-        await this.seatOrderModel.insertMany(seatOrdersData);
-      }
-
-      if (request.products?.length) {
-        const productOrdersData = request.products.map((item) => ({
-          productOrderId: randomUUID(),
-          orderId,
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: productsMap.get(item.productId)?.unitPrice ?? 0,
-        }));
-        await this.productOrderModel.insertMany(productOrdersData);
-      }
+      orderId = created.id;
     } catch (dbError) {
       if (hasSeats) {
         await this.showtimeBookingService.releaseSeats(
           request.seatShowtimeIds!,
         );
       }
-      await this.orderModel.deleteOne({ orderId }).exec();
-      await this.seatOrderModel.deleteMany({ orderId }).exec();
-      await this.productOrderModel.deleteMany({ orderId }).exec();
       throw dbError;
     }
 
@@ -243,9 +226,9 @@ export class PosOrderService
           request.seatShowtimeIds!,
         );
       }
-      await this.orderModel.deleteOne({ orderId }).exec();
-      await this.seatOrderModel.deleteMany({ orderId }).exec();
-      await this.productOrderModel.deleteMany({ orderId }).exec();
+      await this.prisma.seatOrder.deleteMany({ where: { orderId } });
+      await this.prisma.productOrder.deleteMany({ where: { orderId } });
+      await this.prisma.order.delete({ where: { id: orderId } });
       throw queueError;
     }
 
@@ -268,7 +251,7 @@ export class PosOrderService
     return {
       orderId,
       userId: staffContext.staffId,
-      status: OrderStatus.PENDING,
+      status: OrderStatus.PENDING as any,
       totalAmount,
       createdAt,
       expiresAt,
@@ -298,7 +281,7 @@ export class PosOrderService
     orderId: string,
     request: ApplyPromotionReq,
   ): Promise<PosBookingSummaryRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -323,14 +306,17 @@ export class PosOrderService
       );
     }
 
-    order.promotionId = validation.promotionId;
-    order.totalAmount = Math.max(
-      0,
-      order.totalAmount - validation.discountAmount,
-    );
-    await order.save();
+    const newTotal = Math.max(0, order.totalAmount - validation.discountAmount);
 
-    return this.buildPosBookingSummary(order);
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        promotionId: validation.promotionId,
+        totalAmount: newTotal,
+      },
+    });
+
+    return this.buildPosBookingSummary(updated);
   }
 
   async cancelPosOrder(
@@ -338,7 +324,7 @@ export class PosOrderService
     orderId: string,
     request?: CancelPosOrderReq,
   ): Promise<{ success: boolean; message: string }> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -351,11 +337,13 @@ export class PosOrderService
       );
     }
 
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
+    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
-    order.status = OrderStatus.CANCELLED;
-    await order.save();
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.CANCELLED },
+    });
 
     if (seatShowtimeIds.length) {
       await this.showtimeBookingService.releaseSeats(seatShowtimeIds);
@@ -388,7 +376,7 @@ export class PosOrderService
     orderId: string,
     request: ProcessPosCashPaymentReq,
   ): Promise<PosCashPaymentResultRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -412,7 +400,7 @@ export class PosOrderService
       cashReceived: request.cashReceived,
     });
 
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
+    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
     let tickets: TicketItemSummaryDto[] = [];
@@ -424,7 +412,7 @@ export class PosOrderService
       });
     }
 
-    const productOrders = await this.productOrderModel.find({ orderId }).exec();
+    const productOrders = await this.prisma.productOrder.findMany({ where: { orderId } });
     if (productOrders.length) {
       await this.productContract.deductConcessionStock(
         productOrders.map((po) => ({
@@ -434,8 +422,10 @@ export class PosOrderService
       );
     }
 
-    order.status = OrderStatus.PAID;
-    await order.save();
+    await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: OrderStatus.PAID },
+    });
 
     try {
       await this.internalEventBus.publish(
@@ -446,7 +436,7 @@ export class PosOrderService
           amountToPay,
           'CASH',
           new Date(),
-          order.promotionId,
+          order.promotionId ?? undefined,
           order.userId,
         ),
       );
@@ -459,7 +449,7 @@ export class PosOrderService
     return {
       orderId,
       paymentId: cashPayment.paymentId,
-      status: OrderStatus.PAID,
+      status: OrderStatus.PAID as any,
       totalAmount: amountToPay,
       cashReceived: request.cashReceived,
       changeAmount:
@@ -474,7 +464,7 @@ export class PosOrderService
     orderId: string,
     request: InitiatePosQrPaymentReq,
   ): Promise<PosQrPaymentRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -510,7 +500,7 @@ export class PosOrderService
     staffContext: { staffId: string; branchId: string },
     orderId: string,
   ): Promise<PosCashPaymentResultRes | PosQrPaymentRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -521,11 +511,11 @@ export class PosOrderService
 
     if (order.status === OrderStatus.PAID) {
       const tickets = await this.ticketContract.getTicketsByOrderId(orderId);
-      const paidAt = (order.get('updatedAt') as Date | undefined) ?? new Date();
+      const paidAt = order.updatedAt ?? new Date();
       return {
         orderId,
         paymentId: 'PAID',
-        status: OrderStatus.PAID,
+        status: OrderStatus.PAID as any,
         totalAmount: amountToPay,
         cashReceived: amountToPay,
         changeAmount: 0,
@@ -541,7 +531,7 @@ export class PosOrderService
       statusSummary.status === PaymentStatus.SUCCESS ||
       (statusSummary.status as string) === 'SUCCESS'
     ) {
-      const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
+      const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
       const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
       let tickets: TicketItemSummaryDto[] = [];
@@ -553,9 +543,9 @@ export class PosOrderService
         });
       }
 
-      const productOrders = await this.productOrderModel
-        .find({ orderId })
-        .exec();
+      const productOrders = await this.prisma.productOrder.findMany({
+        where: { orderId },
+      });
       if (productOrders.length) {
         await this.productContract.deductConcessionStock(
           productOrders.map((po) => ({
@@ -565,8 +555,10 @@ export class PosOrderService
         );
       }
 
-      order.status = OrderStatus.PAID;
-      await order.save();
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.PAID },
+      });
 
       const paymentMethod = statusSummary.method || 'QR';
       try {
@@ -578,7 +570,7 @@ export class PosOrderService
             amountToPay,
             paymentMethod,
             new Date(),
-            order.promotionId,
+            order.promotionId ?? undefined,
             order.userId,
           ),
         );
@@ -591,7 +583,7 @@ export class PosOrderService
       return {
         orderId,
         paymentId: statusSummary.paymentId,
-        status: OrderStatus.PAID,
+        status: OrderStatus.PAID as any,
         totalAmount: amountToPay,
         cashReceived: amountToPay,
         changeAmount: 0,
@@ -621,7 +613,7 @@ export class PosOrderService
     },
     orderId: string,
   ): Promise<PosReceiptRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -648,7 +640,7 @@ export class PosOrderService
     }
 
     let tickets = await this.ticketContract.getTicketsByOrderId(orderId);
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
+    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
     if (!tickets.length && seatShowtimeIds.length) {
@@ -686,7 +678,7 @@ export class PosOrderService
       ? new Date(firstTicket.startTime).toLocaleDateString('vi-VN')
       : undefined;
 
-    const productOrders = await this.productOrderModel.find({ orderId }).exec();
+    const productOrders = await this.prisma.productOrder.findMany({ where: { orderId } });
     const productIds = productOrders.map((po) => po.productId);
     const productsMap: Map<string, ProductSummaryDto> = productIds.length
       ? await this.productContract.getProductsByIds(productIds)
@@ -694,7 +686,7 @@ export class PosOrderService
 
     return {
       orderId,
-      orderCode: order.orderId.slice(-8).toUpperCase(),
+      orderCode: order.id.slice(-8).toUpperCase(),
       branchName:
         firstTicket?.branchName ||
         staffContext.branchName ||
@@ -755,14 +747,14 @@ export class PosOrderService
     orderId: string,
     branchId: string,
   ): Promise<void> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (order?.branchId && order.branchId !== branchId) {
       throw new ForbiddenException(
         'Đơn hàng không thuộc chi nhánh của nhân viên',
       );
     }
 
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
+    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
     if (seatShowtimeIds.length) {
       const seats =
@@ -778,26 +770,25 @@ export class PosOrderService
   }
 
   private async buildPosBookingSummary(
-    order: OrderDocument,
+    order: any,
   ): Promise<PosBookingSummaryRes> {
-    const seatOrders = await this.seatOrderModel
-      .find({ orderId: order.orderId })
-      .exec();
+    const seatOrders = await this.prisma.seatOrder.findMany({
+      where: { orderId: order.id },
+    });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
     const seats = seatShowtimeIds.length
       ? await this.showtimeBookingService.getSeatBookingDetails(seatShowtimeIds)
       : [];
 
-    const productOrders = await this.productOrderModel
-      .find({ orderId: order.orderId })
-      .exec();
+    const productOrders = await this.prisma.productOrder.findMany({
+      where: { orderId: order.id },
+    });
     const productIds = productOrders.map((po) => po.productId);
     const productsMap: Map<string, ProductSummaryDto> = productIds.length
       ? await this.productContract.getProductsByIds(productIds)
       : new Map<string, ProductSummaryDto>();
 
-    const createdAt =
-      (order.get('createdAt') as Date | undefined) ?? new Date();
+    const createdAt = order.createdAt ?? new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
     const remainingSeconds = Math.max(
       0,
@@ -805,9 +796,9 @@ export class PosOrderService
     );
 
     return {
-      orderId: order.orderId,
+      orderId: order.id,
       userId: order.userId,
-      status: order.status,
+      status: order.status as any,
       totalAmount: order.totalAmount,
       createdAt,
       expiresAt,

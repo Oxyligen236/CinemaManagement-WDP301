@@ -10,14 +10,11 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../../auth/infra/guards/role.guard';
-import { Roles } from '../../../auth/infra/decorators/role.decorator';
-import { Role } from '../../../user/domain/enums/role.enum';
+import { Role, Roles } from '../../../auth/infra/decorators/role.decorator';
 import { AuthenticatedRequest, AuthUser } from '../../../auth/domain/auth-user';
-import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
 import { PosOrderService } from '../../application/services/pos-order.service';
 import {
   ApplyPromotionReq,
@@ -40,21 +37,19 @@ import {
 export class PosStaffController {
   constructor(
     private readonly posOrderService: PosOrderService,
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
+    private readonly prisma: PrismaService,
   ) {}
 
   private async getStaffContext(
     req: AuthenticatedRequest,
   ): Promise<{ staffId: string; branchId: string; staffName: string }> {
     const authUser = req.user as AuthUser;
-    const user = await this.userModel
-      .findOne({ userId: authUser.sub })
-      .select('branchId firstName lastName isActive')
-      .lean()
-      .exec();
+    const user = await this.prisma.user.findUnique({
+      where: { id: authUser.sub },
+      select: { branchId: true, firstName: true, lastName: true, isActive: true },
+    });
 
-    if (!user || !user.branchId) {
+    if (!user || !user.branchId || !user.isActive) {
       throw new ForbiddenException(
         'Tài khoản nhân viên chưa được gán chi nhánh hoạt động',
       );

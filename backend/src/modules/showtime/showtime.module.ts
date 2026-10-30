@@ -1,15 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { BranchModule } from '../branch/branch.module';
 import { RoomModule } from '../room/room.module';
 import { MovieModule } from '../movie/movie.module';
 import { UserModule } from '../user/user.module';
-import { Showtime, ShowtimeSchema } from './domain/schemas/showtime.schema';
-import {
-  SeatShowtime,
-  SeatShowtimeSchema,
-} from './domain/schemas/seat-showtime.schema';
 import { SeatShowtimeQueryService } from './application/services/seat-showtime-query.service';
 import { ShowtimeQueryService } from './application/services/showtime-query.service';
 import { PublicShowtimeQueryService } from './application/services/public-showtime-query.service';
@@ -29,10 +23,6 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     forwardRef(() => RoomModule),
     forwardRef(() => MovieModule),
     forwardRef(() => UserModule),
-    MongooseModule.forFeature([
-      { name: Showtime.name, schema: ShowtimeSchema },
-      { name: SeatShowtime.name, schema: SeatShowtimeSchema },
-    ]),
   ],
   controllers: [ShowtimeController, StaffShowtimeController],
   providers: [
@@ -49,7 +39,6 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     },
   ],
   exports: [
-    MongooseModule,
     ShowtimeQueryService,
     ShowtimeBookingService,
     ShowtimeScheduleService,

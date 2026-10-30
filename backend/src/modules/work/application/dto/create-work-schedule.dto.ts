@@ -25,4 +25,7 @@ export class CreateWorkScheduleDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  @IsOptional()
+  isActive?: boolean;
 }

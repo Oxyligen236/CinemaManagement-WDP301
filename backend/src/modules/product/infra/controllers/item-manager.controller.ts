@@ -70,7 +70,11 @@ export class ItemManagerController {
     @Body() body: ImportItemsExcelReq,
   ) {
     const user = req.user as AuthUser;
-    return this.itemService.importItemsExcel(user.sub, file?.buffer, body);
+    return this.itemService.importItemsExcel(
+      user.sub,
+      file?.buffer as any,
+      body,
+    );
   }
 
   @Get()

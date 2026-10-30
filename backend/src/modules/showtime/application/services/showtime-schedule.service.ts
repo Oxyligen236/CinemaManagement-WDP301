@@ -7,23 +7,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter } from 'mongoose';
-import { Seat, SeatDocument } from '../../../room/domain/schemas/seat.schema';
-import { SeatStatus } from '../../../room/domain/enums/seat-status.enum';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { SeatStatus, SeatShowtimeStatus } from '@prisma/client';
 import {
   SHOWTIME_ERROR_CODES,
   SHOWTIME_SCHEDULE_MESSAGES,
 } from '../../domain/constants/showtime-schedule.constants';
-import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
-import {
-  SeatShowtime,
-  SeatShowtimeDocument,
-} from '../../domain/schemas/seat-showtime.schema';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../../domain/schemas/showtime.schema';
 import { ScheduleShowtimeInputDto } from '../dto/req.dto';
 import { ShowtimeResDto } from '../dto/res.dto';
 import { toShowtimeResDto } from '../helpers/showtime-res.mapper';
@@ -42,14 +31,7 @@ export class ShowtimeScheduleService
 {
   private readonly logger = new Logger(ShowtimeScheduleService.name);
 
-  constructor(
-    @InjectModel(Showtime.name)
-    private readonly showtimeModel: Model<ShowtimeDocument>,
-    @InjectModel(SeatShowtime.name)
-    private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
-    @InjectModel(Seat.name)
-    private readonly seatModel: Model<SeatDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async hasRoomConflict(
     roomId: string,
@@ -57,22 +39,26 @@ export class ShowtimeScheduleService
     endTime: Date,
     excludeShowtimeId?: string,
   ): Promise<boolean> {
-    const filter: QueryFilter<ShowtimeDocument> = {
+    const where: any = {
       roomId,
-      startTime: { $lt: endTime },
-      endTime: { $gt: startTime },
+      startTime: { lt: endTime },
+      endTime: { gt: startTime },
     };
     if (excludeShowtimeId) {
-      filter.showtimeId = { $ne: excludeShowtimeId };
+      where.id = { not: excludeShowtimeId };
     }
-    const found = await this.showtimeModel.exists(filter).exec();
+    const found = await this.prisma.showtime.findFirst({
+      where,
+      select: { id: true },
+    });
     return found !== null;
   }
 
   async hasSoldTickets(showtimeId: string): Promise<boolean> {
-    const found = await this.seatShowtimeModel
-      .exists({ showtimeId, seatStatus: { $ne: SeatShowtimeStatus.EMPTY } })
-      .exec();
+    const found = await this.prisma.seatShowtime.findFirst({
+      where: { showtimeId, seatStatus: { not: SeatShowtimeStatus.EMPTY } },
+      select: { id: true },
+    });
     return found !== null;
   }
 
@@ -80,14 +66,13 @@ export class ShowtimeScheduleService
     if (showtimeIds.length === 0) {
       return new Set<string>();
     }
-    const rows = await this.seatShowtimeModel
-      .find({
-        showtimeId: { $in: showtimeIds },
-        seatStatus: { $ne: SeatShowtimeStatus.EMPTY },
-      })
-      .select('showtimeId')
-      .lean()
-      .exec();
+    const rows = await this.prisma.seatShowtime.findMany({
+      where: {
+        showtimeId: { in: showtimeIds },
+        seatStatus: { not: SeatShowtimeStatus.EMPTY },
+      },
+      select: { showtimeId: true },
+    });
     return new Set(rows.map((row) => row.showtimeId));
   }
 
@@ -103,18 +88,20 @@ export class ShowtimeScheduleService
         throw this.roomConflict();
       }
 
-      const created = await this.showtimeModel.create({
-        movieId: input.movieId,
-        roomId: input.roomId,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        basePrice: input.basePrice,
-        seatPriceSelections: input.seatPriceSelections,
-        dayPriceSelections: input.dayPriceSelections,
+      const created = await this.prisma.showtime.create({
+        data: {
+          movieId: input.movieId,
+          roomId: input.roomId,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          basePrice: input.basePrice,
+          seatPriceSelections: input.seatPriceSelections as any,
+          dayPriceSelections: input.dayPriceSelections as any,
+        },
       });
-      createdId = created.showtimeId;
+      createdId = created.id;
 
-      await this.generateSeatShowtimes(created.showtimeId, input.roomId);
+      await this.generateSeatShowtimes(created.id, input.roomId);
       return toShowtimeResDto(created);
     } catch (error) {
       if (createdId) {
@@ -130,7 +117,9 @@ export class ShowtimeScheduleService
   ): Promise<ShowtimeResDto> {
     this.assertValidRange(input);
     try {
-      const doc = await this.showtimeModel.findOne({ showtimeId }).exec();
+      const doc = await this.prisma.showtime.findUnique({
+        where: { id: showtimeId },
+      });
       if (!doc) {
         throw this.notFound();
       }
@@ -149,17 +138,21 @@ export class ShowtimeScheduleService
       }
 
       const roomChanged = doc.roomId !== input.roomId;
-      doc.movieId = input.movieId;
-      doc.roomId = input.roomId;
-      doc.startTime = input.startTime;
-      doc.endTime = input.endTime;
-      doc.basePrice = input.basePrice;
-      doc.seatPriceSelections = input.seatPriceSelections;
-      doc.dayPriceSelections = input.dayPriceSelections;
-      const saved = await doc.save();
+      const saved = await this.prisma.showtime.update({
+        where: { id: showtimeId },
+        data: {
+          movieId: input.movieId,
+          roomId: input.roomId,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          basePrice: input.basePrice,
+          seatPriceSelections: input.seatPriceSelections as any,
+          dayPriceSelections: input.dayPriceSelections as any,
+        },
+      });
 
       if (roomChanged) {
-        await this.seatShowtimeModel.deleteMany({ showtimeId }).exec();
+        await this.prisma.seatShowtime.deleteMany({ where: { showtimeId } });
         await this.generateSeatShowtimes(showtimeId, input.roomId);
       }
       return toShowtimeResDto(saved);
@@ -170,7 +163,9 @@ export class ShowtimeScheduleService
 
   async deleteShowtime(showtimeId: string): Promise<ShowtimeResDto> {
     try {
-      const doc = await this.showtimeModel.findOne({ showtimeId }).exec();
+      const doc = await this.prisma.showtime.findUnique({
+        where: { id: showtimeId },
+      });
       if (!doc) {
         throw this.notFound();
       }
@@ -178,8 +173,8 @@ export class ShowtimeScheduleService
         throw this.sold(SHOWTIME_SCHEDULE_MESSAGES.MSG05);
       }
       const snapshot = toShowtimeResDto(doc);
-      await this.seatShowtimeModel.deleteMany({ showtimeId }).exec();
-      await this.showtimeModel.deleteOne({ showtimeId }).exec();
+      await this.prisma.seatShowtime.deleteMany({ where: { showtimeId } });
+      await this.prisma.showtime.delete({ where: { id: showtimeId } });
       return snapshot;
     } catch (error) {
       throw this.toHttpError(error);
@@ -190,27 +185,26 @@ export class ShowtimeScheduleService
     showtimeId: string,
     roomId: string,
   ): Promise<void> {
-    const seats = await this.seatModel
-      .find({ roomId, status: SeatStatus.AVAILABLE })
-      .select('seatId')
-      .lean()
-      .exec();
+    const seats = await this.prisma.seat.findMany({
+      where: { roomId, status: SeatStatus.AVAILABLE },
+      select: { id: true },
+    });
     if (seats.length === 0) {
       return;
     }
-    await this.seatShowtimeModel.insertMany(
-      seats.map((seat) => ({
+    await this.prisma.seatShowtime.createMany({
+      data: seats.map((seat) => ({
         showtimeId,
-        seatId: seat.seatId,
+        seatId: seat.id,
         seatStatus: SeatShowtimeStatus.EMPTY,
       })),
-    );
+    });
   }
 
   private async compensate(showtimeId: string): Promise<void> {
     try {
-      await this.seatShowtimeModel.deleteMany({ showtimeId }).exec();
-      await this.showtimeModel.deleteOne({ showtimeId }).exec();
+      await this.prisma.seatShowtime.deleteMany({ where: { showtimeId } });
+      await this.prisma.showtime.delete({ where: { id: showtimeId } });
     } catch (error) {
       this.logger.error(
         `Failed to roll back showtime ${showtimeId}`,

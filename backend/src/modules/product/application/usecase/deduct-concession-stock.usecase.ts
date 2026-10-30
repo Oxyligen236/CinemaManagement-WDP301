@@ -18,6 +18,6 @@ export interface DeductConcessionStockUsecase {
    */
   deductConcessionStock(
     items: Array<{ productId: string; quantity: number }>,
-    session?: import('mongoose').ClientSession,
+    prismaTx?: any,
   ): Promise<void>;
 }

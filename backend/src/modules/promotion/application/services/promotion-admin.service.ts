@@ -1,35 +1,26 @@
 import {
-  Injectable,
-  Inject,
-  NotFoundException,
   BadRequestException,
   ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { CreatePromotionUsecase } from '../usecase/create-promotion.usecase';
-import { UpdatePromotionUsecase } from '../usecase/update-promotion.usecase';
-import { ChangePromotionStatusUsecase } from '../usecase/change-promotion-status.usecase';
-import { QueryPromotionUsecase } from '../usecase/query-promotion.usecase';
-import {
-  Promotion,
-  PromotionDocument,
-} from '../../domain/schemas/promotion.schema';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { Page } from '../../../../common/dto/page.dto';
+import { DiscountType } from '@prisma/client';
 import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
 } from '../../../infra/event/application/internal-event-bus.interface';
-import {
-  CreatePromotionDto,
-  UpdatePromotionDto,
-  QueryPromotionsDto,
-} from '../dto/req.dto';
+import { CreatePromotionDto, QueryPromotionsDto, UpdatePromotionDto } from '../dto/req.dto';
 import { PromotionResponseDto } from '../dto/res.dto';
-import { Page } from '../../../../common/dto/page.dto';
-import { DiscountType } from '../../domain/enums/discount-type.enum';
 import { PromotionCreatedEvent } from '../../domain/events/promotion-created.event';
 import { PromotionUpdatedEvent } from '../../domain/events/promotion-updated.event';
 import { PromotionStatusChangedEvent } from '../../domain/events/promotion-status-changed.event';
+import { CreatePromotionUsecase } from '../usecase/create-promotion.usecase';
+import { UpdatePromotionUsecase } from '../usecase/update-promotion.usecase';
+import { ChangePromotionStatusUsecase } from '../usecase/change-promotion-status.usecase';
+import { QueryPromotionUsecase } from '../usecase/query-promotion.usecase';
 
 @Injectable()
 export class PromotionAdminService
@@ -40,8 +31,7 @@ export class PromotionAdminService
     QueryPromotionUsecase
 {
   constructor(
-    @InjectModel(Promotion.name)
-    private readonly promotionModel: Model<PromotionDocument>,
+    private readonly prisma: PrismaService,
     @Inject(INTERNAL_EVENT_BUS)
     private readonly eventBus: InternalEventBus,
   ) {}
@@ -73,29 +63,31 @@ export class PromotionAdminService
       throw new BadRequestException('Percentage discount cannot exceed 100%');
     }
 
-    const codeExists = await this.promotionModel
-      .findOne({ promotionCode })
-      .exec();
+    const codeExists = await this.prisma.promotion.findFirst({
+      where: { promotionCode },
+    });
     if (codeExists) {
       throw new ConflictException(
         `Promotion code ${promotionCode} already exists`,
       );
     }
 
-    const created = await this.promotionModel.create({
-      promotionCode,
-      discountValue: dto.discountValue,
-      discountType: dto.discountType,
-      startDate,
-      endDate,
-      isActive: dto.isActive !== undefined ? dto.isActive : true,
+    const created = await this.prisma.promotion.create({
+      data: {
+        promotionCode,
+        discountValue: dto.discountValue,
+        discountType: dto.discountType as any,
+        startDate,
+        endDate,
+        isActive: dto.isActive !== undefined ? dto.isActive : true,
+      },
     });
 
     await this.eventBus.publish(
       new PromotionCreatedEvent(
-        created.promotionId,
+        created.id,
         created.promotionCode,
-        created.discountType,
+        created.discountType as any,
         created.discountValue,
         created.startDate,
         created.endDate,
@@ -104,10 +96,10 @@ export class PromotionAdminService
     );
 
     return PromotionResponseDto.of(
-      created.promotionId,
+      created.id,
       created.promotionCode,
       created.discountValue,
-      created.discountType,
+      created.discountType as any,
       created.startDate,
       created.endDate,
       created.isActive,
@@ -123,40 +115,37 @@ export class PromotionAdminService
     const limit = query.limit && query.limit > 0 ? query.limit : 10;
     const skip = (page - 1) * limit;
 
-    const filter: Record<string, unknown> = {};
+    const where: any = {};
     if (query.search && query.search.trim() !== '') {
-      const escaped = query.search
-        .trim()
-        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      filter.promotionCode = { $regex: escaped, $options: 'i' };
+      where.promotionCode = { contains: query.search.trim(), mode: 'insensitive' };
     }
     if (query.discountType) {
-      filter.discountType = query.discountType;
+      where.discountType = query.discountType;
     }
     if (query.isActive !== undefined) {
-      filter.isActive = query.isActive;
+      where.isActive = query.isActive;
     }
 
     const sortField = query.sortBy || 'createdAt';
-    const sortDirection = query.sortOrder === 'asc' ? 1 : -1;
+    const sortDirection = query.sortOrder === 'asc' ? 'asc' : 'desc';
 
     const [items, total] = await Promise.all([
-      this.promotionModel
-        .find(filter)
-        .sort({ [sortField]: sortDirection })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.promotionModel.countDocuments(filter).exec(),
+      this.prisma.promotion.findMany({
+        where,
+        orderBy: { [sortField]: sortDirection },
+        skip,
+        take: limit,
+      }),
+      this.prisma.promotion.count({ where }),
     ]);
 
     return Page.from(
       items.map((p) =>
         PromotionResponseDto.of(
-          p.promotionId,
+          p.id,
           p.promotionCode,
           p.discountValue,
-          p.discountType,
+          p.discountType as any,
           p.startDate,
           p.endDate,
           p.isActive,
@@ -171,16 +160,18 @@ export class PromotionAdminService
   }
 
   async getPromotionById(promotionId: string): Promise<PromotionResponseDto> {
-    const promotion = await this.promotionModel.findOne({ promotionId }).exec();
+    const promotion = await this.prisma.promotion.findUnique({
+      where: { id: promotionId },
+    });
     if (!promotion) {
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
 
     return PromotionResponseDto.of(
-      promotion.promotionId,
+      promotion.id,
       promotion.promotionCode,
       promotion.discountValue,
-      promotion.discountType,
+      promotion.discountType as any,
       promotion.startDate,
       promotion.endDate,
       promotion.isActive,
@@ -193,7 +184,9 @@ export class PromotionAdminService
     promotionId: string,
     dto: UpdatePromotionDto,
   ): Promise<PromotionResponseDto> {
-    const existing = await this.promotionModel.findOne({ promotionId }).exec();
+    const existing = await this.prisma.promotion.findUnique({
+      where: { id: promotionId },
+    });
     if (!existing) {
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
@@ -207,7 +200,7 @@ export class PromotionAdminService
       throw new BadRequestException('Start date must be before end date');
     }
 
-    const newType = dto.discountType ?? existing.discountType;
+    const newType = (dto.discountType as DiscountType) ?? existing.discountType;
     const newValue = dto.discountValue ?? existing.discountValue;
 
     if (newValue <= 0) {
@@ -218,35 +211,31 @@ export class PromotionAdminService
       throw new BadRequestException('Percentage discount cannot exceed 100%');
     }
 
-    const updates: Partial<Promotion> = {};
-    if (dto.discountValue !== undefined)
-      updates.discountValue = dto.discountValue;
-    if (dto.discountType !== undefined) updates.discountType = dto.discountType;
-    if (dto.startDate !== undefined)
-      updates.startDate = new Date(dto.startDate);
-    if (dto.endDate !== undefined) updates.endDate = new Date(dto.endDate);
-    if (dto.isActive !== undefined) updates.isActive = dto.isActive;
+    const data: any = {};
+    if (dto.discountValue !== undefined) data.discountValue = dto.discountValue;
+    if (dto.discountType !== undefined) data.discountType = dto.discountType as any;
+    if (dto.startDate !== undefined) data.startDate = new Date(dto.startDate);
+    if (dto.endDate !== undefined) data.endDate = new Date(dto.endDate);
+    if (dto.isActive !== undefined) data.isActive = dto.isActive;
 
-    const updated = await this.promotionModel
-      .findOneAndUpdate({ promotionId }, { $set: updates }, { new: true })
-      .exec();
-    if (!updated) {
-      throw new NotFoundException(`Promotion with id ${promotionId} not found`);
-    }
+    const updated = await this.prisma.promotion.update({
+      where: { id: promotionId },
+      data,
+    });
 
     await this.eventBus.publish(
       new PromotionUpdatedEvent(
-        updated.promotionId,
+        updated.id,
         updated.promotionCode,
         dto,
       ),
     );
 
     return PromotionResponseDto.of(
-      updated.promotionId,
+      updated.id,
       updated.promotionCode,
       updated.discountValue,
-      updated.discountType,
+      updated.discountType as any,
       updated.startDate,
       updated.endDate,
       updated.isActive,
@@ -259,26 +248,31 @@ export class PromotionAdminService
     promotionId: string,
     isActive: boolean,
   ): Promise<PromotionResponseDto> {
-    const updated = await this.promotionModel
-      .findOneAndUpdate({ promotionId }, { $set: { isActive } }, { new: true })
-      .exec();
-    if (!updated) {
+    const existing = await this.prisma.promotion.findUnique({
+      where: { id: promotionId },
+    });
+    if (!existing) {
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
 
+    const updated = await this.prisma.promotion.update({
+      where: { id: promotionId },
+      data: { isActive },
+    });
+
     await this.eventBus.publish(
       new PromotionStatusChangedEvent(
-        updated.promotionId,
+        updated.id,
         updated.promotionCode,
         updated.isActive,
       ),
     );
 
     return PromotionResponseDto.of(
-      updated.promotionId,
+      updated.id,
       updated.promotionCode,
       updated.discountValue,
-      updated.discountType,
+      updated.discountType as any,
       updated.startDate,
       updated.endDate,
       updated.isActive,
