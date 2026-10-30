@@ -273,14 +273,13 @@ async function main(): Promise<void> {
     // Không ghi đè tài khoản đã có (theo email)
     if (await UserM.exists({ email })) continue;
     await UserM.create({
-      userId: P + k,
       email,
       password: passwordHash,
       firstName: 'UC15',
       lastName,
       role: Role.BRANCHMANAGER,
       isActive: true,
-      ...(branch ? { branchId: `${P}branch-${branch}` } : {}),
+      ...(branch ? { branchId: new mongoose.Types.ObjectId() } : {}),
     });
   }
 

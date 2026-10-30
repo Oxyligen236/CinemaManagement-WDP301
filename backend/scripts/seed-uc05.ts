@@ -193,7 +193,6 @@ async function main(): Promise<void> {
     const found = await UserM.exists({ email });
     if (found) continue;
     await UserM.create({
-      userId: P + k,
       email,
       password: passwordHash,
       firstName: 'UC05',

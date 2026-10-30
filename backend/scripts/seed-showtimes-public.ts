@@ -284,8 +284,8 @@ async function main(): Promise<void> {
     }
   }
 
-  if (roomOps.length > 0) await RoomM.bulkWrite(roomOps);
-  if (seatOps.length > 0) await SeatM.bulkWrite(seatOps);
+  if (roomOps.length > 0) await RoomM.bulkWrite(roomOps as any);
+  if (seatOps.length > 0) await SeatM.bulkWrite(seatOps as any);
   console.log(
     `✓ Đã seed ${allRooms.length} phòng chiếu và ${seatOps.length} ghế ngồi`,
   );
@@ -374,8 +374,8 @@ async function main(): Promise<void> {
     }
   }
 
-  if (showtimeOps.length > 0) await ShowtimeM.bulkWrite(showtimeOps);
-  if (seatShowtimeOps.length > 0) await SeatShowtimeM.bulkWrite(seatShowtimeOps);
+  if (showtimeOps.length > 0) await ShowtimeM.bulkWrite(showtimeOps as any);
+  if (seatShowtimeOps.length > 0) await SeatShowtimeM.bulkWrite(seatShowtimeOps as any);
 
   console.log(
     `✓ Đã seed ${showtimeOps.length} suất chiếu và ${seatShowtimeOps.length} trạng thái ghế suất chiếu`,
