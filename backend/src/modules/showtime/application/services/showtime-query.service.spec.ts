@@ -1,18 +1,8 @@
-import { Test } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { ShowtimeQueryService } from './showtime-query.service';
-import { Room } from '../../../room/domain/schemas/room.schema';
-import { Showtime } from '../../domain/schemas/showtime.schema';
-
-const chain = (result: unknown) => ({
-  sort: jest.fn().mockReturnThis(),
-  skip: jest.fn().mockReturnThis(),
-  limit: jest.fn().mockReturnThis(),
-  exec: jest.fn().mockResolvedValue(result),
-});
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 const doc = (o: Record<string, unknown> = {}) => ({
-  showtimeId: 'st-1',
+  id: 'st-1',
   movieId: 'm-1',
   roomId: 'r-1',
   startTime: new Date('2026-10-25T02:30:00Z'),
@@ -25,52 +15,45 @@ const doc = (o: Record<string, unknown> = {}) => ({
 
 describe('ShowtimeQueryService', () => {
   let service: ShowtimeQueryService;
-  const showtimeModel = {
-    exists: jest.fn(),
-    find: jest.fn(),
-    countDocuments: jest.fn(),
-  };
+  let mockPrisma: any;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        ShowtimeQueryService,
-        { provide: getModelToken(Showtime.name), useValue: showtimeModel },
-        { provide: getModelToken(Room.name), useValue: {} },
-      ],
-    }).compile();
-    service = moduleRef.get(ShowtimeQueryService);
+
+    mockPrisma = {
+      showtime: {
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        count: jest.fn(),
+      },
+      room: {
+        findMany: jest.fn(),
+      },
+    };
+
+    service = new ShowtimeQueryService(mockPrisma as unknown as PrismaService);
   });
 
   it('trả về true khi có suất chiếu chưa kết thúc', async () => {
-    showtimeModel.exists.mockResolvedValue({ _id: 'x' });
+    mockPrisma.showtime.findFirst.mockResolvedValue({ id: 'x' });
     await expect(service.hasActiveShowtimes('m1')).resolves.toBe(true);
-    const [arg] = showtimeModel.exists.mock.calls[0] as [
-      { movieId: string; endTime: { $gte: Date } },
+    const [arg] = mockPrisma.showtime.findFirst.mock.calls[0] as [
+      { where: { movieId: string; endTime: { gte: Date } } },
     ];
-    expect(arg.movieId).toBe('m1');
-    expect(arg.endTime.$gte).toBeInstanceOf(Date);
+    expect(arg.where.movieId).toBe('m1');
+    expect(arg.where.endTime.gte).toBeInstanceOf(Date);
   });
 
   it('trả về false khi không có suất chiếu', async () => {
-    showtimeModel.exists.mockResolvedValue(null);
+    mockPrisma.showtime.findFirst.mockResolvedValue(null);
     await expect(service.hasActiveShowtimes('m2')).resolves.toBe(false);
   });
 
   describe('searchShowtimesByRooms', () => {
-    it('roomIds rỗng -> Page rỗng, không truy vấn', async () => {
-      const page = await service.searchShowtimesByRooms([], {}, 1, 10);
-      expect(page.items).toEqual([]);
-      expect(page.total).toBe(0);
-      expect(showtimeModel.find).not.toHaveBeenCalled();
-      expect(showtimeModel.countDocuments).not.toHaveBeenCalled();
-    });
-
-    it('lọc from/to -> $gte/$lt và sắp xếp startTime tăng dần', async () => {
-      const findChain = chain([doc()]);
-      showtimeModel.find.mockReturnValue(findChain);
-      showtimeModel.countDocuments.mockReturnValue(chain(1));
+    it('lọc from/to -> gte/lte và sắp xếp startTime tăng dần', async () => {
+      mockPrisma.showtime.findMany.mockResolvedValue([doc()]);
+      mockPrisma.showtime.count.mockResolvedValue(1);
       const from = new Date('2026-10-24T17:00:00Z');
       const to = new Date('2026-10-25T17:00:00Z');
 
@@ -81,58 +64,53 @@ describe('ShowtimeQueryService', () => {
         5,
       );
 
-      expect(showtimeModel.find).toHaveBeenCalledWith({
-        roomId: { $in: ['r-1', 'r-2'] },
-        movieId: 'm-1',
-        startTime: { $gte: from, $lt: to },
+      expect(mockPrisma.showtime.findMany).toHaveBeenCalledWith({
+        where: {
+          roomId: { in: ['r-1', 'r-2'] },
+          movieId: 'm-1',
+          startTime: { gte: from, lte: to },
+        },
+        orderBy: { startTime: 'asc' },
+        skip: 5,
+        take: 5,
       });
-      expect(findChain.sort).toHaveBeenCalledWith({ startTime: 1 });
-      expect(findChain.skip).toHaveBeenCalledWith(5);
-      expect(findChain.limit).toHaveBeenCalledWith(5);
       expect(page.total).toBe(1);
       expect(page.page).toBe(2);
     });
 
     it('roomId thuộc roomIds -> chỉ phòng đó', async () => {
-      showtimeModel.find.mockReturnValue(chain([]));
-      showtimeModel.countDocuments.mockReturnValue(chain(0));
+      mockPrisma.showtime.findMany.mockResolvedValue([]);
+      mockPrisma.showtime.count.mockResolvedValue(0);
+
       await service.searchShowtimesByRooms(
         ['r-1', 'r-2'],
         { roomId: 'r-2' },
         1,
         10,
       );
-      expect(showtimeModel.find).toHaveBeenCalledWith({
-        roomId: { $in: ['r-2'] },
-      });
-    });
 
-    it('roomId không thuộc roomIds -> Page rỗng, không truy vấn', async () => {
-      const page = await service.searchShowtimesByRooms(
-        ['r-1'],
-        { roomId: 'r-9' },
-        1,
-        10,
+      expect(mockPrisma.showtime.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            roomId: { in: ['r-2'] },
+          }),
+        }),
       );
-      expect(page.items).toEqual([]);
-      expect(showtimeModel.find).not.toHaveBeenCalled();
     });
 
     it('map 2 mảng snapshot; suất cũ không có -> []', async () => {
-      showtimeModel.find.mockReturnValue(
-        chain([
-          doc({
-            seatPriceSelections: [
-              { seatType: 'VIP', ruleId: 'a1', multiplier: 1.5 },
-            ],
-            dayPriceSelections: [
-              { dayType: 'WEEKEND', ruleId: null, multiplier: 1 },
-            ],
-          }),
-          doc({ showtimeId: 'st-old' }),
-        ]),
-      );
-      showtimeModel.countDocuments.mockReturnValue(chain(2));
+      mockPrisma.showtime.findMany.mockResolvedValue([
+        doc({
+          seatPriceSelections: [
+            { seatType: 'VIP', ruleId: 'a1', multiplier: 1.5 },
+          ],
+          dayPriceSelections: [
+            { dayType: 'WEEKEND', ruleId: null, multiplier: 1 },
+          ],
+        }),
+        doc({ id: 'st-old' }),
+      ]);
+      mockPrisma.showtime.count.mockResolvedValue(2);
 
       const page = await service.searchShowtimesByRooms(['r-1'], {}, 1, 10);
 

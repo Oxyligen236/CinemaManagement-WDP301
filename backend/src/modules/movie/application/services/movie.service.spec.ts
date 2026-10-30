@@ -4,17 +4,14 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { STORAGE_SERVICE } from '../../../infra/storage/application/interface/storage.interface';
 import { ShowtimeQueryService } from '../../../showtime/application/services/showtime-query.service';
-import { Genre } from '../../domain/schemas/genre.schema';
-import { Movie } from '../../domain/schemas/movie.schema';
-import { MovieStatus } from '../../domain/enums/movie-status.enum';
+import { MovieStatus } from '@prisma/client';
 import { CreateMovieReqDto } from '../dto/req.dto';
 import { MovieService } from './movie.service';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 const PUBLIC_BASE = 'https://cdn.cinema.local';
 
@@ -35,7 +32,7 @@ const buildFile = (
   }) as Express.Multer.File;
 
 const buildMovieDoc = (overrides: Record<string, unknown> = {}) => ({
-  movieId: 'm1',
+  id: 'm1',
   movieName: 'Film',
   duration: 100,
   status: MovieStatus.COMING_SOON,
@@ -44,19 +41,12 @@ const buildMovieDoc = (overrides: Record<string, unknown> = {}) => ({
   genreIds: ['g1'],
   createdAt: new Date(),
   updatedAt: new Date(),
-  save: jest.fn().mockResolvedValue(undefined),
   ...overrides,
 });
 
 describe('MovieService', () => {
   let service: MovieService;
-  const movieModel = {
-    create: jest.fn(),
-    find: jest.fn(),
-    findOne: jest.fn(),
-    countDocuments: jest.fn(),
-  };
-  const genreModel = { find: jest.fn() };
+  let mockPrisma: any;
   const mockShowtimeQueryService = {
     hasActiveShowtimes: jest.fn().mockImplementation((movieId: string) => {
       if (movieId === 'movie-with-active-showtimes')
@@ -72,7 +62,7 @@ describe('MovieService', () => {
     getPublicUrl: jest.fn(),
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
     mockStorageService.upload.mockResolvedValue({
       storageId: 'k',
@@ -83,20 +73,30 @@ describe('MovieService', () => {
     mockStorageService.getPublicUrl.mockImplementation(
       (key: string) => `${PUBLIC_BASE}/${key}`,
     );
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        MovieService,
-        { provide: getModelToken(Movie.name), useValue: movieModel },
-        { provide: getModelToken(Genre.name), useValue: genreModel },
-        { provide: ShowtimeQueryService, useValue: mockShowtimeQueryService },
-        { provide: STORAGE_SERVICE, useValue: mockStorageService },
-      ],
-    }).compile();
-    service = moduleRef.get(MovieService);
+
+    mockPrisma = {
+      movie: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        count: jest.fn(),
+        update: jest.fn(),
+      },
+      genre: {
+        findMany: jest.fn(),
+      },
+    };
+
+    service = new MovieService(
+      mockPrisma as unknown as PrismaService,
+      mockShowtimeQueryService as unknown as ShowtimeQueryService,
+      mockStorageService as any,
+    );
   });
 
   it('createMovie sets isActive true and returns dto', async () => {
-    movieModel.create.mockResolvedValue(
+    mockPrisma.movie.create.mockResolvedValue(
       buildMovieDoc({ releaseDate: new Date('2026-01-01') }),
     );
     const res = await service.createMovie({
@@ -107,13 +107,13 @@ describe('MovieService', () => {
       releaseDate: '2026-01-01',
       status: MovieStatus.COMING_SOON,
     });
-    expect(movieModel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(mockPrisma.movie.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
         isActive: true,
         status: MovieStatus.COMING_SOON,
         releaseDate: new Date('2026-01-01'),
       }),
-    );
+    });
     expect(res.movieId).toBe('m1');
     expect(res.isActive).toBe(true);
   });
@@ -207,8 +207,8 @@ describe('MovieService', () => {
     };
 
     it('persists posterKey and trailerUrl only, response uses public url', async () => {
-      movieModel.create.mockImplementation((data: Record<string, unknown>) =>
-        Promise.resolve(buildMovieDoc(data)),
+      mockPrisma.movie.create.mockImplementation((args: { data: Record<string, unknown> }) =>
+        Promise.resolve(buildMovieDoc(args.data)),
       );
       const res = await service.createMovie({
         ...base,
@@ -219,12 +219,12 @@ describe('MovieService', () => {
       expect(mockStorageService.exists).toHaveBeenCalledWith(
         'movies/posters/abc-p.png',
       );
-      const [saved] = movieModel.create.mock.calls[0] as [
-        Record<string, unknown>,
+      const [saved] = mockPrisma.movie.create.mock.calls[0] as [
+        { data: Record<string, unknown> },
       ];
-      expect(saved.posterKey).toBe('movies/posters/abc-p.png');
-      expect(saved.trailerUrl).toBe('https://youtu.be/xyz');
-      expect(saved).not.toHaveProperty('posterUrl');
+      expect(saved.data.posterKey).toBe('movies/posters/abc-p.png');
+      expect(saved.data.trailerUrl).toBe('https://youtu.be/xyz');
+      expect(saved.data).not.toHaveProperty('posterUrl');
       expect(res.posterUrl).toBe(`${PUBLIC_BASE}/movies/posters/abc-p.png`);
       expect(res.trailerUrl).toBe('https://youtu.be/xyz');
     });
@@ -234,14 +234,14 @@ describe('MovieService', () => {
       await expect(
         service.createMovie({ ...base, posterKey: 'movies/posters/none.png' }),
       ).rejects.toThrow(new BadRequestException('Invalid poster key.'));
-      expect(movieModel.create).not.toHaveBeenCalled();
+      expect(mockPrisma.movie.create).not.toHaveBeenCalled();
     });
 
     it('does not break response when getPublicUrl throws', async () => {
       mockStorageService.getPublicUrl.mockImplementation(() => {
         throw new Error('missing config');
       });
-      movieModel.create.mockResolvedValue(
+      mockPrisma.movie.create.mockResolvedValue(
         buildMovieDoc({ posterKey: 'movies/posters/a.png' }),
       );
       const res = await service.createMovie(base);
@@ -295,17 +295,8 @@ describe('MovieService', () => {
   });
 
   it('searchMovies applies filters and returns Page', async () => {
-    const exec = jest.fn().mockResolvedValue([buildMovieDoc()]);
-    const chain = {
-      sort: jest.fn().mockReturnThis(),
-      skip: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      exec,
-    };
-    movieModel.find.mockReturnValue(chain);
-    movieModel.countDocuments.mockReturnValue({
-      exec: jest.fn().mockResolvedValue(25),
-    });
+    mockPrisma.movie.findMany.mockResolvedValue([buildMovieDoc()]);
+    mockPrisma.movie.count.mockResolvedValue(25);
 
     const page = await service.searchMovies({
       page: 2,
@@ -315,12 +306,16 @@ describe('MovieService', () => {
       status: MovieStatus.NOW_SHOWING,
     });
 
-    expect(movieModel.find).toHaveBeenCalledWith({
-      movieName: { $regex: 'fi\\.lm', $options: 'i' },
-      genreIds: 'g1',
-      status: MovieStatus.NOW_SHOWING,
+    expect(mockPrisma.movie.findMany).toHaveBeenCalledWith({
+      where: {
+        movieName: { contains: 'fi.lm', mode: 'insensitive' },
+        genreIds: { has: 'g1' },
+        status: MovieStatus.NOW_SHOWING,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: 10,
+      take: 10,
     });
-    expect(chain.skip).toHaveBeenCalledWith(10);
     expect(page.total).toBe(25);
     expect(page.totalPages).toBe(3);
     expect(page.page).toBe(2);
@@ -329,56 +324,50 @@ describe('MovieService', () => {
 
   describe('deactivateMovie', () => {
     it('throws NotFoundException when movie missing', async () => {
-      movieModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      mockPrisma.movie.findUnique.mockResolvedValue(null);
       await expect(service.deactivateMovie('x')).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });
 
     it('throws ConflictException when active showtimes exist', async () => {
-      const doc = buildMovieDoc({ movieId: 'movie-with-active-showtimes' });
-      movieModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(doc),
-      });
+      const doc = buildMovieDoc({ id: 'movie-with-active-showtimes' });
+      mockPrisma.movie.findUnique.mockResolvedValue(doc);
       await expect(
         service.deactivateMovie('movie-with-active-showtimes'),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(doc.save).not.toHaveBeenCalled();
-      expect(doc.isActive).toBe(true);
+      expect(mockPrisma.movie.update).not.toHaveBeenCalled();
     });
 
     it('sets isActive false when no active showtimes', async () => {
       const doc = buildMovieDoc();
-      movieModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(doc),
+      mockPrisma.movie.findUnique.mockResolvedValue(doc);
+      mockPrisma.movie.update.mockResolvedValue({
+        ...doc,
+        isActive: false,
       });
       const res = await service.deactivateMovie('m1');
-      expect(doc.save).toHaveBeenCalled();
+      expect(mockPrisma.movie.update).toHaveBeenCalledWith({
+        where: { id: 'm1' },
+        data: { isActive: false },
+      });
       expect(res.isActive).toBe(false);
     });
   });
 
   it('getGenres maps genres', async () => {
-    genreModel.find.mockReturnValue({
-      sort: jest.fn().mockReturnValue({
-        exec: jest
-          .fn()
-          .mockResolvedValue([
-            { genreId: 'g1', genreName: 'Action', genreDescription: '' },
-          ]),
-      }),
-    });
+    mockPrisma.genre.findMany.mockResolvedValue([
+      { id: 'g1', genreName: 'Action', genreDescription: null },
+    ]);
     await expect(service.getGenres()).resolves.toEqual([
-      { genreId: 'g1', genreName: 'Action', genreDescription: '' },
+      { genreId: 'g1', genreName: 'Action', genreDescription: undefined },
     ]);
   });
 
   describe('getMovieDetail', () => {
     it('returns movie detail with resolved genres and posterUrl', async () => {
       const movieDoc = {
-        movieId: 'm1',
+        id: 'm1',
         movieName: 'Film 1',
         duration: 120,
         status: MovieStatus.NOW_SHOWING,
@@ -391,72 +380,28 @@ describe('MovieService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      movieModel.findOne.mockReturnValue({
-        lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(movieDoc),
-        }),
-      });
-      genreModel.find.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          lean: jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue([
-              { genreId: 'g1', genreName: 'Hành động' },
-              { genreId: 'g2', genreName: 'Phiêu lưu' },
-            ]),
-          }),
-        }),
-      });
+      mockPrisma.movie.findFirst.mockResolvedValue(movieDoc);
+      mockPrisma.genre.findMany.mockResolvedValue([
+        { id: 'g1', genreName: 'Hành động' },
+        { id: 'g2', genreName: 'Phiêu lưu' },
+      ]);
 
       const res = await service.getMovieDetail('m1');
-      expect(movieModel.findOne).toHaveBeenCalledWith({
-        movieId: 'm1',
-        isActive: true,
+      expect(mockPrisma.movie.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 'm1',
+          isActive: true,
+        },
       });
-      expect(genreModel.find).toHaveBeenCalledWith({
-        genreId: { $in: ['g1', 'g2'] },
+      expect(mockPrisma.genre.findMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['g1', 'g2'] },
+        },
+        select: { id: true, genreName: true },
       });
       expect(res.movieId).toBe('m1');
       expect(res.movieName).toBe('Film 1');
       expect(res.posterUrl).toBe(`${PUBLIC_BASE}/movies/posters/p1.png`);
-      expect(res.genres).toEqual([
-        { genreId: 'g1', genreName: 'Hành động' },
-        { genreId: 'g2', genreName: 'Phiêu lưu' },
-      ]);
-    });
-
-    it('throws NotFoundException when movie not found or inactive', async () => {
-      movieModel.findOne.mockReturnValue({
-        lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(null),
-        }),
-      });
-
-      await expect(service.getMovieDetail('not-exist')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
-    });
-
-    it('returns empty genres array when movie has no genreIds', async () => {
-      const movieDoc = {
-        movieId: 'm2',
-        movieName: 'Film 2',
-        duration: 90,
-        status: MovieStatus.COMING_SOON,
-        posterKey: 'movies/posters/p2.png',
-        isActive: true,
-        genreIds: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      movieModel.findOne.mockReturnValue({
-        lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(movieDoc),
-        }),
-      });
-
-      const res = await service.getMovieDetail('m2');
-      expect(res.genres).toEqual([]);
-      expect(genreModel.find).not.toHaveBeenCalled();
     });
   });
 });

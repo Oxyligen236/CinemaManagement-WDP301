@@ -46,10 +46,13 @@ describe('TicketContractImpl', () => {
       orderId: 'ord-1',
       seatShowtimeIds: ['sst-1'],
     });
-    expect(mockTicketService.createTicketsForOrder).toHaveBeenCalledWith({
-      orderId: 'ord-1',
-      seatShowtimeIds: ['sst-1'],
-    });
+    expect(mockTicketService.createTicketsForOrder).toHaveBeenCalledWith(
+      {
+        orderId: 'ord-1',
+        seatShowtimeIds: ['sst-1'],
+      },
+      undefined,
+    );
   });
 
   it('tạo vé cho order có session', async () => {
