@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -13,13 +13,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
-import {
-  NAME_MAX_LENGTH,
-  validateEmail,
-  validateName,
-  validatePassword,
-} from "@/lib/utils/auth-validation";
-import { FieldErrors, useFormErrors } from "@/lib/utils/use-form-errors";
 
 const TOKEN_KEY = "cinema_access_token";
 const USER_KEY = "cinema_user";
@@ -65,71 +58,6 @@ function getErrorMessage(error: unknown) {
   return getFriendlyErrorMessage(error, "Không thể hoàn tất thao tác.");
 }
 
-/** Thông báo lỗi hiển thị ngay dưới trường nhập, theo mục 3.2 của `design.md`. */
-function FieldError({ id, message }: { id: string; message?: string }) {
-  if (!message) return null;
-  return (
-    <p
-      id={id}
-      role="alert"
-      className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b82116]"
-    >
-      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-      {message}
-    </p>
-  );
-}
-
-/** Gộp viền đỏ vào class input khi trường đang có lỗi. */
-function inputClass(hasError: boolean) {
-  return hasError ? `${INPUT_CLASS} border-[#b82116]` : INPUT_CLASS;
-}
-
-/**
- * Kiểm tra toàn bộ biểu mẫu, khớp với `CreateUserDto` / `UpdateUserDto`
- * phía backend để người dùng thấy lỗi ngay tại trường thay vì nhận một
- * thông báo 400 chung chung sau khi gửi request.
- *
- * Backend `@Transform(trim)` nên khoảng trắng thừa được chấp nhận; các
- * hàm kiểm tra dùng chung với màn hình auth để thống nhất thông báo.
- *
- * @param creating - Chỉ khi tạo mới mới có trường mật khẩu tạm thời
- *   (`UpdateUserDto` không nhận `password`), nên không kiểm tra khi sửa.
- */
-function validateUserForm(
-  form: UserForm,
-  creating: boolean,
-): FieldErrors<UserForm> {
-  const errors: FieldErrors<UserForm> = {};
-
-  const email = validateEmail(form.email);
-  if (email) errors.email = email;
-
-  const firstName = validateName(form.firstName, "Tên");
-  if (firstName) errors.firstName = firstName;
-
-  const lastName = validateName(form.lastName, "Họ");
-  if (lastName) errors.lastName = lastName;
-
-  if (creating) {
-    const password = validatePassword(form.password, {
-      label: "Mật khẩu tạm thời",
-    });
-    if (password) errors.password = password;
-
-    // Backend chỉ chấp nhận `branchId` cho MANAGER / STAFF, và biểu mẫu
-    // cũng đánh dấu bắt buộc với hai vai trò này.
-    if (
-      (form.role === "MANAGER" || form.role === "STAFF") &&
-      !form.branchId
-    ) {
-      errors.branchId = "Vui lòng chọn chi nhánh cho vai trò này.";
-    }
-  }
-
-  return errors;
-}
-
 export default function ManageUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -145,18 +73,6 @@ export default function ManageUsersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const {
-    fieldErrors,
-    setFieldErrors,
-    clearFieldError,
-    validateField,
-    validateAll,
-  } = useFormErrors<UserForm>(
-    useCallback(
-      (values: UserForm) => validateUserForm(values, creating),
-      [creating],
-    ),
-  );
 
   function clearSession() {
     localStorage.removeItem(TOKEN_KEY);
@@ -284,7 +200,6 @@ export default function ManageUsersPage() {
     setCreating(false);
     setError("");
     setMessage("");
-    setFieldErrors({});
   }
 
   function startCreating() {
@@ -301,13 +216,11 @@ export default function ManageUsersPage() {
     });
     setError("");
     setMessage("");
-    setFieldErrors({});
   }
 
   async function saveUser(event: FormEvent) {
     event.preventDefault();
     if (!selectedUser || !form) return;
-    if (!validateAll(form)) return;
 
     setSaving(true);
     setError("");
@@ -318,7 +231,6 @@ export default function ManageUsersPage() {
         method: "PATCH",
         body: JSON.stringify({
           ...profile,
-          email: profile.email.trim(),
           role:
             editingSelf || !selectedUser.isActive
               ? selectedUser.role
@@ -378,7 +290,6 @@ export default function ManageUsersPage() {
   async function createUser(event: FormEvent) {
     event.preventDefault();
     if (!form) return;
-    if (!validateAll(form)) return;
 
     setSaving(true);
     setError("");
@@ -386,7 +297,7 @@ export default function ManageUsersPage() {
     try {
       const result = await request("/admin/users", {
         method: "POST",
-        body: JSON.stringify({ ...form, email: form.email.trim() }),
+        body: JSON.stringify(form),
       });
       setMessage(
         typeof result.message === "string"
@@ -628,7 +539,7 @@ export default function ManageUsersPage() {
               {creating ? "Tạo Tài khoản Mới" : "Chi tiết Tài khoản"}
             </span>
             <span className="text-[12px] text-[#6f6247]">
-              {creating ? "" : "Thông tin & Phân quyền"}
+              {creating ? "Biểu mẫu khởi tạo" : "Thông tin & Phân quyền"}
             </span>
           </div>
 
@@ -657,36 +568,17 @@ export default function ManageUsersPage() {
                 </p>
               )}
 
-              <div>
-                <label htmlFor="admin-form-email" className={LABEL_CLASS}>
-                  Email
-                </label>
-                <input
-                  id="admin-form-email"
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(event) => {
-                    setForm({ ...form, email: event.target.value });
-                    clearFieldError("email");
-                  }}
-                  onBlur={(event) =>
-                    validateField(
-                      { ...form, email: event.target.value },
-                      "email",
-                    )
-                  }
-                  aria-invalid={!!fieldErrors.email}
-                  aria-describedby={
-                    fieldErrors.email ? "admin-form-email-error" : undefined
-                  }
-                  className={inputClass(!!fieldErrors.email)}
-                />
-                <FieldError
-                  id="admin-form-email-error"
-                  message={fieldErrors.email}
-                />
-              </div>
+              {editingSelf && (
+                <p
+                  role="status"
+                  className="flex items-start gap-2 border border-[#f5d9a8] bg-[#fdf8ee] px-3 py-2.5 text-[12px] font-semibold text-[#b45309]"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Tài khoản quản trị viên không thể tự thay đổi vai trò, tự gán
+                  chi nhánh hoặc tự vô hiệu hóa tài khoản.
+                </p>
+              )}
+
               {creating && (
                 <div>
                   <label htmlFor="admin-form-password" className={LABEL_CLASS}>
@@ -698,36 +590,38 @@ export default function ManageUsersPage() {
                     required
                     minLength={8}
                     value={form.password}
-                    onChange={(event) => {
-                      setForm({ ...form, password: event.target.value });
-                      clearFieldError("password");
-                    }}
-                    onBlur={(event) =>
-                      validateField(
-                        { ...form, password: event.target.value },
-                        "password",
-                      )
+                    onChange={(event) =>
+                      setForm({ ...form, password: event.target.value })
                     }
-                    aria-invalid={!!fieldErrors.password}
-                    aria-describedby={
-                      fieldErrors.password
-                        ? "admin-form-password-error"
-                        : "admin-form-password-hint"
-                    }
-                    className={inputClass(!!fieldErrors.password)}
-                  />
-                  <FieldError
-                    id="admin-form-password-error"
-                    message={fieldErrors.password}
+                    aria-describedby="admin-form-password-hint"
+                    className={INPUT_CLASS}
                   />
                   <p
                     id="admin-form-password-hint"
                     className="mt-1 text-[11px] text-[#777]"
                   >
-                    Tối thiểu 8 ký tự.
+                    Tối thiểu 8 ký tự. Người dùng nên đổi mật khẩu sau khi đăng
+                    nhập lần đầu.
                   </p>
                 </div>
               )}
+
+              <div>
+                <label htmlFor="admin-form-email" className={LABEL_CLASS}>
+                  Email
+                </label>
+                <input
+                  id="admin-form-email"
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(event) =>
+                    setForm({ ...form, email: event.target.value })
+                  }
+                  className={INPUT_CLASS}
+                />
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="admin-form-firstname" className={LABEL_CLASS}>
@@ -736,29 +630,11 @@ export default function ManageUsersPage() {
                   <input
                     id="admin-form-firstname"
                     required
-                    maxLength={NAME_MAX_LENGTH}
                     value={form.firstName}
-                    onChange={(event) => {
-                      setForm({ ...form, firstName: event.target.value });
-                      clearFieldError("firstName");
-                    }}
-                    onBlur={(event) =>
-                      validateField(
-                        { ...form, firstName: event.target.value },
-                        "firstName",
-                      )
+                    onChange={(event) =>
+                      setForm({ ...form, firstName: event.target.value })
                     }
-                    aria-invalid={!!fieldErrors.firstName}
-                    aria-describedby={
-                      fieldErrors.firstName
-                        ? "admin-form-firstname-error"
-                        : undefined
-                    }
-                    className={inputClass(!!fieldErrors.firstName)}
-                  />
-                  <FieldError
-                    id="admin-form-firstname-error"
-                    message={fieldErrors.firstName}
+                    className={INPUT_CLASS}
                   />
                 </div>
                 <div>
@@ -768,29 +644,11 @@ export default function ManageUsersPage() {
                   <input
                     id="admin-form-lastname"
                     required
-                    maxLength={NAME_MAX_LENGTH}
                     value={form.lastName}
-                    onChange={(event) => {
-                      setForm({ ...form, lastName: event.target.value });
-                      clearFieldError("lastName");
-                    }}
-                    onBlur={(event) =>
-                      validateField(
-                        { ...form, lastName: event.target.value },
-                        "lastName",
-                      )
+                    onChange={(event) =>
+                      setForm({ ...form, lastName: event.target.value })
                     }
-                    aria-invalid={!!fieldErrors.lastName}
-                    aria-describedby={
-                      fieldErrors.lastName
-                        ? "admin-form-lastname-error"
-                        : undefined
-                    }
-                    className={inputClass(!!fieldErrors.lastName)}
-                  />
-                  <FieldError
-                    id="admin-form-lastname-error"
-                    message={fieldErrors.lastName}
+                    className={INPUT_CLASS}
                   />
                 </div>
               </div>
@@ -811,20 +669,13 @@ export default function ManageUsersPage() {
                     (!creating &&
                       (editingSelf || selectedUser?.isActive === false))
                   }
-                  onChange={(event) => {
+                  onChange={(event) =>
                     setForm({
                       ...form,
                       branchId: event.target.value,
-                    });
-                    clearFieldError("branchId");
-                  }}
-                  aria-invalid={!!fieldErrors.branchId}
-                  aria-describedby={
-                    fieldErrors.branchId
-                      ? "admin-form-branch-error"
-                      : undefined
+                    })
                   }
-                  className={inputClass(!!fieldErrors.branchId)}
+                  className={INPUT_CLASS}
                 >
                   <option value="">Chọn chi nhánh đang hoạt động</option>
                   {branches.map((branch) => (
@@ -833,10 +684,6 @@ export default function ManageUsersPage() {
                     </option>
                   ))}
                 </select>
-                <FieldError
-                  id="admin-form-branch-error"
-                  message={fieldErrors.branchId}
-                />
 
                 {editingSelf ? (
                   <p
@@ -881,9 +728,6 @@ export default function ManageUsersPage() {
                           ? form.branchId
                           : "",
                     });
-                    // Vai trò quyết định chi nhánh có bắt buộc hay không,
-                    // nên lỗi cũ của trường chi nhánh không còn đúng nữa.
-                    clearFieldError("branchId");
                   }}
                   className={INPUT_CLASS}
                 >

@@ -207,8 +207,9 @@ describe('MovieService', () => {
     };
 
     it('persists posterKey and trailerUrl only, response uses public url', async () => {
-      mockPrisma.movie.create.mockImplementation((args: { data: Record<string, unknown> }) =>
-        Promise.resolve(buildMovieDoc(args.data)),
+      mockPrisma.movie.create.mockImplementation(
+        (args: { data: Record<string, unknown> }) =>
+          Promise.resolve(buildMovieDoc(args.data)),
       );
       const res = await service.createMovie({
         ...base,

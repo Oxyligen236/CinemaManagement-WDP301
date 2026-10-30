@@ -18,14 +18,7 @@ export const NAME_MAX_LENGTH = 100;
 /** `@Length(6, 6)` cho `code` trong `VerifyEmailDto`, `ResetPasswordDto`. */
 export const VERIFICATION_CODE_LENGTH = 6;
 
-/**
- * Phần đuôi (TLD) bắt buộc chỉ gồm chữ cái và dài tối thiểu 2 ký tự.
- *
- * Mẫu cũ `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` cho qua những địa chỉ mà `@IsEmail()`
- * của backend từ chối (vd. `minh@gmail.com1`, `minh@gmail.co1m`), khiến người
- * dùng không thấy lỗi tại form mà nhận về thông báo 400 chung chung từ server.
- */
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[A-Za-z]{2,}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateEmail(value: string): string | undefined {
   const email = value.trim();

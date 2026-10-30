@@ -164,14 +164,7 @@ export class AdminService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        branchId: true,
-      },
+      select: { id: true, firstName: true, lastName: true, role: true, isActive: true, branchId: true },
     });
 
     if (!user) throw new NotFoundException('User not found');
@@ -233,7 +226,7 @@ export class AdminService {
         (input.role !== (Role.MANAGER as any) && input.role !== Role.STAFF)
       ) {
         throw new BadRequestException(
-          'Chỉ tài khoản Quản lý Chi nhánh hoặc Nhân viên mới được gán chi nhánh.',
+          'Only Branch Manager or Staff accounts can be assigned to a branch',
         );
       }
       const branch = await this.prisma.branch.findFirst({
@@ -245,7 +238,7 @@ export class AdminService {
       });
       if (!branch) {
         throw new BadRequestException(
-          'Chi nhánh được chọn không tồn tại hoặc đang không hoạt động.',
+          'Selected branch is inactive and cannot be assigned.',
         );
       }
     }
@@ -286,9 +279,7 @@ export class AdminService {
 
   async updateUser(userId: string, input: UpdateUserDto, adminUserId: string) {
     if (Object.keys(input).length === 0) {
-      throw new BadRequestException(
-        'Cần cung cấp ít nhất một thông tin để cập nhật.',
-      );
+      throw new BadRequestException('At least one field is required');
     }
 
     if (userId === adminUserId) {
@@ -298,19 +289,15 @@ export class AdminService {
       });
 
       if (!self) {
-        throw new NotFoundException('Không tìm thấy người dùng.');
+        throw new NotFoundException('User not found');
       }
 
       if (input.role !== undefined && input.role !== (self.role as any)) {
-        throw new ForbiddenException(
-          'Không thể thay đổi vai trò của chính bạn.',
-        );
+        throw new ForbiddenException('You cannot change your own role');
       }
 
       if (input.isActive === false) {
-        throw new ForbiddenException(
-          'Không thể tự vô hiệu hóa tài khoản của chính bạn.',
-        );
+        throw new ForbiddenException('You cannot disable your own account');
       }
     }
 
@@ -348,10 +335,7 @@ export class AdminService {
         },
       });
 
-      return {
-        message: 'Câp nhật thông tin người dùng thành công.',
-        user: { ...user, userId: user.id },
-      };
+      return { message: 'User updated successfully', user: { ...user, userId: user.id } };
     } catch (error: any) {
       if (error?.code === 'P2002') {
         throw new ConflictException(
@@ -359,7 +343,7 @@ export class AdminService {
         );
       }
       if (error?.code === 'P2025') {
-        throw new NotFoundException('Không tìm thấy người dùng.');
+        throw new NotFoundException('User not found');
       }
       throw error;
     }

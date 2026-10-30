@@ -9,11 +9,7 @@ import { MovieContractImpl } from './contracts/movie-contract.impl';
 import { MovieController } from './infra/movie.controller';
 
 @Module({
-  imports: [
-    AuthModule,
-    StorageModule,
-    forwardRef(() => ShowtimeModule),
-  ],
+  imports: [AuthModule, StorageModule, forwardRef(() => ShowtimeModule)],
   controllers: [MovieController],
   providers: [
     MovieService,

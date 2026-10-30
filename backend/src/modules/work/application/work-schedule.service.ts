@@ -20,8 +20,7 @@ export class WorkScheduleService {
       },
       select: { id: true },
     });
-    if (!branch)
-      throw new NotFoundException('Không tìm thấy chi nhánh');
+    if (!branch) throw new NotFoundException('Không tìm thấy chi nhánh');
     const branchId = branch.id;
     const toMinutes = (value: string) =>
       Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
@@ -40,8 +39,7 @@ export class WorkScheduleService {
         endTime: input.endTime,
       },
     });
-    if (existing)
-      throw new ConflictException('Ca làm đã tồn tại');
+    if (existing) throw new ConflictException('Ca làm đã tồn tại');
     const created = await this.prisma.workSchedule.create({
       data: {
         shiftName: input.shiftName,
@@ -250,7 +248,6 @@ export class WorkScheduleService {
         })),
     }));
   }
-
   async assignDay(
     managerId: string,
     scheduleId: string,
@@ -301,8 +298,7 @@ export class WorkScheduleService {
     const result = await this.prisma.shiftAssignment.deleteMany({
       where: { scheduleId, userId, date, branchId },
     });
-    if (!result.count)
-      throw new NotFoundException('Không tìm thấy phân công');
+    if (!result.count) throw new NotFoundException('Không tìm thấy phân công');
     return { removed: true };
   }
 
@@ -360,7 +356,12 @@ export class WorkScheduleService {
     const ranges = (x: any) => {
       const start = minutes(x.startTime),
         end = minutes(x.endTime);
-      return end > start ? [[start, end]] : [[start, 1440], [0, end]];
+      return end > start
+        ? [[start, end]]
+        : [
+            [start, 1440],
+            [0, end],
+          ];
     };
     return ranges(a).some(([as, ae]) =>
       ranges(b).some(([bs, be]) => as < be && bs < ae),
@@ -440,9 +441,7 @@ export class WorkScheduleService {
       },
       select: { email: true, id: true },
     });
-    const byEmail = new Map(
-      staff.map((x) => [x.email.toLowerCase(), x.id]),
-    );
+    const byEmail = new Map(staff.map((x) => [x.email.toLowerCase(), x.id]));
     const missing = emails.filter((x) => !byEmail.has(x));
     if (missing.length)
       throw new BadRequestException(
@@ -540,7 +539,10 @@ export class WorkScheduleService {
       where: { userId, date },
     });
     const schedules = await this.prisma.workSchedule.findMany({
-      where: { id: { in: assignments.map((x) => x.scheduleId) }, isActive: true },
+      where: {
+        id: { in: assignments.map((x) => x.scheduleId) },
+        isActive: true,
+      },
       orderBy: { startTime: 'asc' },
     });
     const attendances = await this.prisma.shiftAttendance.findMany({
@@ -553,7 +555,6 @@ export class WorkScheduleService {
       attendance: bySchedule.get(schedule.id) ?? null,
     }));
   }
-
   private vnDate(now = new Date()) {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Ho_Chi_Minh',
@@ -562,7 +563,6 @@ export class WorkScheduleService {
       day: '2-digit',
     }).format(now);
   }
-
   private shiftWindow(date: string, startTime: string, endTime: string) {
     const [year, month, day] = date.split('-').map(Number);
     const toDate = (time: string) =>
