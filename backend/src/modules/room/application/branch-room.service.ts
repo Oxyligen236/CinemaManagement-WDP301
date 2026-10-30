@@ -20,6 +20,7 @@ import { ROOM_MESSAGES } from '../domain/room.rules';
 import {
   BranchRoomQueryDto,
   CreateBranchRoomDto,
+  ReplaceRoomLayoutDto,
   UpdateBranchRoomDto,
   UpdateRoomSeatsDto,
 } from './dto/req.dto';
@@ -136,14 +137,138 @@ export class BranchRoomService {
         },
       });
 
-      const rows = input.rowCount ?? 6;
-      const cols = input.columnsPerRow ?? 10;
-      await this.generateDefaultSeatsForRoom(created.id, rows, cols);
+      if (input.customSeats && input.customSeats.length > 0) {
+        const seatDocs = input.customSeats.map((s) => ({
+          roomId: created.id,
+          rowPosition: s.rowPosition.trim().toUpperCase(),
+          columnPosition: s.columnPosition,
+          seatType: s.seatType as SeatType,
+          status: s.status ?? SeatStatus.AVAILABLE,
+        }));
+        await this.prisma.seat.createMany({ data: seatDocs });
+      } else {
+        const rows = input.rowCount ?? 6;
+        const cols = input.columnsPerRow ?? 10;
+        await this.generateDefaultSeatsForRoom(created.id, rows, cols);
+      }
 
       const [summary] = await this.buildRoomSummaries([created]);
 
       return {
         message: ROOM_MESSAGES.MSG04_ROOM_CREATED,
+        room: summary,
+      };
+    });
+  }
+
+  /**
+   * Thay đổi toàn bộ bố trí sơ đồ ghế (Layout) của phòng chiếu.
+   * Nếu phòng đang có suất chiếu sắp tới đã bán vé, chặn không cho thay đổi.
+   */
+  async replaceRoomLayout(
+    managerUserId: string | undefined,
+    roomId: string,
+    input: ReplaceRoomLayoutDto,
+  ): Promise<BranchRoomMutationResponseDto> {
+    return this.guard(async () => {
+      const branch = await this.resolveManagerBranch(managerUserId);
+      if (branch.branchStatus !== BranchStatus.ACTIVE) {
+        throw new BadRequestException(ROOM_MESSAGES.BRANCH_NOT_ACTIVE);
+      }
+
+      const room = await this.prisma.room.findFirst({
+        where: { id: roomId, branchId: branch.branchId },
+      });
+
+      if (!room) {
+        throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
+      }
+
+      const upcomingShowtimes = await this.prisma.showtime.findMany({
+        where: {
+          roomId: room.id,
+          endTime: { gt: new Date() },
+        },
+        select: { id: true },
+      });
+
+      const upcomingShowtimeIds = upcomingShowtimes.map((s) => s.id);
+
+      if (upcomingShowtimeIds.length > 0) {
+        const soldCount = await this.prisma.seatShowtime.count({
+          where: {
+            showtimeId: { in: upcomingShowtimeIds },
+            seatStatus: {
+              in: [SeatShowtimeStatus.BOOKED, SeatShowtimeStatus.RESERVED],
+            },
+          },
+        });
+
+        if (soldCount > 0) {
+          throw new ConflictException({
+            statusCode: 409,
+            error: 'Conflict',
+            message: ROOM_MESSAGES.MSG07_CANNOT_CHANGE_LAYOUT_WITH_BOOKED_TICKETS,
+          });
+        }
+
+        // Suất chiếu chưa có vé nào bán -> Xóa các SeatShowtime cũ
+        await this.prisma.seatShowtime.deleteMany({
+          where: {
+            showtimeId: { in: upcomingShowtimeIds },
+          },
+        });
+      }
+
+      // Xóa toàn bộ ghế cũ của phòng
+      await this.prisma.seat.deleteMany({ where: { roomId: room.id } });
+
+      // Chèn danh sách ghế mới
+      const seatDocs = input.seats.map((s) => ({
+        roomId: room.id,
+        rowPosition: s.rowPosition.trim().toUpperCase(),
+        columnPosition: s.columnPosition,
+        seatType: s.seatType as SeatType,
+        status: s.status ?? SeatStatus.AVAILABLE,
+      }));
+
+      await this.prisma.seat.createMany({
+        data: seatDocs,
+      });
+
+      // Tái tạo lại SeatShowtime cho các suất chiếu tương lai chưa bán vé
+      if (upcomingShowtimeIds.length > 0) {
+        const insertedSeats = await this.prisma.seat.findMany({
+          where: { roomId: room.id },
+          select: { id: true },
+        });
+
+        const seatShowtimesToInsert: {
+          showtimeId: string;
+          seatId: string;
+          seatStatus: SeatShowtimeStatus;
+        }[] = [];
+
+        for (const stId of upcomingShowtimeIds) {
+          for (const s of insertedSeats) {
+            seatShowtimesToInsert.push({
+              showtimeId: stId,
+              seatId: s.id,
+              seatStatus: SeatShowtimeStatus.EMPTY,
+            });
+          }
+        }
+        if (seatShowtimesToInsert.length > 0) {
+          await this.prisma.seatShowtime.createMany({
+            data: seatShowtimesToInsert,
+          });
+        }
+      }
+
+      const [summary] = await this.buildRoomSummaries([room]);
+
+      return {
+        message: ROOM_MESSAGES.MSG08_LAYOUT_REPLACED,
         room: summary,
       };
     });
