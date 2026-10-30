@@ -28,6 +28,77 @@ export const STAFF_MESSAGES = {
 } as const;
 
 /**
+ * Giới hạn độ dài của từng trường, dùng chung giữa DTO và thông báo lỗi để
+ * con số trong message luôn khớp với ràng buộc thực tế.
+ */
+export const STAFF_FIELD_LIMITS = {
+  EMAIL_MAX: 254,
+  /** Giới hạn của bcrypt: chuỗi dài hơn 72 byte bị cắt âm thầm khi hash. */
+  PASSWORD_MIN: 8,
+  PASSWORD_MAX: 72,
+  NAME_MAX: 100,
+  SEARCH_MAX: 100,
+} as const;
+
+/**
+ * Thông báo lỗi cho từng trường của form tạo / cập nhật nhân viên (AF-1, AF-2).
+ *
+ * MSG01 chỉ nói "thông tin không hợp lệ" nên không đủ để người dùng biết phải
+ * sửa ở đâu. Mỗi ràng buộc trong DTO phải khai báo một message tiếng Việt ở
+ * đây để giao diện hiển thị đúng câu, ngay dưới đúng trường bị sai.
+ */
+export const STAFF_VALIDATION_MESSAGES = {
+  EMAIL_REQUIRED: 'Vui lòng nhập email.',
+  EMAIL_INVALID: 'Email không đúng định dạng.',
+  EMAIL_MAX: `Email không được vượt quá ${STAFF_FIELD_LIMITS.EMAIL_MAX} ký tự.`,
+  PASSWORD_REQUIRED: 'Vui lòng nhập mật khẩu tạm thời.',
+  PASSWORD_MIN: `Mật khẩu tạm thời phải có tối thiểu ${STAFF_FIELD_LIMITS.PASSWORD_MIN} ký tự.`,
+  PASSWORD_MAX: `Mật khẩu tạm thời không được vượt quá ${STAFF_FIELD_LIMITS.PASSWORD_MAX} ký tự.`,
+  LAST_NAME_REQUIRED: 'Vui lòng nhập họ.',
+  LAST_NAME_MAX: `Họ không được vượt quá ${STAFF_FIELD_LIMITS.NAME_MAX} ký tự.`,
+  FIRST_NAME_REQUIRED: 'Vui lòng nhập tên.',
+  FIRST_NAME_MAX: `Tên không được vượt quá ${STAFF_FIELD_LIMITS.NAME_MAX} ký tự.`,
+  JOB_POSITION_REQUIRED: 'Vui lòng chọn vị trí công việc.',
+  /** BR-BRM-14: Branch Manager chỉ được gán vị trí Nhân viên Bán vé. */
+  JOB_POSITION_INVALID:
+    'Vị trí công việc này không thuộc danh mục bạn được phép gán cho nhân viên chi nhánh.',
+  EMPLOYMENT_STATUS_INVALID: 'Vui lòng chọn trạng thái làm việc hợp lệ.',
+  /** BR-BRM-14: không tạo tài khoản mới ở trạng thái đã nghỉ việc. */
+  EMPLOYMENT_STATUS_NOT_CREATABLE:
+    'Trạng thái khi tạo mới chỉ có thể là Đang làm việc hoặc Tạm ngưng.',
+  SEARCH_MAX: `Từ khóa tìm kiếm không được vượt quá ${STAFF_FIELD_LIMITS.SEARCH_MAX} ký tự.`,
+} as const;
+
+/**
+ * Thân response cho lỗi gắn với một trường cụ thể.
+ *
+ * Giữ nguyên `message` (câu tổng quát) và `errors` để tương thích với các màn
+ * hình cũ, đồng thời bổ sung `fieldErrors` để giao diện gắn đúng câu lỗi vào
+ * đúng ô nhập thay vì chỉ hiện banner chung.
+ */
+const staffFieldErrorBody = (
+  statusCode: number,
+  error: string,
+  field: string,
+  message: string,
+) => ({
+  statusCode,
+  error,
+  message,
+  errors: [message],
+  fields: [field],
+  fieldErrors: { [field]: message },
+});
+
+/** Lỗi 400 của một trường cụ thể (vd. vị trí công việc ngoài danh mục). */
+export const staffBadRequestBody = (field: string, message: string) =>
+  staffFieldErrorBody(400, 'Bad Request', field, message);
+
+/** Lỗi 409 của một trường cụ thể (vd. email đã có tài khoản khác dùng). */
+export const staffConflictBody = (field: string, message: string) =>
+  staffFieldErrorBody(409, 'Conflict', field, message);
+
+/**
  * BR-BRM-14: vị trí công việc mà Branch Manager được phép gán cho nhân viên
  * thuộc chi nhánh của mình — chỉ có Nhân viên Bán vé. Vị trí nằm ngoài danh
  * sách này → MSG01 (AF-2).

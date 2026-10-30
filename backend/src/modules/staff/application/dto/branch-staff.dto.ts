@@ -14,6 +14,8 @@ import { EmploymentStatus } from '../../../user/domain/enums/employment-status.e
 import {
   BRANCH_ASSIGNABLE_POSITIONS,
   CREATABLE_STATUSES,
+  STAFF_FIELD_LIMITS as LIMITS,
+  STAFF_VALIDATION_MESSAGES as MSG,
 } from '../../domain/staff.rules';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -22,16 +24,16 @@ const trim = ({ value }: { value: unknown }) =>
 export class BranchStaffQueryDto {
   @IsOptional()
   @Transform(trim)
-  @IsString()
-  @MaxLength(100)
+  @IsString({ message: MSG.SEARCH_MAX })
+  @MaxLength(LIMITS.SEARCH_MAX, { message: MSG.SEARCH_MAX })
   search?: string;
 
   @IsOptional()
-  @IsEnum(JobPosition)
+  @IsEnum(JobPosition, { message: MSG.JOB_POSITION_INVALID })
   jobPosition?: JobPosition;
 
   @IsOptional()
-  @IsEnum(EmploymentStatus)
+  @IsEnum(EmploymentStatus, { message: MSG.EMPLOYMENT_STATUS_INVALID })
   employmentStatus?: EmploymentStatus;
 }
 
@@ -42,35 +44,42 @@ export class BranchStaffQueryDto {
  */
 export class CreateBranchStaffDto {
   @Transform(trim)
-  @IsNotEmpty()
-  @IsEmail()
-  @MaxLength(254)
+  @IsString({ message: MSG.EMAIL_REQUIRED })
+  @IsNotEmpty({ message: MSG.EMAIL_REQUIRED })
+  @IsEmail({}, { message: MSG.EMAIL_INVALID })
+  @MaxLength(LIMITS.EMAIL_MAX, { message: MSG.EMAIL_MAX })
   email!: string;
 
-  @IsString()
-  @MinLength(8)
-  @MaxLength(100)
+  // MaxLength bám theo giới hạn 72 byte của bcrypt: chuỗi dài hơn bị cắt âm
+  // thầm khi hash, nên phải chặn ngay tại đây thay vì nhận rồi hash sai.
+  @IsString({ message: MSG.PASSWORD_REQUIRED })
+  @IsNotEmpty({ message: MSG.PASSWORD_REQUIRED })
+  @MinLength(LIMITS.PASSWORD_MIN, { message: MSG.PASSWORD_MIN })
+  @MaxLength(LIMITS.PASSWORD_MAX, { message: MSG.PASSWORD_MAX })
   password!: string;
 
   @Transform(trim)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
+  @IsString({ message: MSG.FIRST_NAME_REQUIRED })
+  @IsNotEmpty({ message: MSG.FIRST_NAME_REQUIRED })
+  @MaxLength(LIMITS.NAME_MAX, { message: MSG.FIRST_NAME_MAX })
   firstName!: string;
 
   @Transform(trim)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
+  @IsString({ message: MSG.LAST_NAME_REQUIRED })
+  @IsNotEmpty({ message: MSG.LAST_NAME_REQUIRED })
+  @MaxLength(LIMITS.NAME_MAX, { message: MSG.LAST_NAME_MAX })
   lastName!: string;
 
   /** BR-BRM-14 */
-  @IsIn(BRANCH_ASSIGNABLE_POSITIONS)
+  @IsNotEmpty({ message: MSG.JOB_POSITION_REQUIRED })
+  @IsIn(BRANCH_ASSIGNABLE_POSITIONS, { message: MSG.JOB_POSITION_INVALID })
   jobPosition!: JobPosition;
 
   /** BR-BRM-14 - mặc định ACTIVE */
   @IsOptional()
-  @IsIn(CREATABLE_STATUSES)
+  @IsIn(CREATABLE_STATUSES, {
+    message: MSG.EMPLOYMENT_STATUS_NOT_CREATABLE,
+  })
   employmentStatus?: EmploymentStatus;
 }
 
@@ -81,25 +90,26 @@ export class CreateBranchStaffDto {
 export class UpdateBranchStaffDto {
   @IsOptional()
   @Transform(trim)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
+  @IsString({ message: MSG.FIRST_NAME_REQUIRED })
+  @IsNotEmpty({ message: MSG.FIRST_NAME_REQUIRED })
+  @MaxLength(LIMITS.NAME_MAX, { message: MSG.FIRST_NAME_MAX })
   firstName?: string;
 
   @IsOptional()
   @Transform(trim)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
+  @IsString({ message: MSG.LAST_NAME_REQUIRED })
+  @IsNotEmpty({ message: MSG.LAST_NAME_REQUIRED })
+  @MaxLength(LIMITS.NAME_MAX, { message: MSG.LAST_NAME_MAX })
   lastName?: string;
 
   /** BR-BRM-14 */
   @IsOptional()
-  @IsIn(BRANCH_ASSIGNABLE_POSITIONS)
+  @IsNotEmpty({ message: MSG.JOB_POSITION_REQUIRED })
+  @IsIn(BRANCH_ASSIGNABLE_POSITIONS, { message: MSG.JOB_POSITION_INVALID })
   jobPosition?: JobPosition;
 
   /** BR-BRM-15 */
   @IsOptional()
-  @IsEnum(EmploymentStatus)
+  @IsEnum(EmploymentStatus, { message: MSG.EMPLOYMENT_STATUS_INVALID })
   employmentStatus?: EmploymentStatus;
 }
