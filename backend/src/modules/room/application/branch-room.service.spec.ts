@@ -128,7 +128,11 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
       await expect(
         service.replaceRoomLayout('mgr-1', 'r-1', {
           seats: [
-            { rowPosition: 'A', columnPosition: 1, seatType: SeatType.STANDARD },
+            {
+              rowPosition: 'A',
+              columnPosition: 1,
+              seatType: SeatType.STANDARD,
+            },
           ],
         }),
       ).rejects.toThrow(ConflictException);
@@ -179,7 +183,9 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
       });
 
       // Verify old seats deleted
-      expect(mockPrisma.seat.deleteMany).toHaveBeenCalledWith({ where: { roomId: 'r-1' } });
+      expect(mockPrisma.seat.deleteMany).toHaveBeenCalledWith({
+        where: { roomId: 'r-1' },
+      });
 
       // Verify new seats inserted
       expect(mockPrisma.seat.createMany).toHaveBeenCalledWith({

@@ -30,7 +30,7 @@ import {
 /** Mã lỗi Prisma (P2002 = trùng unique, P2025 = không tìm thấy bản ghi). */
 const prismaErrorCode = (error: unknown): string | undefined => {
   if (typeof error === 'object' && error !== null && 'code' in error) {
-    const { code } = error as { code: unknown };
+    const { code } = error;
     return typeof code === 'string' ? code : undefined;
   }
   return undefined;

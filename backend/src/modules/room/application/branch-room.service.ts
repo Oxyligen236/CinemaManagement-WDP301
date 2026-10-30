@@ -142,7 +142,7 @@ export class BranchRoomService {
           roomId: created.id,
           rowPosition: s.rowPosition.trim().toUpperCase(),
           columnPosition: s.columnPosition,
-          seatType: s.seatType as SeatType,
+          seatType: s.seatType,
           status: s.status ?? SeatStatus.AVAILABLE,
         }));
         await this.prisma.seat.createMany({ data: seatDocs });
@@ -208,7 +208,8 @@ export class BranchRoomService {
           throw new ConflictException({
             statusCode: 409,
             error: 'Conflict',
-            message: ROOM_MESSAGES.MSG07_CANNOT_CHANGE_LAYOUT_WITH_BOOKED_TICKETS,
+            message:
+              ROOM_MESSAGES.MSG07_CANNOT_CHANGE_LAYOUT_WITH_BOOKED_TICKETS,
           });
         }
 
@@ -228,7 +229,7 @@ export class BranchRoomService {
         roomId: room.id,
         rowPosition: s.rowPosition.trim().toUpperCase(),
         columnPosition: s.columnPosition,
-        seatType: s.seatType as SeatType,
+        seatType: s.seatType,
         status: s.status ?? SeatStatus.AVAILABLE,
       }));
 
