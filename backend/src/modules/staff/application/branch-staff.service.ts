@@ -15,14 +15,26 @@ import {
   BRANCH_ASSIGNABLE_POSITIONS,
   CREATABLE_STATUSES,
   STAFF_MESSAGES,
+  STAFF_VALIDATION_MESSAGES,
   isLoginAllowed,
   resolveEmploymentStatus,
+  staffBadRequestBody,
+  staffConflictBody,
 } from '../domain/staff.rules';
 import {
   BranchStaffQueryDto,
   CreateBranchStaffDto,
   UpdateBranchStaffDto,
 } from './dto/branch-staff.dto';
+
+/** Mã lỗi Prisma (P2002 = trùng unique, P2025 = không tìm thấy bản ghi). */
+const prismaErrorCode = (error: unknown): string | undefined => {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const { code } = error as { code: unknown };
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+};
 
 type ManagerBranch = {
   branchId: string;
@@ -105,14 +117,21 @@ export class BranchStaffService {
       this.assertPositionAvailable(input.jobPosition);
       const status = (input.employmentStatus as EmploymentStatus) ?? EmploymentStatus.ACTIVE;
       if (!CREATABLE_STATUSES.includes(status as any)) {
-        throw new BadRequestException(STAFF_MESSAGES.MSG01);
+        throw new BadRequestException(
+          staffBadRequestBody(
+            'employmentStatus',
+            STAFF_VALIDATION_MESSAGES.EMPLOYMENT_STATUS_NOT_CREATABLE,
+          ),
+        );
       }
 
       const email = input.email.toLowerCase();
 
       const exists = await this.prisma.user.findUnique({ where: { email } });
       if (exists) {
-        throw new ConflictException(STAFF_MESSAGES.ACCOUNT_EXISTS);
+        throw new ConflictException(
+          staffConflictBody('email', STAFF_MESSAGES.ACCOUNT_EXISTS),
+        );
       }
 
       try {
@@ -134,9 +153,11 @@ export class BranchStaffService {
           message: STAFF_MESSAGES.MSG26,
           staff: this.toView(created),
         };
-      } catch (error: any) {
-        if (error?.code === 'P2002') {
-          throw new ConflictException(STAFF_MESSAGES.ACCOUNT_EXISTS);
+      } catch (error: unknown) {
+        if (prismaErrorCode(error) === 'P2002') {
+          throw new ConflictException(
+            staffConflictBody('email', STAFF_MESSAGES.ACCOUNT_EXISTS),
+          );
         }
         throw error;
       }
@@ -188,8 +209,14 @@ export class BranchStaffService {
         });
 
         return { message: STAFF_MESSAGES.MSG26, staff: this.toView(updated) };
-      } catch {
-        throw new NotFoundException(STAFF_MESSAGES.STAFF_NOT_FOUND);
+      } catch (error: unknown) {
+        // Chỉ "không tìm thấy bản ghi" (P2025) mới là 404. Bắt mọi lỗi rồi
+        // đổi thành 404 che mất nguyên nhân thật (vd. DB lỗi) và báo sai cho
+        // người dùng; các lỗi khác để `guard()` phân loại.
+        if (prismaErrorCode(error) === 'P2025') {
+          throw new NotFoundException(STAFF_MESSAGES.STAFF_NOT_FOUND);
+        }
+        throw error;
       }
     });
   }
@@ -236,7 +263,12 @@ export class BranchStaffService {
 
   private assertPositionAvailable(position: JobPosition) {
     if (!BRANCH_ASSIGNABLE_POSITIONS.includes(position as any)) {
-      throw new BadRequestException(STAFF_MESSAGES.MSG01);
+      throw new BadRequestException(
+        staffBadRequestBody(
+          'jobPosition',
+          STAFF_VALIDATION_MESSAGES.JOB_POSITION_INVALID,
+        ),
+      );
     }
   }
 
@@ -277,7 +309,7 @@ export class BranchStaffService {
       return await operation();
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
-      throw new ServiceUnavailableException('Database error: service is temporarily unavailable');
+      throw new ServiceUnavailableException(STAFF_MESSAGES.SERVICE_UNAVAILABLE);
     }
   }
 }
