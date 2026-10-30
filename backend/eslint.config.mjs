@@ -30,6 +30,13 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
       "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.name="forwardRef"]',
+          message: 'Cam dung forwardRef(). Tach module trung gian hoac dung Event/CQRS.',
+        },
+      ],
     },
   },
 );
