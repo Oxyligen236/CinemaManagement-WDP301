@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { QueryFilter, Model } from 'mongoose';
+import { QueryFilter, Model, Types } from 'mongoose';
 import { Page } from '../../../../common/dto/page.dto';
 import {
   STORAGE_SERVICE,
@@ -108,7 +108,9 @@ export class MovieService
     const created = await this.movieModel.create({
       movieName: dto.movieName,
       duration: dto.duration,
-      genreIds: dto.genreIds,
+      genreIds: dto.genreIds.map((id) =>
+        Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : (id as any),
+      ),
       description: dto.description,
       posterKey: dto.posterKey,
       trailerUrl: dto.trailerUrl,
@@ -130,7 +132,9 @@ export class MovieService
       filter.movieName = { $regex: escaped, $options: 'i' };
     }
     if (query.genreId) {
-      filter.genreIds = query.genreId;
+      filter.genreIds = Types.ObjectId.isValid(query.genreId)
+        ? new Types.ObjectId(query.genreId)
+        : query.genreId;
     }
     if (query.status) {
       filter.status = query.status;
@@ -161,7 +165,7 @@ export class MovieService
   }
 
   async deactivateMovie(movieId: string): Promise<MovieResDto> {
-    const movie = await this.movieModel.findOne({ movieId }).exec();
+    const movie = await this.movieModel.findById(movieId).exec();
     if (!movie) {
       throw new NotFoundException('Movie not found.');
     }
@@ -183,16 +187,18 @@ export class MovieService
 
   async getGenres(): Promise<GenreResDto[]> {
     const genres = await this.genreModel.find().sort({ genreName: 1 }).exec();
-    return genres.map((genre) => ({
-      genreId: genre.genreId,
-      genreName: genre.genreName,
-      genreDescription: genre.genreDescription,
-    }));
+    return genres.map((genre) =>
+      GenreResDto.from({
+        genreId: genre._id.toString(),
+        genreName: genre.genreName,
+        genreDescription: genre.genreDescription,
+      }),
+    );
   }
 
   async getMovieDetail(movieId: string): Promise<MovieDetailResDto> {
     const movie = await this.movieModel
-      .findOne({ movieId, isActive: true })
+      .findOne({ _id: movieId, isActive: true })
       .lean()
       .exec();
     if (!movie) {
@@ -204,18 +210,20 @@ export class MovieService
     let genres: GenreItemResDto[] = [];
     if (movie.genreIds && movie.genreIds.length > 0) {
       const genreDocs = await this.genreModel
-        .find({ genreId: { $in: movie.genreIds } })
-        .select('genreId genreName')
+        .find({ _id: { $in: movie.genreIds } })
+        .select('_id genreName')
         .lean()
         .exec();
-      genres = genreDocs.map((g) => ({
-        genreId: g.genreId,
-        genreName: g.genreName,
-      }));
+      genres = genreDocs.map((g) =>
+        GenreItemResDto.from({
+          genreId: g._id.toString(),
+          genreName: g.genreName,
+        }),
+      );
     }
 
-    return {
-      movieId: movie.movieId,
+    return MovieDetailResDto.from({
+      movieId: (movie._id ?? (movie as any).movieId)?.toString() ?? movieId,
       movieName: movie.movieName,
       duration: movie.duration,
       status: movie.status,
@@ -226,11 +234,11 @@ export class MovieService
         ? new Date(movie.releaseDate).toISOString()
         : undefined,
       isActive: movie.isActive,
-      genreIds: movie.genreIds,
+      genreIds: (movie.genreIds || []).map((id: any) => id.toString()),
       genres,
       createdAt: (movie as any).createdAt,
       updatedAt: (movie as any).updatedAt,
-    };
+    });
   }
 
   private resolvePosterUrl(doc: { posterKey?: string }): string | undefined {
@@ -249,8 +257,8 @@ export class MovieService
       createdAt: Date;
       updatedAt: Date;
     };
-    return {
-      movieId: doc.movieId,
+    return MovieResDto.from({
+      movieId: (doc._id ?? (doc as any).movieId)?.toString() ?? '',
       movieName: doc.movieName,
       duration: doc.duration,
       status: doc.status,
@@ -260,9 +268,9 @@ export class MovieService
       description: doc.description,
       releaseDate: doc.releaseDate?.toISOString(),
       isActive: doc.isActive,
-      genreIds: doc.genreIds,
+      genreIds: (doc.genreIds || []).map((id) => id.toString()),
       createdAt: timestamps.createdAt,
       updatedAt: timestamps.updatedAt,
-    };
+    });
   }
 }

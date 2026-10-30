@@ -72,6 +72,16 @@ export class AdminBranchRoomCreatedResponseDto {
 export class BranchSummaryResDto {
   branchId!: string;
   branchName!: string;
+
+  static from(params: {
+    branchId: string;
+    branchName: string;
+  }): BranchSummaryResDto {
+    const dto = new BranchSummaryResDto();
+    dto.branchId = params.branchId;
+    dto.branchName = params.branchName;
+    return dto;
+  }
 }
 
 export class PublicBranchResDto {
@@ -80,4 +90,20 @@ export class PublicBranchResDto {
   address!: string;
   hotline!: string;
   branchStatus!: BranchStatus;
+
+  static from(params: {
+    branchId: string;
+    branchName: string;
+    address: string;
+    hotline: string;
+    branchStatus: BranchStatus;
+  }): PublicBranchResDto {
+    const dto = new PublicBranchResDto();
+    dto.branchId = params.branchId;
+    dto.branchName = params.branchName;
+    dto.address = params.address;
+    dto.hotline = params.hotline;
+    dto.branchStatus = params.branchStatus;
+    return dto;
+  }
 }

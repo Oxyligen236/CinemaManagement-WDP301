@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId, Types } from 'mongoose';
 import { Room, RoomDocument } from '../../room/domain/schemas/room.schema';
 import { RoomStatus } from '../../room/domain/enums/room-status.enum';
 import { Seat, SeatDocument } from '../../room/domain/schemas/seat.schema';
@@ -58,6 +58,7 @@ export class AdminBranchService {
         .sort({ createdAt: -1, branchName: 1 })
         .lean<
           (Branch & {
+            _id: Types.ObjectId;
             createdAt?: Date;
             updatedAt?: Date;
           })[]
@@ -117,21 +118,29 @@ export class AdminBranchService {
     branchId: string,
   ): Promise<AdminBranchDetailResponseDto> {
     return this.guard(async () => {
+      const branchQuery = isValidObjectId(branchId)
+        ? { _id: branchId }
+        : { _id: null };
       const branch = await this.branchModel
-        .findOne({ branchId })
-        .lean<Branch & { createdAt?: Date; updatedAt?: Date }>()
+        .findOne(branchQuery)
+        .lean<
+          Branch & { _id: Types.ObjectId; createdAt?: Date; updatedAt?: Date }
+        >()
         .exec();
 
       if (!branch) {
         throw new NotFoundException(BRANCH_MESSAGES.BRANCH_NOT_FOUND);
       }
 
+      const branchIdQuery = isValidObjectId(branchId)
+        ? { branchId: new Types.ObjectId(branchId) }
+        : { branchId };
       const [enrichedBranches, rooms] = await Promise.all([
         this.enrichBranches([branch]),
         this.roomModel
-          .find({ branchId })
+          .find(branchIdQuery)
           .sort({ roomName: 1 })
-          .lean<Room[]>()
+          .lean<(Room & { _id: Types.ObjectId })[]>()
           .exec(),
       ]);
 
@@ -199,9 +208,12 @@ export class AdminBranchService {
         throw new BadRequestException(BRANCH_MESSAGES.MSG02_REQUIRED);
       }
 
+      const branchQuery = isValidObjectId(branchId)
+        ? { _id: branchId }
+        : { _id: null };
       const existing = await this.branchModel
-        .findOne({ branchId })
-        .lean<Branch>()
+        .findOne(branchQuery)
+        .lean<Branch & { _id: Types.ObjectId }>()
         .exec();
 
       if (!existing) {
@@ -218,7 +230,7 @@ export class AdminBranchService {
         );
         const duplicate = await this.branchModel
           .exists({
-            branchId: { $ne: branchId },
+            _id: { $ne: existing._id },
             branchName: new RegExp(`^${escapedName}$`, 'i'),
           })
           .exec();
@@ -257,11 +269,13 @@ export class AdminBranchService {
 
       const updated = await this.branchModel
         .findOneAndUpdate(
-          { branchId },
+          branchQuery,
           { $set: setFields },
           { new: true, runValidators: true },
         )
-        .lean<Branch & { createdAt?: Date; updatedAt?: Date }>()
+        .lean<
+          Branch & { _id: Types.ObjectId; createdAt?: Date; updatedAt?: Date }
+        >()
         .exec();
 
       if (!updated) {
@@ -285,8 +299,11 @@ export class AdminBranchService {
     branchId: string,
   ): Promise<AdminBranchMutationResponseDto> {
     return this.guard(async () => {
+      const branchQuery = isValidObjectId(branchId)
+        ? { _id: branchId }
+        : { _id: null };
       const existing = await this.branchModel
-        .findOne({ branchId })
+        .findOne(branchQuery)
         .lean<Branch>()
         .exec();
 
@@ -298,11 +315,13 @@ export class AdminBranchService {
 
       const updated = await this.branchModel
         .findOneAndUpdate(
-          { branchId },
+          branchQuery,
           { $set: { branchStatus: BranchStatus.INACTIVE } },
           { new: true, runValidators: true },
         )
-        .lean<Branch & { createdAt?: Date; updatedAt?: Date }>()
+        .lean<
+          Branch & { _id: Types.ObjectId; createdAt?: Date; updatedAt?: Date }
+        >()
         .exec();
 
       if (!updated) {
@@ -335,7 +354,13 @@ export class AdminBranchService {
       const branches = await this.branchModel
         .find(filter)
         .sort({ branchName: 1 })
-        .lean<Branch[]>()
+        .lean<
+          (Branch & {
+            _id: Types.ObjectId;
+            createdAt?: Date;
+            updatedAt?: Date;
+          })[]
+        >()
         .exec();
 
       const enriched = await this.enrichBranches(branches);
@@ -351,16 +376,19 @@ export class AdminBranchService {
   // ---------------------------------------------------------------------------
 
   private async assertBranchCanBeDeactivated(branchId: string): Promise<void> {
+    const branchQuery = isValidObjectId(branchId)
+      ? { branchId: new Types.ObjectId(branchId) }
+      : { branchId };
     const rooms = await this.roomModel
-      .find({ branchId })
-      .select('roomId roomName roomStatus')
-      .lean<{ roomId: string; roomName: string; roomStatus: RoomStatus }[]>()
+      .find(branchQuery)
+      .select('roomName roomStatus')
+      .lean<(Room & { _id: Types.ObjectId })[]>()
       .exec();
 
     const activeRooms = rooms.filter(
       (r) => r.roomStatus === RoomStatus.AVAILABLE,
     );
-    const roomIds = rooms.map((r) => r.roomId);
+    const roomIds = rooms.map((r) => r._id);
 
     const upcomingShowtimesCount =
       roomIds.length > 0
@@ -387,24 +415,28 @@ export class AdminBranchService {
   }
 
   private async enrichBranches(
-    branches: (Branch & { createdAt?: Date; updatedAt?: Date })[],
+    branches: (Branch & {
+      _id: Types.ObjectId;
+      createdAt?: Date;
+      updatedAt?: Date;
+    })[],
   ): Promise<AdminBranchItemDto[]> {
     if (branches.length === 0) return [];
 
-    const branchIds = branches.map((b) => b.branchId);
+    const branchObjectIds = branches.map((b) => b._id);
     const rooms = await this.roomModel
-      .find({ branchId: { $in: branchIds } })
-      .select('roomId roomName roomStatus branchId')
-      .lean<Room[]>()
+      .find({ branchId: { $in: branchObjectIds } })
+      .select('roomName roomStatus branchId')
+      .lean<(Room & { _id: Types.ObjectId })[]>()
       .exec();
 
-    const roomIds = rooms.map((r) => r.roomId);
+    const roomIds = rooms.map((r) => r._id);
     const now = new Date();
 
     const [seatStats, showtimeStats] = await Promise.all([
       roomIds.length > 0
         ? this.seatModel.aggregate<{
-            _id: string;
+            _id: Types.ObjectId | string;
             totalSeats: number;
             availableSeats: number;
             brokenSeats: number;
@@ -448,7 +480,7 @@ export class AdminBranchService {
         : Promise.resolve([]),
       roomIds.length > 0
         ? this.showtimeModel.aggregate<{
-            _id: string;
+            _id: Types.ObjectId | string;
             upcomingCount: number;
           }>([
             {
@@ -467,20 +499,22 @@ export class AdminBranchService {
         : Promise.resolve([]),
     ]);
 
-    const seatStatByRoom = new Map(seatStats.map((s) => [s._id, s]));
+    const seatStatByRoom = new Map(seatStats.map((s) => [String(s._id), s]));
     const showtimeCountByRoom = new Map(
-      showtimeStats.map((s) => [s._id, s.upcomingCount]),
+      showtimeStats.map((s) => [String(s._id), s.upcomingCount]),
     );
 
-    const roomsByBranch = new Map<string, Room[]>();
+    const roomsByBranch = new Map<string, (Room & { _id: Types.ObjectId })[]>();
     for (const room of rooms) {
-      const list = roomsByBranch.get(room.branchId) ?? [];
+      const bId = String(room.branchId);
+      const list = roomsByBranch.get(bId) ?? [];
       list.push(room);
-      roomsByBranch.set(room.branchId, list);
+      roomsByBranch.set(bId, list);
     }
 
     return branches.map((branch) => {
-      const branchRooms = roomsByBranch.get(branch.branchId) ?? [];
+      const idStr = branch._id.toString();
+      const branchRooms = roomsByBranch.get(idStr) ?? [];
       const totalRooms = branchRooms.length;
       const activeRooms = branchRooms.filter(
         (r) => r.roomStatus === RoomStatus.AVAILABLE,
@@ -498,18 +532,19 @@ export class AdminBranchService {
       let upcomingShowtimesCount = 0;
 
       for (const room of branchRooms) {
-        const seatStat = seatStatByRoom.get(room.roomId);
+        const roomIdStr = room._id.toString();
+        const seatStat = seatStatByRoom.get(roomIdStr);
         totalSeats += seatStat?.totalSeats ?? 0;
         availableSeats += seatStat?.availableSeats ?? 0;
         brokenSeats += seatStat?.brokenSeats ?? 0;
         standardSeats += seatStat?.standardSeats ?? 0;
         vipSeats += seatStat?.vipSeats ?? 0;
         coupleSeats += seatStat?.coupleSeats ?? 0;
-        upcomingShowtimesCount += showtimeCountByRoom.get(room.roomId) ?? 0;
+        upcomingShowtimesCount += showtimeCountByRoom.get(roomIdStr) ?? 0;
       }
 
       return {
-        branchId: branch.branchId,
+        branchId: idStr,
         branchName: branch.branchName,
         address: branch.address,
         hotline: branch.hotline || '1900 2224',
@@ -531,15 +566,17 @@ export class AdminBranchService {
     });
   }
 
-  private async enrichRooms(rooms: Room[]): Promise<AdminBranchRoomItemDto[]> {
+  private async enrichRooms(
+    rooms: (Room & { _id: Types.ObjectId })[],
+  ): Promise<AdminBranchRoomItemDto[]> {
     if (rooms.length === 0) return [];
 
-    const roomIds = rooms.map((r) => r.roomId);
+    const roomIds = rooms.map((r) => r._id);
     const now = new Date();
 
     const [seatStats, showtimeStats] = await Promise.all([
       this.seatModel.aggregate<{
-        _id: string;
+        _id: Types.ObjectId | string;
         totalSeats: number;
         availableSeats: number;
         brokenSeats: number;
@@ -581,7 +618,7 @@ export class AdminBranchService {
         },
       ]),
       this.showtimeModel.aggregate<{
-        _id: string;
+        _id: Types.ObjectId | string;
         upcomingCount: number;
       }>([
         {
@@ -599,25 +636,26 @@ export class AdminBranchService {
       ]),
     ]);
 
-    const seatMap = new Map(seatStats.map((s) => [s._id, s]));
+    const seatMap = new Map(seatStats.map((s) => [String(s._id), s]));
     const showtimeMap = new Map(
-      showtimeStats.map((s) => [s._id, s.upcomingCount]),
+      showtimeStats.map((s) => [String(s._id), s.upcomingCount]),
     );
 
     return rooms.map((room) => {
-      const stat = seatMap.get(room.roomId);
+      const roomIdStr = room._id.toString();
+      const stat = seatMap.get(roomIdStr);
       return {
-        roomId: room.roomId,
+        roomId: roomIdStr,
         roomName: room.roomName,
         roomStatus: room.roomStatus,
-        branchId: room.branchId,
+        branchId: String(room.branchId),
         totalSeats: stat?.totalSeats ?? 0,
         availableSeats: stat?.availableSeats ?? 0,
         brokenSeats: stat?.brokenSeats ?? 0,
         standardSeats: stat?.standardSeats ?? 0,
         vipSeats: stat?.vipSeats ?? 0,
         coupleSeats: stat?.coupleSeats ?? 0,
-        upcomingShowtimesCount: showtimeMap.get(room.roomId) ?? 0,
+        upcomingShowtimesCount: showtimeMap.get(roomIdStr) ?? 0,
       };
     });
   }

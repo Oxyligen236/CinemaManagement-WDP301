@@ -11,22 +11,22 @@ const chain = (result: unknown) => ({
   exec: jest.fn().mockResolvedValue(result),
 });
 
-const BRANCH_A = 'branch-a';
+const BRANCH_A = '507f1f77bcf86cd799439011';
 
 describe('BranchQueryService', () => {
   let service: BranchQueryService;
   const branchModel = {
-    findOne: jest.fn(),
+    findById: jest.fn(),
     find: jest.fn(),
   };
 
   beforeEach(async () => {
     jest.resetAllMocks();
-    branchModel.findOne.mockImplementation((f: { branchId: string }) =>
+    branchModel.findById.mockImplementation((id: string) =>
       chain(
-        f.branchId === BRANCH_A
+        id === BRANCH_A
           ? {
-              branchId: BRANCH_A,
+              _id: BRANCH_A,
               branchName: 'CGV Quận 1',
               address: 'addr',
               branchStatus: BranchStatus.ACTIVE,
@@ -48,16 +48,24 @@ describe('BranchQueryService', () => {
     it('returns only branchId and branchName for an existing branch', async () => {
       const result = await service.getBranchSummary(BRANCH_A);
 
-      expect(branchModel.findOne).toHaveBeenCalledWith({ branchId: BRANCH_A });
+      expect(branchModel.findById).toHaveBeenCalledWith(BRANCH_A);
       expect(result).toEqual({ branchId: BRANCH_A, branchName: 'CGV Quận 1' });
     });
 
     it('returns null when branch does not exist', async () => {
-      await expect(service.getBranchSummary('zzz')).resolves.toBeNull();
+      await expect(
+        service.getBranchSummary('507f1f77bcf86cd799439099'),
+      ).resolves.toBeNull();
+    });
+
+    it('returns null when branchId is not valid object id', async () => {
+      await expect(service.getBranchSummary('invalid-id')).resolves.toBeNull();
+      expect(branchModel.findById).not.toHaveBeenCalled();
     });
 
     it('propagates database errors', async () => {
-      branchModel.findOne.mockReturnValue({
+      branchModel.findById.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockRejectedValue(new Error('mongo down')),
       });
@@ -72,14 +80,14 @@ describe('BranchQueryService', () => {
     it('returns only ACTIVE branches sorted by branchName ASC with fallback hotline', async () => {
       const mockDocs = [
         {
-          branchId: 'branch-cantavil',
+          _id: '507f1f77bcf86cd799439012',
           branchName: 'Lotte Cinema Cantavil',
           address: 'Tầng 7, Cantavil Premier',
           hotline: '028 3740 6180',
           branchStatus: BranchStatus.ACTIVE,
         },
         {
-          branchId: 'branch-govap',
+          _id: '507f1f77bcf86cd799439013',
           branchName: 'Lotte Cinema Gò Vấp',
           address: '242 Nguyễn Văn Lượng',
           hotline: '',
@@ -101,19 +109,19 @@ describe('BranchQueryService', () => {
         branchStatus: BranchStatus.ACTIVE,
       });
       expect(queryChain.select).toHaveBeenCalledWith(
-        'branchId branchName address hotline branchStatus',
+        'branchName address hotline branchStatus',
       );
       expect(queryChain.sort).toHaveBeenCalledWith({ branchName: 1 });
       expect(result).toEqual([
         {
-          branchId: 'branch-cantavil',
+          branchId: '507f1f77bcf86cd799439012',
           branchName: 'Lotte Cinema Cantavil',
           address: 'Tầng 7, Cantavil Premier',
           hotline: '028 3740 6180',
           branchStatus: BranchStatus.ACTIVE,
         },
         {
-          branchId: 'branch-govap',
+          branchId: '507f1f77bcf86cd799439013',
           branchName: 'Lotte Cinema Gò Vấp',
           address: '242 Nguyễn Văn Lượng',
           hotline: '1900 2224',

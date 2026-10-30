@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 import { Page } from '../../../../common/dto/page.dto';
 import {
   STORAGE_SERVICE,
@@ -12,10 +12,14 @@ import { MovieOptionResDto, MovieSchedulingInfoResDto } from '../dto/res.dto';
 import { GetMovieSchedulingInfoUsecase } from '../usecase/get-movie-scheduling-info.usecase';
 import { SearchMovieOptionsUsecase } from '../usecase/search-movie-options.usecase';
 
-type MovieLean = Pick<
-  Movie,
-  'movieId' | 'movieName' | 'duration' | 'status' | 'isActive' | 'posterKey'
->;
+type MovieLean = {
+  _id: Types.ObjectId | string;
+  movieName: string;
+  duration: number;
+  status: string;
+  isActive: boolean;
+  posterKey?: string;
+};
 
 @Injectable()
 export class MovieOptionQueryService
@@ -63,7 +67,7 @@ export class MovieOptionQueryService
     movieId: string,
   ): Promise<MovieSchedulingInfoResDto | null> {
     const doc = (await this.movieModel
-      .findOne({ movieId })
+      .findById(movieId)
       .lean()
       .exec()) as unknown as MovieLean | null;
     return doc ? this.toSchedulingInfo(doc) : null;
@@ -76,7 +80,7 @@ export class MovieOptionQueryService
       return [];
     }
     const docs = (await this.movieModel
-      .find({ movieId: { $in: movieIds } })
+      .find({ _id: { $in: movieIds } })
       .lean()
       .exec()) as unknown as MovieLean[];
     return docs.map((doc) => this.toSchedulingInfo(doc));
@@ -94,19 +98,23 @@ export class MovieOptionQueryService
   }
 
   private toOption(doc: MovieLean): MovieOptionResDto {
-    return {
-      movieId: doc.movieId,
+    return MovieOptionResDto.from({
+      movieId: doc._id.toString(),
       movieName: doc.movieName,
       duration: doc.duration,
       status: doc.status,
       posterUrl: this.resolvePosterUrl(doc),
-    };
+    });
   }
 
   private toSchedulingInfo(doc: MovieLean): MovieSchedulingInfoResDto {
-    return {
-      ...this.toOption(doc),
+    return MovieSchedulingInfoResDto.from({
+      movieId: doc._id.toString(),
+      movieName: doc.movieName,
+      duration: doc.duration,
+      status: doc.status,
       isActive: doc.isActive,
-    };
+      posterUrl: this.resolvePosterUrl(doc),
+    });
   }
 }

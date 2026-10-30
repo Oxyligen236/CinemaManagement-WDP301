@@ -11,6 +11,7 @@ describe('MovieContractImpl', () => {
   let contract: MovieContractImpl;
   const movieModel = {
     findOne: jest.fn(),
+    findById: jest.fn(),
     find: jest.fn(),
   };
   const mockStorageService = {
@@ -33,6 +34,7 @@ describe('MovieContractImpl', () => {
   describe('getMovieSummary', () => {
     it('returns movie summary when movie found', async () => {
       const mockDoc = {
+        _id: 'm1',
         movieId: 'm1',
         movieName: 'Film 1',
         duration: 120,
@@ -40,7 +42,7 @@ describe('MovieContractImpl', () => {
         status: MovieStatus.NOW_SHOWING,
         releaseDate: new Date('2026-05-01'),
       };
-      movieModel.findOne.mockReturnValue({
+      movieModel.findById.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue(mockDoc),
         }),
@@ -58,7 +60,7 @@ describe('MovieContractImpl', () => {
     });
 
     it('returns null when movie not found', async () => {
-      movieModel.findOne.mockReturnValue({
+      movieModel.findById.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue(null),
         }),
@@ -73,6 +75,7 @@ describe('MovieContractImpl', () => {
     it('returns list of movie summaries', async () => {
       const mockDocs = [
         {
+          _id: 'm1',
           movieId: 'm1',
           movieName: 'Film 1',
           duration: 120,
@@ -90,6 +93,7 @@ describe('MovieContractImpl', () => {
       expect(result).toHaveLength(1);
       expect(result[0].movieId).toBe('m1');
       expect(result[0].posterUrl).toBe(`${PUBLIC_BASE}/movies/posters/m1.png`);
+      expect(movieModel.find).toHaveBeenCalledWith({ _id: { $in: ['m1'] } });
     });
 
     it('returns empty array when input movieIds is empty', async () => {

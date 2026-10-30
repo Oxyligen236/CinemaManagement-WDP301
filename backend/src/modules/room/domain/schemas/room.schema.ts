@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { RoomStatus } from '../enums/room-status.enum';
 
 export type RoomDocument = HydratedDocument<Room>;
@@ -10,12 +9,7 @@ export type RoomDocument = HydratedDocument<Room>;
   timestamps: true,
 })
 export class Room {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  roomId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
     required: true,
@@ -33,10 +27,12 @@ export class Room {
   roomStatus!: RoomStatus;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Branch',
     required: true,
-    trim: true,
+    index: true,
   })
-  branchId!: string;
+  branchId!: Types.ObjectId;
 }
 
 export const RoomSchema = SchemaFactory.createForClass(Room);

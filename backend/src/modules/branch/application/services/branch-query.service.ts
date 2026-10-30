@@ -21,19 +21,21 @@ export class BranchQueryService
   async getBranchSummary(
     branchId: string,
   ): Promise<BranchSummaryResDto | null> {
+    if (!isValidObjectId(branchId)) {
+      return null;
+    }
     const doc = (await this.branchModel
-      .findOne(isValidObjectId(branchId) ? { _id: branchId } : { branchId })
+      .findById(branchId)
+      .select('branchName')
       .lean()
-      .exec()) as unknown as Pick<Branch, 'branchId' | 'branchName'> | null;
+      .exec()) as (Pick<Branch, 'branchName'> & { _id: unknown }) | null;
     if (!doc) {
       return null;
     }
-    return {
-      branchId: String(
-        (doc as unknown as { _id?: unknown })._id ?? doc.branchId,
-      ),
+    return BranchSummaryResDto.from({
+      branchId: String(doc._id),
       branchName: doc.branchName,
-    };
+    });
   }
 
   async getPublicBranches(
@@ -51,17 +53,19 @@ export class BranchQueryService
     }
     const docs = await this.branchModel
       .find(filter)
-      .select('branchId branchName address hotline branchStatus')
+      .select('branchName address hotline branchStatus')
       .sort({ branchName: 1 })
       .lean()
       .exec();
 
-    return docs.map((d) => ({
-      branchId: String((d as unknown as { _id?: unknown })._id ?? d.branchId),
-      branchName: d.branchName,
-      address: d.address,
-      hotline: d.hotline || '1900 2224',
-      branchStatus: d.branchStatus,
-    }));
+    return docs.map((d: any) =>
+      PublicBranchResDto.from({
+        branchId: String(d._id),
+        branchName: d.branchName,
+        address: d.address,
+        hotline: d.hotline || '1900 2224',
+        branchStatus: d.branchStatus,
+      }),
+    );
   }
 }

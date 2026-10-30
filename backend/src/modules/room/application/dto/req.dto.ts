@@ -4,6 +4,7 @@ import {
   IsArray,
   IsEnum,
   IsInt,
+  IsMongoId,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -74,7 +75,7 @@ export class UpdateBranchRoomDto {
 export class UpdateRoomSeatsDto {
   @IsArray()
   @ArrayMinSize(1)
-  @IsString({ each: true })
+  @IsMongoId({ each: true, message: 'Each seatId must be a valid MongoId' })
   seatIds!: string[];
 
   @IsOptional()

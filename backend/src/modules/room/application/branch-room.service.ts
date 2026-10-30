@@ -8,7 +8,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { Role } from '../../user/domain/enums/role.enum';
 import {
@@ -53,6 +53,12 @@ import {
   RoomUpcomingShowtimeDto,
 } from './dto/res.dto';
 
+function toObjectId(id: string | Types.ObjectId): Types.ObjectId {
+  return typeof id === 'string' && Types.ObjectId.isValid(id)
+    ? new Types.ObjectId(id)
+    : (id as unknown as Types.ObjectId);
+}
+
 @Injectable()
 export class BranchRoomService {
   constructor(
@@ -83,7 +89,7 @@ export class BranchRoomService {
       const branch = await this.resolveManagerBranch(managerUserId);
 
       const filter: Record<string, unknown> = {
-        branchId: branch.branchId,
+        branchId: toObjectId(branch.branchId),
       };
       if (query.roomStatus) {
         filter.roomStatus = query.roomStatus;
@@ -119,7 +125,10 @@ export class BranchRoomService {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
       const room = await this.roomModel
-        .findOne({ roomId, branchId: branch.branchId })
+        .findOne({
+          _id: toObjectId(roomId),
+          branchId: toObjectId(branch.branchId),
+        })
         .lean<Room>()
         .exec();
 
@@ -127,19 +136,22 @@ export class BranchRoomService {
         throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
       }
 
+      const roomObjId = room._id;
+      const roomIdStr = roomObjId.toString();
+
       // Nếu phòng chiếu chưa có bản ghi ghế nào, tự động khởi tạo lưới 6x10 mặc định
       const existingSeatCount = await this.seatModel
-        .countDocuments({ roomId: room.roomId })
+        .countDocuments({ roomId: roomObjId })
         .exec();
       if (existingSeatCount === 0) {
-        await this.generateDefaultSeatsForRoom(room.roomId, 6, 10);
+        await this.generateDefaultSeatsForRoom(roomObjId, 6, 10);
       }
 
       const [summaries, seatsWithLockInfo, upcomingShowtimes] =
         await Promise.all([
           this.buildRoomSummaries([room]),
-          this.getRoomSeatsWithUpcomingBookingFlag(room.roomId),
-          this.getUpcomingShowtimesForRoom(room.roomId),
+          this.getRoomSeatsWithUpcomingBookingFlag(roomIdStr),
+          this.getUpcomingShowtimesForRoom(roomIdStr),
         ]);
 
       return {
@@ -166,7 +178,7 @@ export class BranchRoomService {
 
       const duplicate = await this.roomModel
         .exists({
-          branchId: branch.branchId,
+          branchId: toObjectId(branch.branchId),
           roomName: new RegExp(
             `^${input.roomName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
             'i',
@@ -181,12 +193,12 @@ export class BranchRoomService {
       const created = await this.roomModel.create({
         roomName: input.roomName,
         roomStatus: RoomStatus.AVAILABLE,
-        branchId: branch.branchId,
+        branchId: toObjectId(branch.branchId),
       });
 
       const rows = input.rowCount ?? 6;
       const cols = input.columnsPerRow ?? 10;
-      await this.generateDefaultSeatsForRoom(created.roomId, rows, cols);
+      await this.generateDefaultSeatsForRoom(created._id, rows, cols);
 
       const [summary] = await this.buildRoomSummaries([created.toObject()]);
 
@@ -213,13 +225,18 @@ export class BranchRoomService {
 
       const branch = await this.resolveManagerBranch(managerUserId);
       const room = await this.roomModel
-        .findOne({ roomId, branchId: branch.branchId })
+        .findOne({
+          _id: toObjectId(roomId),
+          branchId: toObjectId(branch.branchId),
+        })
         .lean<Room>()
         .exec();
 
       if (!room) {
         throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
       }
+
+      const roomIdStr = room._id.toString();
 
       // BR-BRM-06 / AF-1: Nếu chuyển trạng thái phòng sang MAINTENANCE (hoặc CLOSED),
       // phải kiểm tra xem phòng có suất chiếu sắp tới hoặc đang diễn ra không.
@@ -228,9 +245,8 @@ export class BranchRoomService {
         input.roomStatus !== RoomStatus.AVAILABLE &&
         room.roomStatus === RoomStatus.AVAILABLE
       ) {
-        const upcomingShowtimes = await this.getUpcomingShowtimesForRoom(
-          room.roomId,
-        );
+        const upcomingShowtimes =
+          await this.getUpcomingShowtimesForRoom(roomIdStr);
         if (upcomingShowtimes.length > 0) {
           throw new ConflictException({
             statusCode: 409,
@@ -244,8 +260,8 @@ export class BranchRoomService {
       if (input.roomName && input.roomName !== room.roomName) {
         const duplicate = await this.roomModel
           .exists({
-            branchId: branch.branchId,
-            roomId: { $ne: roomId },
+            branchId: toObjectId(branch.branchId),
+            _id: { $ne: toObjectId(roomId) },
             roomName: new RegExp(
               `^${input.roomName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
               'i',
@@ -264,7 +280,10 @@ export class BranchRoomService {
 
       const updated = await this.roomModel
         .findOneAndUpdate(
-          { roomId, branchId: branch.branchId },
+          {
+            _id: toObjectId(roomId),
+            branchId: toObjectId(branch.branchId),
+          },
           { $set: setFields },
           { new: true, runValidators: true },
         )
@@ -302,7 +321,10 @@ export class BranchRoomService {
 
       const branch = await this.resolveManagerBranch(managerUserId);
       const room = await this.roomModel
-        .findOne({ roomId, branchId: branch.branchId })
+        .findOne({
+          _id: toObjectId(roomId),
+          branchId: toObjectId(branch.branchId),
+        })
         .lean<Room>()
         .exec();
 
@@ -310,10 +332,13 @@ export class BranchRoomService {
         throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
       }
 
+      const roomObjId = room._id;
+      const targetSeatObjIds = input.seatIds.map((id) => toObjectId(id));
+
       const targetSeats = await this.seatModel
         .find({
-          roomId: room.roomId,
-          seatId: { $in: input.seatIds },
+          roomId: roomObjId,
+          _id: { $in: targetSeatObjIds },
         })
         .lean<Seat[]>()
         .exec();
@@ -322,39 +347,39 @@ export class BranchRoomService {
         throw new BadRequestException(ROOM_MESSAGES.SEAT_NOT_FOUND);
       }
 
-      const validSeatIds = targetSeats.map((s) => s.seatId);
+      const validSeatObjIds = targetSeats.map((s) => s._id);
 
       // BR-BRM-07 / AF-2: Nếu chuyển sang trạng thái Hỏng (MAINTENANCE hoặc BLOCKED),
       // kiểm tra xem có ghế nào đã bán vé trong suất chiếu sắp tới không
       if (input.status && isSeatBrokenStatus(input.status)) {
         const upcomingShowtimes = await this.showtimeModel
           .find({
-            roomId: room.roomId,
+            roomId: roomObjId,
             endTime: { $gt: new Date() },
           })
-          .select('showtimeId')
-          .lean<{ showtimeId: string }[]>()
+          .select('_id')
+          .lean<{ _id: Types.ObjectId }[]>()
           .exec();
 
-        const upcomingShowtimeIds = upcomingShowtimes.map((s) => s.showtimeId);
+        const upcomingShowtimeObjIds = upcomingShowtimes.map((s) => s._id);
 
-        if (upcomingShowtimeIds.length > 0) {
+        if (upcomingShowtimeObjIds.length > 0) {
           const soldSeatShowtimes = await this.seatShowtimeModel
             .find({
-              showtimeId: { $in: upcomingShowtimeIds },
-              seatId: { $in: validSeatIds },
+              showtimeId: { $in: upcomingShowtimeObjIds },
+              seatId: { $in: validSeatObjIds },
               seatStatus: { $in: LOCKED_UPCOMING_SEAT_STATUSES },
             })
             .select('seatId showtimeId')
-            .lean<{ seatId: string; showtimeId: string }[]>()
+            .lean<{ seatId: Types.ObjectId; showtimeId: Types.ObjectId }[]>()
             .exec();
 
           if (soldSeatShowtimes.length > 0) {
             const lockedSeatIdSet = new Set(
-              soldSeatShowtimes.map((s) => s.seatId),
+              soldSeatShowtimes.map((s) => s.seatId.toString()),
             );
             const lockedLabels = targetSeats
-              .filter((s) => lockedSeatIdSet.has(s.seatId))
+              .filter((s) => lockedSeatIdSet.has(s._id.toString()))
               .map((s) => `${s.rowPosition}${s.columnPosition}`);
 
             throw new ConflictException({
@@ -368,8 +393,8 @@ export class BranchRoomService {
           // Nếu ghế chưa ai mua, gỡ bản ghi EMPTY khỏi các suất chiếu tương lai để khách không đặt nhầm ghế hỏng
           await this.seatShowtimeModel
             .deleteMany({
-              showtimeId: { $in: upcomingShowtimeIds },
-              seatId: { $in: validSeatIds },
+              showtimeId: { $in: upcomingShowtimeObjIds },
+              seatId: { $in: validSeatObjIds },
               seatStatus: SeatShowtimeStatus.EMPTY,
             })
             .exec();
@@ -382,7 +407,7 @@ export class BranchRoomService {
 
       const updateResult = await this.seatModel
         .updateMany(
-          { roomId: room.roomId, seatId: { $in: validSeatIds } },
+          { roomId: roomObjId, _id: { $in: validSeatObjIds } },
           { $set: setFields },
         )
         .exec();
@@ -391,32 +416,34 @@ export class BranchRoomService {
       if (input.status === SeatStatus.AVAILABLE) {
         const upcomingShowtimes = await this.showtimeModel
           .find({
-            roomId: room.roomId,
+            roomId: roomObjId,
             endTime: { $gt: new Date() },
           })
-          .select('showtimeId')
-          .lean<{ showtimeId: string }[]>()
+          .select('_id')
+          .lean<{ _id: Types.ObjectId }[]>()
           .exec();
 
         for (const st of upcomingShowtimes) {
           const existingEntries = await this.seatShowtimeModel
             .find({
-              showtimeId: st.showtimeId,
-              seatId: { $in: validSeatIds },
+              showtimeId: st._id,
+              seatId: { $in: validSeatObjIds },
             })
             .select('seatId')
-            .lean<{ seatId: string }[]>()
+            .lean<{ seatId: Types.ObjectId }[]>()
             .exec();
 
-          const existingSet = new Set(existingEntries.map((e) => e.seatId));
-          const missingSeatIds = validSeatIds.filter(
-            (id) => !existingSet.has(id),
+          const existingSet = new Set(
+            existingEntries.map((e) => e.seatId.toString()),
+          );
+          const missingSeatObjIds = validSeatObjIds.filter(
+            (id) => !existingSet.has(id.toString()),
           );
 
-          if (missingSeatIds.length > 0) {
+          if (missingSeatObjIds.length > 0) {
             await this.seatShowtimeModel.insertMany(
-              missingSeatIds.map((seatId) => ({
-                showtimeId: st.showtimeId,
+              missingSeatObjIds.map((seatId) => ({
+                showtimeId: st._id,
                 seatId,
                 seatStatus: SeatShowtimeStatus.EMPTY,
               })),
@@ -428,7 +455,7 @@ export class BranchRoomService {
 
       const [summaries, seatsWithLockInfo] = await Promise.all([
         this.buildRoomSummaries([room]),
-        this.getRoomSeatsWithUpcomingBookingFlag(room.roomId),
+        this.getRoomSeatsWithUpcomingBookingFlag(roomObjId.toString()),
       ]);
 
       return {
@@ -448,12 +475,12 @@ export class BranchRoomService {
     rooms: Room[],
   ): Promise<BranchRoomSummaryDto[]> {
     if (rooms.length === 0) return [];
-    const roomIds = rooms.map((r) => r.roomId);
+    const roomObjIds = rooms.map((r) => r._id);
     const now = new Date();
 
     const [seatStats, showtimeCounts] = await Promise.all([
       this.seatModel.aggregate<{
-        _id: string;
+        _id: Types.ObjectId;
         totalSeats: number;
         availableSeats: number;
         brokenSeats: number;
@@ -461,7 +488,7 @@ export class BranchRoomService {
         vipSeats: number;
         coupleSeats: number;
       }>([
-        { $match: { roomId: { $in: roomIds } } },
+        { $match: { roomId: { $in: roomObjIds } } },
         {
           $group: {
             _id: '$roomId',
@@ -495,12 +522,12 @@ export class BranchRoomService {
         },
       ]),
       this.showtimeModel.aggregate<{
-        _id: string;
+        _id: Types.ObjectId;
         upcomingCount: number;
       }>([
         {
           $match: {
-            roomId: { $in: roomIds },
+            roomId: { $in: roomObjIds },
             endTime: { $gt: now },
           },
         },
@@ -513,42 +540,44 @@ export class BranchRoomService {
       ]),
     ]);
 
-    const seatMap = new Map(seatStats.map((s) => [s._id, s]));
+    const seatMap = new Map(seatStats.map((s) => [s._id.toString(), s]));
     const showtimeMap = new Map(
-      showtimeCounts.map((s) => [s._id, s.upcomingCount]),
+      showtimeCounts.map((s) => [s._id.toString(), s.upcomingCount]),
     );
 
     return rooms.map((room) => {
-      const stat = seatMap.get(room.roomId);
-      return {
-        roomId: room.roomId,
+      const roomIdStr = room._id.toString();
+      const stat = seatMap.get(roomIdStr);
+      return BranchRoomSummaryDto.from({
+        roomId: roomIdStr,
         roomName: room.roomName,
         roomStatus: room.roomStatus,
-        branchId: room.branchId,
+        branchId: room.branchId.toString(),
         totalSeats: stat?.totalSeats ?? 0,
         availableSeats: stat?.availableSeats ?? 0,
         brokenSeats: stat?.brokenSeats ?? 0,
         standardSeats: stat?.standardSeats ?? 0,
         vipSeats: stat?.vipSeats ?? 0,
         coupleSeats: stat?.coupleSeats ?? 0,
-        upcomingShowtimesCount: showtimeMap.get(room.roomId) ?? 0,
-      };
+        upcomingShowtimesCount: showtimeMap.get(roomIdStr) ?? 0,
+      });
     });
   }
 
   private async getRoomSeatsWithUpcomingBookingFlag(
     roomId: string,
   ): Promise<RoomSeatItemDto[]> {
+    const roomObjId = toObjectId(roomId);
     const [seats, upcomingShowtimes] = await Promise.all([
       this.seatModel
-        .find({ roomId })
+        .find({ roomId: roomObjId })
         .sort({ rowPosition: 1, columnPosition: 1 })
         .lean<Seat[]>()
         .exec(),
       this.showtimeModel
-        .find({ roomId, endTime: { $gt: new Date() } })
-        .select('showtimeId')
-        .lean<{ showtimeId: string }[]>()
+        .find({ roomId: roomObjId, endTime: { $gt: new Date() } })
+        .select('_id')
+        .lean<{ _id: Types.ObjectId }[]>()
         .exec(),
     ]);
 
@@ -556,37 +585,40 @@ export class BranchRoomService {
     if (upcomingShowtimes.length > 0) {
       const lockedEntries = await this.seatShowtimeModel
         .find({
-          showtimeId: { $in: upcomingShowtimes.map((s) => s.showtimeId) },
+          showtimeId: { $in: upcomingShowtimes.map((s) => s._id) },
           seatStatus: { $in: LOCKED_UPCOMING_SEAT_STATUSES },
         })
         .select('seatId')
-        .lean<{ seatId: string }[]>()
+        .lean<{ seatId: Types.ObjectId }[]>()
         .exec();
 
       for (const entry of lockedEntries) {
-        bookedSeatIds.add(entry.seatId);
+        bookedSeatIds.add(entry.seatId.toString());
       }
     }
 
-    return seats.map((seat) => ({
-      seatId: seat.seatId,
-      roomId: seat.roomId,
-      rowPosition: seat.rowPosition,
-      columnPosition: seat.columnPosition,
-      seatLabel: `${seat.rowPosition}${seat.columnPosition}`,
-      seatType: seat.seatType,
-      status: seat.status,
-      isBroken: isSeatBrokenStatus(seat.status),
-      hasUpcomingBookedTicket: bookedSeatIds.has(seat.seatId),
-    }));
+    return seats.map((seat) =>
+      RoomSeatItemDto.from({
+        seatId: seat._id.toString(),
+        roomId: seat.roomId.toString(),
+        rowPosition: seat.rowPosition,
+        columnPosition: seat.columnPosition,
+        seatLabel: `${seat.rowPosition}${seat.columnPosition}`,
+        seatType: seat.seatType,
+        status: seat.status,
+        isBroken: isSeatBrokenStatus(seat.status),
+        hasUpcomingBookedTicket: bookedSeatIds.has(seat._id.toString()),
+      }),
+    );
   }
 
   private async getUpcomingShowtimesForRoom(
     roomId: string,
   ): Promise<RoomUpcomingShowtimeDto[]> {
+    const roomObjId = toObjectId(roomId);
     const showtimes = await this.showtimeModel
       .find({
-        roomId,
+        roomId: roomObjId,
         endTime: { $gt: new Date() },
       })
       .sort({ startTime: 1 })
@@ -595,32 +627,36 @@ export class BranchRoomService {
 
     if (showtimes.length === 0) return [];
 
-    const movieIds = Array.from(new Set(showtimes.map((s) => s.movieId)));
+    const movieObjIds = Array.from(new Set(showtimes.map((s) => s.movieId)));
     const movies = await this.movieModel
-      .find({ movieId: { $in: movieIds } })
-      .select('movieId movieName')
-      .lean<{ movieId: string; movieName: string }[]>()
+      .find({ _id: { $in: movieObjIds } })
+      .select('_id movieName')
+      .lean<{ _id: Types.ObjectId; movieName: string }[]>()
       .exec();
 
-    const movieNameMap = new Map(movies.map((m) => [m.movieId, m.movieName]));
+    const movieNameMap = new Map(
+      movies.map((m) => [m._id.toString(), m.movieName]),
+    );
 
     return showtimes.map((st) => ({
-      showtimeId: st.showtimeId,
-      movieId: st.movieId,
-      movieName: movieNameMap.get(st.movieId) ?? 'Phim đang xếp lịch',
+      showtimeId: st._id.toString(),
+      movieId: st.movieId.toString(),
+      movieName:
+        movieNameMap.get(st.movieId.toString()) ?? 'Phim đang xếp lịch',
       startTime: st.startTime,
       endTime: st.endTime,
     }));
   }
 
   private async generateDefaultSeatsForRoom(
-    roomId: string,
+    roomId: string | Types.ObjectId,
     rowCount: number,
     columnsPerRow: number,
   ) {
+    const roomObjId = toObjectId(roomId);
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const seatDocs: {
-      roomId: string;
+      roomId: Types.ObjectId;
       rowPosition: string;
       columnPosition: number;
       seatType: SeatType;
@@ -634,7 +670,7 @@ export class BranchRoomService {
 
       for (let col = 1; col <= columnsPerRow; col++) {
         seatDocs.push({
-          roomId,
+          roomId: roomObjId,
           rowPosition: rowLabel,
           columnPosition: col,
           seatType: isLastRow
@@ -656,9 +692,10 @@ export class BranchRoomService {
     managerUserId?: string,
   ): Promise<RoomManagerBranchDto> {
     if (managerUserId) {
+      const managerUserObjId = toObjectId(managerUserId);
       const manager = await this.userModel
-        .findOne({ userId: managerUserId })
-        .select('role isActive branchId')
+        .findOne({ _id: managerUserObjId })
+        .select('_id role isActive branchId')
         .lean()
         .exec();
 
@@ -671,13 +708,18 @@ export class BranchRoomService {
       if (manager && manager.isActive && isManagerRole) {
         if (manager.branchId) {
           const assignedBranch = await this.branchModel
-            .findOne({ branchId: manager.branchId })
-            .select('branchId branchName address branchStatus')
-            .lean<RoomManagerBranchDto>()
+            .findById(manager.branchId)
+            .select('_id branchName address branchStatus')
+            .lean()
             .exec();
 
           if (assignedBranch) {
-            return assignedBranch;
+            return RoomManagerBranchDto.from({
+              branchId: assignedBranch._id.toString(),
+              branchName: assignedBranch.branchName,
+              address: assignedBranch.address,
+              branchStatus: assignedBranch.branchStatus,
+            });
           }
         }
       }
@@ -685,8 +727,8 @@ export class BranchRoomService {
 
     let defaultBranch = await this.branchModel
       .findOne({ branchStatus: BranchStatus.ACTIVE })
-      .select('branchId branchName address branchStatus')
-      .lean<RoomManagerBranchDto>()
+      .select('_id branchName address branchStatus')
+      .lean()
       .exec();
 
     if (!defaultBranch) {
@@ -697,14 +739,20 @@ export class BranchRoomService {
         branchStatus: BranchStatus.ACTIVE,
       });
       defaultBranch = {
-        branchId: created.branchId,
+        _id: created._id,
         branchName: created.branchName,
         address: created.address,
         branchStatus: created.branchStatus,
-      };
+      } as NonNullable<typeof defaultBranch>;
     }
 
-    return defaultBranch;
+    const branch = defaultBranch;
+    return RoomManagerBranchDto.from({
+      branchId: branch._id.toString(),
+      branchName: branch.branchName,
+      address: branch.address,
+      branchStatus: branch.branchStatus,
+    });
   }
 
   private async guard<T>(operation: () => Promise<T>): Promise<T> {

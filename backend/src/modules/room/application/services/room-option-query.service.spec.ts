@@ -13,25 +13,25 @@ const BRANCH_A = 'branch-a';
 const BRANCH_B = 'branch-b';
 const MOCK_ROOMS = [
   {
-    roomId: 'r-1',
+    _id: 'r-1',
     roomName: 'Phòng 1',
     roomStatus: 'AVAILABLE',
     branchId: BRANCH_A,
   },
   {
-    roomId: 'r-2',
+    _id: 'r-2',
     roomName: 'Phòng 2',
     roomStatus: 'AVAILABLE',
     branchId: BRANCH_A,
   },
   {
-    roomId: 'r-3',
+    _id: 'r-3',
     roomName: 'Phòng 3',
     roomStatus: 'MAINTENANCE',
     branchId: BRANCH_A,
   },
   {
-    roomId: 'r-9',
+    _id: 'r-9',
     roomName: 'Phòng X',
     roomStatus: 'AVAILABLE',
     branchId: BRANCH_B,
@@ -40,22 +40,22 @@ const MOCK_ROOMS = [
 
 describe('RoomOptionQueryService', () => {
   let service: RoomOptionQueryService;
-  const roomModel = { find: jest.fn(), findOne: jest.fn() };
+  const roomModel = { find: jest.fn(), findById: jest.fn() };
 
   beforeEach(async () => {
     jest.resetAllMocks();
     roomModel.find.mockImplementation(
-      (f?: { branchId?: string; roomId?: { $in: string[] } }) =>
+      (f?: { branchId?: string; _id?: { $in: string[] } }) =>
         chain(
           MOCK_ROOMS.filter(
             (r) =>
               (!f?.branchId || r.branchId === f.branchId) &&
-              (!f?.roomId || f.roomId.$in.includes(r.roomId)),
+              (!f?._id || f._id.$in.includes(r._id)),
           ),
         ),
     );
-    roomModel.findOne.mockImplementation((f: { roomId: string }) =>
-      chain(MOCK_ROOMS.find((r) => r.roomId === f.roomId) ?? null),
+    roomModel.findById.mockImplementation((id: string) =>
+      chain(MOCK_ROOMS.find((r) => r._id === id) ?? null),
     );
 
     const moduleRef = await Test.createTestingModule({
@@ -83,7 +83,7 @@ describe('RoomOptionQueryService', () => {
     it('does not leak rooms of other branches', async () => {
       const result = await service.listRoomsByBranch(BRANCH_B);
 
-      expect(result).toEqual([MOCK_ROOMS[3]]);
+      expect(result.map((r) => r.roomId)).toEqual(['r-9']);
     });
 
     it('returns empty array for branch without rooms', async () => {
@@ -107,8 +107,9 @@ describe('RoomOptionQueryService', () => {
     it('returns room info', async () => {
       const result = await service.getRoomSchedulingInfo('r-1');
 
-      expect(roomModel.findOne).toHaveBeenCalledWith({ roomId: 'r-1' });
-      expect(result).toEqual(MOCK_ROOMS[0]);
+      expect(roomModel.findById).toHaveBeenCalledWith('r-1');
+      expect(result?.roomId).toBe('r-1');
+      expect(result?.roomName).toBe('Phòng 1');
     });
 
     it('returns null when room does not exist', async () => {
@@ -121,7 +122,7 @@ describe('RoomOptionQueryService', () => {
       const result = await service.getRoomSchedulingInfos(['r-1', 'r-9']);
 
       expect(roomModel.find).toHaveBeenCalledWith({
-        roomId: { $in: ['r-1', 'r-9'] },
+        _id: { $in: ['r-1', 'r-9'] },
       });
       expect(result.map((r) => r.roomId)).toEqual(['r-1', 'r-9']);
     });

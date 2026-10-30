@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { MovieStatus } from '../enums/movie-status.enum';
 
 export type MovieDocument = HydratedDocument<Movie>;
@@ -10,12 +9,7 @@ export type MovieDocument = HydratedDocument<Movie>;
   timestamps: true,
 })
 export class Movie {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  movieId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
     required: true,
@@ -65,10 +59,10 @@ export class Movie {
   isActive!: boolean;
 
   @Prop({
-    type: [String],
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Genre' }],
     default: [],
   })
-  genreIds!: string[];
+  genreIds!: Types.ObjectId[];
 }
 
 export const MovieSchema = SchemaFactory.createForClass(Movie);

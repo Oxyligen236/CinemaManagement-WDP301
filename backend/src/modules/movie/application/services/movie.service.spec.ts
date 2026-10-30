@@ -35,6 +35,7 @@ const buildFile = (
   }) as Express.Multer.File;
 
 const buildMovieDoc = (overrides: Record<string, unknown> = {}) => ({
+  _id: 'm1',
   movieId: 'm1',
   movieName: 'Film',
   duration: 100,
@@ -54,6 +55,7 @@ describe('MovieService', () => {
     create: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
+    findById: jest.fn(),
     countDocuments: jest.fn(),
   };
   const genreModel = { find: jest.fn() };
@@ -255,7 +257,7 @@ describe('MovieService', () => {
       plainToInstance(CreateMovieReqDto, {
         movieName: 'Film',
         duration: 100,
-        genreIds: ['g1'],
+        genreIds: ['507f1f77bcf86cd799439011'],
         posterKey: 'movies/posters/uuid-name.png',
         ...extra,
       });
@@ -330,7 +332,7 @@ describe('MovieService', () => {
 
   describe('deactivateMovie', () => {
     it('throws NotFoundException when movie missing', async () => {
-      movieModel.findOne.mockReturnValue({
+      movieModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
       });
       await expect(service.deactivateMovie('x')).rejects.toBeInstanceOf(
@@ -339,8 +341,11 @@ describe('MovieService', () => {
     });
 
     it('throws ConflictException when active showtimes exist', async () => {
-      const doc = buildMovieDoc({ movieId: 'movie-with-active-showtimes' });
-      movieModel.findOne.mockReturnValue({
+      const doc = buildMovieDoc({
+        _id: 'movie-with-active-showtimes',
+        movieId: 'movie-with-active-showtimes',
+      });
+      movieModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(doc),
       });
       await expect(
@@ -352,7 +357,7 @@ describe('MovieService', () => {
 
     it('sets isActive false when no active showtimes', async () => {
       const doc = buildMovieDoc();
-      movieModel.findOne.mockReturnValue({
+      movieModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(doc),
       });
       const res = await service.deactivateMovie('m1');
@@ -367,7 +372,7 @@ describe('MovieService', () => {
         exec: jest
           .fn()
           .mockResolvedValue([
-            { genreId: 'g1', genreName: 'Action', genreDescription: '' },
+            { _id: 'g1', genreName: 'Action', genreDescription: '' },
           ]),
       }),
     });
@@ -379,6 +384,7 @@ describe('MovieService', () => {
   describe('getMovieDetail', () => {
     it('returns movie detail with resolved genres and posterUrl', async () => {
       const movieDoc = {
+        _id: 'm1',
         movieId: 'm1',
         movieName: 'Film 1',
         duration: 120,
@@ -401,8 +407,8 @@ describe('MovieService', () => {
         select: jest.fn().mockReturnValue({
           lean: jest.fn().mockReturnValue({
             exec: jest.fn().mockResolvedValue([
-              { genreId: 'g1', genreName: 'Hành động' },
-              { genreId: 'g2', genreName: 'Phiêu lưu' },
+              { _id: 'g1', genreName: 'Hành động' },
+              { _id: 'g2', genreName: 'Phiêu lưu' },
             ]),
           }),
         }),
@@ -410,11 +416,11 @@ describe('MovieService', () => {
 
       const res = await service.getMovieDetail('m1');
       expect(movieModel.findOne).toHaveBeenCalledWith({
-        movieId: 'm1',
+        _id: 'm1',
         isActive: true,
       });
       expect(genreModel.find).toHaveBeenCalledWith({
-        genreId: { $in: ['g1', 'g2'] },
+        _id: { $in: ['g1', 'g2'] },
       });
       expect(res.movieId).toBe('m1');
       expect(res.movieName).toBe('Film 1');

@@ -14,6 +14,7 @@ const chain = (result: unknown) => ({
 });
 
 const movie = (o: Record<string, unknown> = {}) => ({
+  _id: 'm-1',
   movieId: 'm-1',
   movieName: 'Dune: Part Two',
   duration: 166,
@@ -29,6 +30,7 @@ describe('MovieOptionQueryService', () => {
     find: jest.fn(),
     countDocuments: jest.fn(),
     findOne: jest.fn(),
+    findById: jest.fn(),
   };
   const storageService = { getPublicUrl: jest.fn() };
 
@@ -36,10 +38,13 @@ describe('MovieOptionQueryService', () => {
     jest.resetAllMocks();
     storageService.getPublicUrl.mockReturnValue('https://cdn/x.jpg');
     movieModel.find.mockImplementation(() =>
-      chain([movie(), movie({ movieId: 'm-2', movieName: 'Inside Out 2' })]),
+      chain([
+        movie(),
+        movie({ _id: 'm-2', movieId: 'm-2', movieName: 'Inside Out 2' }),
+      ]),
     );
     movieModel.countDocuments.mockImplementation(() => chain(2));
-    movieModel.findOne.mockImplementation(() => chain(movie()));
+    movieModel.findById.mockImplementation(() => chain(movie()));
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -132,7 +137,7 @@ describe('MovieOptionQueryService', () => {
     it('returns scheduling info when movie exists', async () => {
       const result = await service.getMovieSchedulingInfo('m-1');
 
-      expect(movieModel.findOne).toHaveBeenCalledWith({ movieId: 'm-1' });
+      expect(movieModel.findById).toHaveBeenCalledWith('m-1');
       expect(result).toEqual({
         movieId: 'm-1',
         movieName: 'Dune: Part Two',
@@ -144,7 +149,7 @@ describe('MovieOptionQueryService', () => {
     });
 
     it('returns inactive/ended movies without filtering them', async () => {
-      movieModel.findOne.mockReturnValue(
+      movieModel.findById.mockReturnValue(
         chain(movie({ status: 'ENDED', isActive: false })),
       );
 
@@ -155,7 +160,7 @@ describe('MovieOptionQueryService', () => {
     });
 
     it('returns null when movie does not exist', async () => {
-      movieModel.findOne.mockReturnValue(chain(null));
+      movieModel.findById.mockReturnValue(chain(null));
 
       await expect(service.getMovieSchedulingInfo('zzz')).resolves.toBeNull();
     });
@@ -166,7 +171,7 @@ describe('MovieOptionQueryService', () => {
       const result = await service.getMovieSchedulingInfos(['m-1', 'm-2']);
 
       expect(movieModel.find).toHaveBeenCalledWith({
-        movieId: { $in: ['m-1', 'm-2'] },
+        _id: { $in: ['m-1', 'm-2'] },
       });
       expect(result).toHaveLength(2);
       expect(result[1].movieId).toBe('m-2');
@@ -179,7 +184,7 @@ describe('MovieOptionQueryService', () => {
   });
 
   it('propagates database errors', async () => {
-    movieModel.findOne.mockReturnValue({
+    movieModel.findById.mockReturnValue({
       lean: jest.fn().mockReturnThis(),
       exec: jest.fn().mockRejectedValue(new Error('mongo down')),
     });

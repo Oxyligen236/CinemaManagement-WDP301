@@ -2,6 +2,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsMongoId,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -33,7 +34,7 @@ export class CreateMovieReqDto {
 
   @IsNotEmpty({ message: 'The genre field is required.' })
   @IsArray()
-  @IsString({ each: true })
+  @IsMongoId({ each: true, message: 'Each genreId must be a valid MongoId' })
   genreIds!: string[];
 
   @IsOptional()
@@ -69,7 +70,7 @@ export class SearchMovieReqDto extends PageRequest {
   keyword?: string;
 
   @IsOptional()
-  @IsString()
+  @IsMongoId({ message: 'genreId must be a valid MongoId' })
   genreId?: string;
 
   @IsOptional()

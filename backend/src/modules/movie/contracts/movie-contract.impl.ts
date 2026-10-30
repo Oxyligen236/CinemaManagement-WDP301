@@ -16,7 +16,7 @@ export class MovieContractImpl implements MovieContract {
   ) {}
 
   async getMovieSummary(movieId: string): Promise<MovieSummaryDto | null> {
-    const movie = await this.movieModel.findOne({ movieId }).lean().exec();
+    const movie = await this.movieModel.findById(movieId).lean().exec();
     if (!movie) {
       return null;
     }
@@ -28,7 +28,7 @@ export class MovieContractImpl implements MovieContract {
       return [];
     }
     const movies = await this.movieModel
-      .find({ movieId: { $in: movieIds } })
+      .find({ _id: { $in: movieIds } })
       .lean()
       .exec();
     return movies.map((movie) => this.toSummary(movie));
@@ -47,7 +47,7 @@ export class MovieContractImpl implements MovieContract {
 
   private toSummary(movie: any): MovieSummaryDto {
     return {
-      movieId: movie.movieId,
+      movieId: (movie._id ?? movie.movieId)?.toString(),
       movieName: movie.movieName,
       duration: movie.duration,
       posterUrl: this.resolvePosterUrl(movie.posterKey),

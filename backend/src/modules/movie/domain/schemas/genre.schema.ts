@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Types } from 'mongoose';
 
 export type GenreDocument = HydratedDocument<Genre>;
 
@@ -9,12 +8,7 @@ export type GenreDocument = HydratedDocument<Genre>;
   timestamps: true,
 })
 export class Genre {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  genreId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
     required: true,

@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Types } from 'mongoose';
 import { BranchStatus } from '../enums/branch-status.enum';
 
 export type BranchDocument = HydratedDocument<Branch>;
@@ -10,12 +9,7 @@ export type BranchDocument = HydratedDocument<Branch>;
   timestamps: true,
 })
 export class Branch {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  branchId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
     required: true,
