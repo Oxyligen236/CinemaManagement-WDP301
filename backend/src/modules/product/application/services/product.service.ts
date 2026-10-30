@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ClientSession } from 'mongoose';
 import { Item, ItemDocument } from '../../domain/schemas/item.schema';
 import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
@@ -17,12 +17,20 @@ import { ItemStatus } from '../../domain/enums/item-status.enum';
 import { ComboStatus } from '../../domain/enums/combo-status.enum';
 import {
   BranchConcessionCatalogRes,
+  BranchConcessionComboItemRes,
   BranchConcessionComboRes,
+  BranchConcessionItemRes,
   ProductSummaryRes,
 } from '../dto/res.dto';
 import { GetBranchConcessionsUsecase } from '../usecase/get-branch-concessions.usecase';
 import { DeductConcessionStockUsecase } from '../usecase/deduct-concession-stock.usecase';
 import { ItemService } from './item.service';
+
+function toObjectId(id: string | Types.ObjectId): Types.ObjectId {
+  return typeof id === 'string' && Types.ObjectId.isValid(id)
+    ? new Types.ObjectId(id)
+    : (id as unknown as Types.ObjectId);
+}
 
 @Injectable()
 export class ProductService
@@ -48,7 +56,10 @@ export class ProductService
     branchId: string,
   ): Promise<BranchConcessionCatalogRes> {
     const branch = await this.branchModel
-      .findOne({ branchId, branchStatus: BranchStatus.ACTIVE })
+      .findOne({
+        _id: toObjectId(branchId),
+        branchStatus: BranchStatus.ACTIVE,
+      })
       .lean()
       .exec();
     if (!branch) {
@@ -59,7 +70,7 @@ export class ProductService
 
     const items = await this.itemModel
       .find({
-        branchId,
+        branchId: toObjectId(branchId),
         status: ItemStatus.AVAILABLE,
         stockQuantity: { $gt: 0 },
       })
@@ -69,24 +80,29 @@ export class ProductService
 
     const combos = await this.comboModel
       .find({
-        branchId,
+        branchId: toObjectId(branchId),
         status: ComboStatus.AVAILABLE,
       })
       .lean()
       .exec();
 
     const comboItemIds = Array.from(
-      new Set(combos.flatMap((c) => (c.items || []).map((i) => i.itemId))),
+      new Set(
+        combos.flatMap((c) => (c.items || []).map((i) => i.itemId.toString())),
+      ),
     );
 
     const relatedItems = await this.itemModel
-      .find({ itemId: { $in: comboItemIds } })
+      .find({ _id: { $in: comboItemIds.map((id) => toObjectId(id)) } })
       .lean()
       .exec();
 
     const itemMap = new Map<string, (typeof relatedItems)[0]>();
     for (const it of relatedItems) {
-      itemMap.set(it.itemId, it);
+      const itId = (it._id ?? (it as any).itemId)?.toString();
+      if (itId) {
+        itemMap.set(itId, it);
+      }
     }
 
     const storagePublicUrl =
@@ -108,7 +124,8 @@ export class ProductService
       let canServe = true;
 
       for (const sub of combo.items) {
-        const itemDoc = itemMap.get(sub.itemId);
+        const subItemIdStr = sub.itemId.toString();
+        const itemDoc = itemMap.get(subItemIdStr);
         if (
           !itemDoc ||
           itemDoc.status !== ItemStatus.AVAILABLE ||
@@ -124,38 +141,47 @@ export class ProductService
       }
 
       if (canServe && minStock > 0 && minStock !== Number.MAX_SAFE_INTEGER) {
-        validCombos.push({
-          comboId: combo.comboId,
-          name: combo.name,
-          price: combo.price,
-          availableStock: minStock,
-          imageKey: combo.imageKey ?? null,
-          imageUrl: resolveImageUrl(combo.imageKey),
-          description: combo.description ?? null,
-          items: combo.items.map((it) => ({
-            itemId: it.itemId,
-            name: itemMap.get(it.itemId)?.name || 'Món con',
-            quantity: it.quantity,
-          })),
-        });
+        const comboIdStr = (combo._id ?? (combo as any).comboId)?.toString();
+        validCombos.push(
+          BranchConcessionComboRes.from({
+            comboId: comboIdStr,
+            name: combo.name,
+            price: combo.price,
+            availableStock: minStock,
+            imageKey: combo.imageKey ?? null,
+            imageUrl: resolveImageUrl(combo.imageKey),
+            description: combo.description ?? null,
+            items: combo.items.map((it) => {
+              const subIdStr = it.itemId.toString();
+              return BranchConcessionComboItemRes.from({
+                itemId: subIdStr,
+                name: itemMap.get(subIdStr)?.name || 'Món con',
+                quantity: it.quantity,
+              });
+            }),
+          }),
+        );
       }
     }
 
-    return {
+    return BranchConcessionCatalogRes.from({
       branchId,
-      items: items.map((it) => ({
-        itemId: it.itemId,
-        name: it.name,
-        category: it.category,
-        size: it.size ?? null,
-        price: it.price,
-        stockQuantity: it.stockQuantity,
-        imageKey: it.imageKey ?? null,
-        imageUrl: resolveImageUrl(it.imageKey),
-        description: it.description ?? null,
-      })),
+      items: items.map((it) => {
+        const itemIdStr = (it._id ?? (it as any).itemId)?.toString();
+        return BranchConcessionItemRes.from({
+          itemId: itemIdStr,
+          name: it.name,
+          category: it.category,
+          size: it.size ?? null,
+          price: it.price,
+          stockQuantity: it.stockQuantity,
+          imageKey: it.imageKey ?? null,
+          imageUrl: resolveImageUrl(it.imageKey),
+          description: it.description ?? null,
+        });
+      }),
       combos: validCombos,
-    };
+    });
   }
 
   async deductConcessionStock(
@@ -165,19 +191,24 @@ export class ProductService
     if (!items || items.length === 0) return;
 
     const productIds = items.map((i) => i.productId);
+    const productObjIds = productIds.map((id) => toObjectId(id));
     const [foundItems, foundCombos] = await Promise.all([
       this.itemModel
-        .find({ itemId: { $in: productIds } })
+        .find({ _id: { $in: productObjIds } })
         .lean()
         .exec(),
       this.comboModel
-        .find({ comboId: { $in: productIds } })
+        .find({ _id: { $in: productObjIds } })
         .lean()
         .exec(),
     ]);
 
-    const itemIdsSet = new Set(foundItems.map((i) => i.itemId));
-    const comboMap = new Map(foundCombos.map((c) => [c.comboId, c]));
+    const itemIdsSet = new Set(
+      foundItems.map((i) => (i._id ?? (i as any).itemId)?.toString()),
+    );
+    const comboMap = new Map(
+      foundCombos.map((c) => [(c._id ?? (c as any).comboId)?.toString(), c]),
+    );
 
     const deductMap = new Map<string, number>();
 
@@ -191,9 +222,11 @@ export class ProductService
       } else if (comboMap.has(reqItem.productId)) {
         const combo = comboMap.get(reqItem.productId)!;
         for (const sub of combo.items || []) {
+          const subItemIdStr = sub.itemId.toString();
           deductMap.set(
-            sub.itemId,
-            (deductMap.get(sub.itemId) || 0) + sub.quantity * reqItem.quantity,
+            subItemIdStr,
+            (deductMap.get(subItemIdStr) || 0) +
+              sub.quantity * reqItem.quantity,
           );
         }
       } else {
@@ -204,10 +237,11 @@ export class ProductService
     }
 
     for (const [itemId, qty] of deductMap.entries()) {
+      const itemObjId = toObjectId(itemId);
       const updated = await this.itemModel
         .findOneAndUpdate(
           {
-            itemId,
+            _id: itemObjId,
             stockQuantity: { $gte: qty },
           },
           {
@@ -219,7 +253,7 @@ export class ProductService
 
       if (!updated) {
         const currentQuery = this.itemModel
-          .findOne({ itemId })
+          .findById(itemObjId)
           .select('name stockQuantity')
           .lean();
         if (session) currentQuery.session(session);
@@ -235,7 +269,7 @@ export class ProductService
         updated.status === ItemStatus.AVAILABLE
       ) {
         const statusUpdate = this.itemModel.updateOne(
-          { itemId },
+          { _id: itemObjId },
           { $set: { status: ItemStatus.OUT_OF_STOCK } },
           session ? { session } : {},
         );

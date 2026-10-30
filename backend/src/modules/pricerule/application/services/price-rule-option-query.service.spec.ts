@@ -16,8 +16,11 @@ import { SeatPriceRule } from '../../domain/schemas/seat-price-rule.schema';
 import { PriceRuleOptionQueryService } from './price-rule-option-query.service';
 
 const T = new Date('2026-10-23T00:00:00Z');
+const RULE_ID_1 = '507f1f77bcf86cd799439011';
+const RULE_ID_2 = '507f1f77bcf86cd799439012';
+
 const rule = (o: Partial<Record<string, unknown>> = {}) => ({
-  ruleId: 'r-vip-15',
+  _id: RULE_ID_1,
   seatType: 'VIP',
   adjustmentValue: 1.5,
   createdAt: T,
@@ -52,7 +55,7 @@ describe('PriceRuleOptionQueryService', () => {
       seatModel.find.mockImplementation((q: { seatType: string }) =>
         chain(
           q.seatType === 'VIP'
-            ? [rule(), rule({ ruleId: 'r-vip-17', adjustmentValue: 1.7 })]
+            ? [rule(), rule({ _id: RULE_ID_2, adjustmentValue: 1.7 })]
             : [],
         ),
       );
@@ -74,8 +77,8 @@ describe('PriceRuleOptionQueryService', () => {
       ]);
       expect(result[0].label).toBe('VIP Seat Multiplier');
       expect(result[0].values).toEqual([
-        { ruleId: 'r-vip-15', multiplier: 1.5, updatedAt: T },
-        { ruleId: 'r-vip-17', multiplier: 1.7, updatedAt: T },
+        { ruleId: RULE_ID_1, multiplier: 1.5, updatedAt: T },
+        { ruleId: RULE_ID_2, multiplier: 1.7, updatedAt: T },
       ]);
       expect(result[1].values).toEqual([]);
       expect(result[2].values).toEqual([]);
@@ -110,19 +113,19 @@ describe('PriceRuleOptionQueryService', () => {
   describe('resolvePriceSelections', () => {
     it('chọn VIP 1.7 -> snapshot VIP; trường còn lại ruleId null, multiplier 1.0', async () => {
       seatModel.findOne.mockReturnValue(
-        chain(rule({ ruleId: 'r-vip-17', adjustmentValue: 1.7 })),
+        chain(rule({ _id: RULE_ID_2, adjustmentValue: 1.7 })),
       );
       const result = await service.resolvePriceSelections([
-        { group: PriceGroup.SEAT, fieldKey: 'VIP', ruleId: 'r-vip-17' },
+        { group: PriceGroup.SEAT, fieldKey: 'VIP', ruleId: RULE_ID_2 },
       ]);
       expect(seatModel.findOne).toHaveBeenCalledWith({
-        ruleId: 'r-vip-17',
+        _id: RULE_ID_2,
         seatType: 'VIP',
         adjustmentValue: { $gte: 1 },
       });
       expect(result).toEqual({
         seatPriceSelections: [
-          { seatType: SeatType.VIP, ruleId: 'r-vip-17', multiplier: 1.7 },
+          { seatType: SeatType.VIP, ruleId: RULE_ID_2, multiplier: 1.7 },
           { seatType: SeatType.COUPLE, ruleId: null, multiplier: 1.0 },
         ],
         dayPriceSelections: [

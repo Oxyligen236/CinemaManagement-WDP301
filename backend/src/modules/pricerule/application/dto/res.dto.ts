@@ -6,6 +6,18 @@ export class PriceValueResDto {
   ruleId!: string;
   multiplier!: number;
   updatedAt!: Date;
+
+  static from(params: {
+    ruleId: string;
+    multiplier: number;
+    updatedAt: Date;
+  }): PriceValueResDto {
+    const dto = new PriceValueResDto();
+    dto.ruleId = params.ruleId;
+    dto.multiplier = params.multiplier;
+    dto.updatedAt = params.updatedAt;
+    return dto;
+  }
 }
 
 export class PriceFieldResDto {

@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { Model, Types, isValidObjectId } from 'mongoose';
 import { ValidatePromotionUsecase } from '../usecase/validate-promotion.usecase';
 import { GetPublicPromotionUsecase } from '../usecase/get-public-promotion.usecase';
 import { RecordPromotionUsageUsecase } from '../usecase/record-promotion-usage.usecase';
@@ -115,10 +114,19 @@ export class PromotionPublicService
       };
     }
 
+    const promoIdStr = promotion._id.toString();
+
     if (userId) {
+      const promoObjectId = isValidObjectId(promoIdStr)
+        ? new Types.ObjectId(promoIdStr)
+        : promoIdStr;
+      const userObjectId = isValidObjectId(userId)
+        ? new Types.ObjectId(userId)
+        : userId;
+
       const hasUsed = await this.promotionUsageModel.exists({
-        promotionId: promotion.promotionId,
-        userId,
+        promotionId: promoObjectId,
+        userId: userObjectId,
       });
 
       if (hasUsed) {
@@ -145,7 +153,7 @@ export class PromotionPublicService
 
     return {
       isValid: true,
-      promotionId: promotion.promotionId,
+      promotionId: promoIdStr,
       promotionCode: promotion.promotionCode,
       discountType: promotion.discountType,
       discountValue: promotion.discountValue,
@@ -160,18 +168,30 @@ export class PromotionPublicService
   }): Promise<void> {
     const { promotionId, userId, orderId } = params;
     try {
+      const promoObjectId = isValidObjectId(promotionId)
+        ? new Types.ObjectId(promotionId)
+        : promotionId;
+      const userObjectId = isValidObjectId(userId)
+        ? new Types.ObjectId(userId)
+        : userId;
+      const orderObjectId = isValidObjectId(orderId)
+        ? new Types.ObjectId(orderId)
+        : orderId;
+
       await this.promotionUsageModel.create({
-        usageId: randomUUID(),
-        promotionId,
-        userId,
-        orderId,
+        promotionId: promoObjectId,
+        userId: userObjectId,
+        orderId: orderObjectId,
         usedAt: new Date(),
       });
 
-      await this.promotionModel.updateOne(
-        { promotionId },
-        { $inc: { usedCount: 1 } },
-      );
+      const promoQuery = isValidObjectId(promotionId)
+        ? { _id: promotionId }
+        : { _id: null };
+
+      await this.promotionModel.updateOne(promoQuery, {
+        $inc: { usedCount: 1 },
+      });
     } catch (err: unknown) {
       const mongoError = err as { code?: number };
       if (mongoError?.code === 11000) {
@@ -185,21 +205,25 @@ export class PromotionPublicService
   async getPromotionById(
     promotionId: string,
   ): Promise<PromotionResponseDto | null> {
-    const promo = await this.promotionModel.findOne({ promotionId }).exec();
+    if (!isValidObjectId(promotionId)) {
+      return null;
+    }
+
+    const promo = await this.promotionModel.findById(promotionId).exec();
     if (!promo) {
       return null;
     }
 
-    return PromotionResponseDto.of(
-      promo.promotionId,
-      promo.promotionCode,
-      promo.discountValue,
-      promo.discountType,
-      promo.startDate,
-      promo.endDate,
-      promo.isActive,
-      promo.createdAt,
-      promo.updatedAt,
-    );
+    return PromotionResponseDto.from({
+      promotionId: promo._id.toString(),
+      promotionCode: promo.promotionCode,
+      discountValue: promo.discountValue,
+      discountType: promo.discountType,
+      startDate: promo.startDate,
+      endDate: promo.endDate,
+      isActive: promo.isActive,
+      createdAt: promo.createdAt,
+      updatedAt: promo.updatedAt,
+    });
   }
 }

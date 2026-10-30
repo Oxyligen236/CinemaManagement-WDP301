@@ -6,7 +6,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../../auth/infra/guards/role.guard';
 import { Roles } from '../../../auth/infra/decorators/role.decorator';
@@ -32,7 +32,11 @@ export class StaffProductController {
   ): Promise<BranchConcessionCatalogRes> {
     const authUser = req.user as AuthUser;
     const user = await this.userModel
-      .findOne({ userId: authUser.sub })
+      .findById(
+        Types.ObjectId.isValid(authUser.sub)
+          ? new Types.ObjectId(authUser.sub)
+          : authUser.sub,
+      )
       .select('branchId isActive')
       .lean()
       .exec();
@@ -43,6 +47,6 @@ export class StaffProductController {
       );
     }
 
-    return this.productService.getBranchConcessions(user.branchId);
+    return this.productService.getBranchConcessions(user.branchId.toString());
   }
 }

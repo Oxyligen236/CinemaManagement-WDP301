@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
 import { Seat, SeatDocument } from '../../../room/domain/schemas/seat.schema';
 import {
   SeatShowtime,
@@ -25,34 +25,51 @@ export class SeatShowtimeQueryService implements GetShowtimeSeatsUsecase {
   ) {}
 
   async getShowtimeSeats(showtimeId: string): Promise<SeatShowtimeResDto[]> {
-    const exists = await this.showtimeModel.exists({ showtimeId });
+    if (!isValidObjectId(showtimeId)) {
+      throw new NotFoundException('Showtime not found');
+    }
+    const stObjId = new Types.ObjectId(showtimeId);
+    const exists = await this.showtimeModel.exists({ _id: stObjId });
     if (!exists) {
       throw new NotFoundException('Showtime not found');
     }
 
     const seatShowtimes = await this.seatShowtimeModel
-      .find({ showtimeId })
+      .find({ showtimeId: stObjId })
       .lean()
       .exec();
+
+    const seatObjectIds = seatShowtimes
+      .map((s) => s.seatId)
+      .filter((id) => Boolean(id));
+
     const seats = await this.seatModel
-      .find({ seatId: { $in: seatShowtimes.map((s) => s.seatId) } })
+      .find({
+        _id: { $in: seatObjectIds },
+      })
       .lean()
       .exec();
-    const seatById = new Map(seats.map((seat) => [seat.seatId, seat]));
+
+    const seatById = new Map<string, (typeof seats)[0]>();
+    for (const seat of seats) {
+      seatById.set(seat._id.toString(), seat);
+    }
 
     return seatShowtimes
       .flatMap((item) => {
-        const seat = seatById.get(item.seatId);
+        const seat = seatById.get(item.seatId.toString());
         if (!seat) return [];
-        const dto = new SeatShowtimeResDto();
-        dto.seatShowtimeId = item.seatShowtimeId;
-        dto.showtimeId = item.showtimeId;
-        dto.seatId = item.seatId;
-        dto.seatStatus = item.seatStatus;
-        dto.rowPosition = seat.rowPosition;
-        dto.columnPosition = seat.columnPosition;
-        dto.seatType = seat.seatType;
-        return [dto];
+        return [
+          SeatShowtimeResDto.from({
+            seatShowtimeId: item._id.toString(),
+            showtimeId: item.showtimeId.toString(),
+            seatId: seat._id.toString(),
+            seatStatus: item.seatStatus,
+            rowPosition: seat.rowPosition,
+            columnPosition: seat.columnPosition,
+            seatType: seat.seatType,
+          }),
+        ];
       })
       .sort(
         (a, b) =>

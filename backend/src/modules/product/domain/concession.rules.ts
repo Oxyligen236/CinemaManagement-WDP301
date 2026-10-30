@@ -15,6 +15,9 @@ export const CONCESSION_MESSAGES = {
     'Một hoặc nhiều sản phẩm thành phần không tồn tại trong chi nhánh.',
   COMBO_PRICE_HIGHER_THAN_SUM:
     'Giá bán combo không nên cao hơn tổng giá bán lẻ của các món thành phần.',
+  EXCEL_FILE_REQUIRED: 'Vui lòng chọn file Excel để tải lên.',
+  INVALID_EXCEL_FORMAT: 'Định dạng file Excel không hợp lệ.',
+  EMPTY_EXCEL_SHEET: 'Trang tính Excel không chứa dữ liệu hợp lệ.',
   EXCEL_EMPTY_FILE: 'File Excel không có dữ liệu hoặc không đúng định dạng.',
   EXCEL_INVALID_HEADER:
     'Cấu trúc tiêu đề cột file Excel không hợp lệ. Vui lòng tải file mẫu.',

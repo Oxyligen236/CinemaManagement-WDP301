@@ -6,18 +6,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
-import { Page } from '../../../../common/dto/page.dto';
+import { Model, Types } from 'mongoose';
+import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
+import { Item, ItemDocument } from '../../domain/schemas/item.schema';
 import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
-import { Role } from '../../../user/domain/enums/role.enum';
 import {
   Branch,
   BranchDocument,
 } from '../../../branch/domain/schemas/branch.schema';
+import { Role } from '../../../user/domain/enums/role.enum';
 import { BranchStatus } from '../../../branch/domain/enums/branch-status.enum';
-import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
-import { Item, ItemDocument } from '../../domain/schemas/item.schema';
 import { ComboStatus } from '../../domain/enums/combo-status.enum';
 import { ItemStatus } from '../../domain/enums/item-status.enum';
 import { ItemCategory } from '../../domain/enums/item-category.enum';
@@ -33,12 +31,19 @@ import {
   ComboRes,
   DeleteMutationRes,
 } from '../dto/res.dto';
+import { Page } from '../../../../common/dto/page.dto';
 import { CreateComboUsecase } from '../usecase/create-combo.usecase';
 import { UpdateComboUsecase } from '../usecase/update-combo.usecase';
 import { QueryBranchCombosUsecase } from '../usecase/query-branch-combos.usecase';
 import { GetComboDetailUsecase } from '../usecase/get-combo-detail.usecase';
 import { ChangeComboStatusUsecase } from '../usecase/change-combo-status.usecase';
 import { DeleteComboUsecase } from '../usecase/delete-combo.usecase';
+
+function toObjectId(id: string | Types.ObjectId): Types.ObjectId {
+  return typeof id === 'string' && Types.ObjectId.isValid(id)
+    ? new Types.ObjectId(id)
+    : (id as unknown as Types.ObjectId);
+}
 
 @Injectable()
 export class ComboService
@@ -67,10 +72,11 @@ export class ComboService
     imageKey?: string,
   ): Promise<ComboMutationRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
+    const branchObjId = toObjectId(branchId);
 
     const trimmedName = req.name.trim();
     const existing = await this.comboModel
-      .findOne({ branchId, name: trimmedName })
+      .findOne({ branchId: branchObjId, name: trimmedName })
       .lean()
       .exec();
     if (existing) {
@@ -87,23 +93,25 @@ export class ComboService
 
     const finalImageKey = imageKey ?? req.imageKey ?? null;
     const newCombo = new this.comboModel({
-      comboId: randomUUID(),
-      branchId,
+      branchId: branchObjId,
       name: trimmedName,
       price: req.price,
       status: req.status ?? ComboStatus.AVAILABLE,
       imageKey: finalImageKey,
       description: req.description?.trim() ?? null,
-      items: req.items.map((i) => ({ itemId: i.itemId, quantity: i.quantity })),
+      items: req.items.map((i) => ({
+        itemId: toObjectId(i.itemId),
+        quantity: i.quantity,
+      })),
     });
 
     const saved = await newCombo.save();
     const comboRes = this.mapToComboRes(saved.toObject(), itemsMap);
 
-    return {
+    return ComboMutationRes.from({
       message: 'Tạo gói combo thành công',
       combo: comboRes,
-    };
+    });
   }
 
   async updateCombo(
@@ -113,8 +121,12 @@ export class ComboService
     imageKey?: string,
   ): Promise<ComboMutationRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
+    const branchObjId = toObjectId(branchId);
+    const comboObjId = toObjectId(comboId);
 
-    const combo = await this.comboModel.findOne({ comboId, branchId }).exec();
+    const combo = await this.comboModel
+      .findOne({ _id: comboObjId, branchId: branchObjId })
+      .exec();
     if (!combo) {
       throw new NotFoundException(
         'Không tìm thấy gói combo trong chi nhánh này',
@@ -124,7 +136,11 @@ export class ComboService
     if (req.name !== undefined) {
       const trimmedName = req.name.trim();
       const duplicate = await this.comboModel
-        .findOne({ branchId, name: trimmedName, comboId: { $ne: comboId } })
+        .findOne({
+          branchId: branchObjId,
+          name: trimmedName,
+          _id: { $ne: comboObjId },
+        })
         .lean()
         .exec();
       if (duplicate) {
@@ -160,21 +176,21 @@ export class ComboService
         req.items.map((i) => i.itemId),
       );
       combo.items = req.items.map((i) => ({
-        itemId: i.itemId,
+        itemId: toObjectId(i.itemId),
         quantity: i.quantity,
       }));
     }
 
     const updated = await combo.save();
 
-    const allItemIds = updated.items.map((i) => i.itemId);
+    const allItemIds = updated.items.map((i) => i.itemId.toString());
     const itemsMap = await this.fetchItemsMap(allItemIds);
     const comboRes = this.mapToComboRes(updated.toObject(), itemsMap);
 
-    return {
+    return ComboMutationRes.from({
       message: 'Cập nhật gói combo thành công',
       combo: comboRes,
-    };
+    });
   }
 
   async queryBranchCombos(
@@ -182,8 +198,9 @@ export class ComboService
     req: QueryBranchCombosReq,
   ): Promise<Page<ComboRes>> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
+    const branchObjId = toObjectId(branchId);
 
-    const filter: Record<string, unknown> = { branchId };
+    const filter: Record<string, unknown> = { branchId: branchObjId };
 
     if (req.status) {
       filter.status = req.status;
@@ -210,7 +227,9 @@ export class ComboService
     ]);
 
     const itemIds = Array.from(
-      new Set(combos.flatMap((c) => c.items?.map((i) => i.itemId) ?? [])),
+      new Set(
+        combos.flatMap((c) => c.items?.map((i) => i.itemId.toString()) ?? []),
+      ),
     );
     const itemsMap = await this.fetchItemsMap(itemIds);
 
@@ -224,9 +243,11 @@ export class ComboService
     comboId: string,
   ): Promise<ComboRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
+    const branchObjId = toObjectId(branchId);
+    const comboObjId = toObjectId(comboId);
 
     const combo = await this.comboModel
-      .findOne({ comboId, branchId })
+      .findOne({ _id: comboObjId, branchId: branchObjId })
       .lean()
       .exec();
     if (!combo) {
@@ -235,7 +256,7 @@ export class ComboService
       );
     }
 
-    const itemIds = combo.items?.map((i) => i.itemId) ?? [];
+    const itemIds = combo.items?.map((i) => i.itemId.toString()) ?? [];
     const itemsMap = await this.fetchItemsMap(itemIds);
 
     return this.mapToComboRes(combo, itemsMap);
@@ -247,8 +268,12 @@ export class ComboService
     req: ChangeComboStatusReq,
   ): Promise<ComboMutationRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
+    const branchObjId = toObjectId(branchId);
+    const comboObjId = toObjectId(comboId);
 
-    const combo = await this.comboModel.findOne({ comboId, branchId }).exec();
+    const combo = await this.comboModel
+      .findOne({ _id: comboObjId, branchId: branchObjId })
+      .exec();
     if (!combo) {
       throw new NotFoundException(
         'Không tìm thấy gói combo trong chi nhánh này',
@@ -258,13 +283,13 @@ export class ComboService
     combo.status = req.status;
     const updated = await combo.save();
 
-    const itemIds = updated.items?.map((i) => i.itemId) ?? [];
+    const itemIds = updated.items?.map((i) => i.itemId.toString()) ?? [];
     const itemsMap = await this.fetchItemsMap(itemIds);
 
-    return {
+    return ComboMutationRes.from({
       message: 'Thay đổi trạng thái combo thành công',
       combo: this.mapToComboRes(updated.toObject(), itemsMap),
-    };
+    });
   }
 
   async deleteCombo(
@@ -272,9 +297,11 @@ export class ComboService
     comboId: string,
   ): Promise<DeleteMutationRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
+    const branchObjId = toObjectId(branchId);
+    const comboObjId = toObjectId(comboId);
 
     const result = await this.comboModel
-      .deleteOne({ comboId, branchId })
+      .deleteOne({ _id: comboObjId, branchId: branchObjId })
       .exec();
     if (result.deletedCount === 0) {
       throw new NotFoundException(
@@ -282,16 +309,17 @@ export class ComboService
       );
     }
 
-    return {
+    return DeleteMutationRes.from({
       message: 'Xóa gói combo thành công',
       id: comboId,
-    };
+    });
   }
 
   private async resolveManagerBranchId(managerUserId: string): Promise<string> {
+    const userObjId = toObjectId(managerUserId);
     const manager = await this.userModel
-      .findOne({ userId: managerUserId, role: Role.BRANCHMANAGER })
-      .select('branchId isActive')
+      .findOne({ _id: userObjId, role: Role.BRANCHMANAGER })
+      .select('_id branchId isActive')
       .lean()
       .exec();
 
@@ -307,10 +335,10 @@ export class ComboService
 
     const branch = await this.branchModel
       .findOne({
-        branchId: manager.branchId,
+        _id: toObjectId(manager.branchId),
         branchStatus: BranchStatus.ACTIVE,
       })
-      .select('branchId')
+      .select('_id')
       .lean()
       .exec();
 
@@ -320,7 +348,7 @@ export class ComboService
       );
     }
 
-    return branch.branchId;
+    return branch._id.toString();
   }
 
   private validateUniqueItemIds(itemIds: string[]): void {
@@ -339,8 +367,10 @@ export class ComboService
     branchId: string,
     itemIds: string[],
   ): Promise<Map<string, ItemDocument>> {
+    const branchObjId = toObjectId(branchId);
+    const itemObjIds = itemIds.map(toObjectId);
     const items = await this.itemModel
-      .find({ itemId: { $in: itemIds }, branchId })
+      .find({ _id: { $in: itemObjIds }, branchId: branchObjId })
       .exec();
 
     if (items.length !== itemIds.length) {
@@ -351,7 +381,8 @@ export class ComboService
 
     const map = new Map<string, ItemDocument>();
     for (const item of items) {
-      map.set(item.itemId, item);
+      const idStr = (item._id ?? (item as any).itemId)?.toString();
+      map.set(idStr, item);
     }
     return map;
   }
@@ -360,14 +391,16 @@ export class ComboService
     if (!itemIds || itemIds.length === 0) {
       return new Map();
     }
+    const itemObjIds = itemIds.map(toObjectId);
     const items = await this.itemModel
-      .find({ itemId: { $in: itemIds } })
+      .find({ _id: { $in: itemObjIds } })
       .lean()
       .exec();
 
     const map = new Map<string, Item>();
     for (const item of items) {
-      map.set(item.itemId, item);
+      const idStr = (item._id ?? (item as any).itemId)?.toString();
+      map.set(idStr, item);
     }
     return map;
   }
@@ -382,7 +415,8 @@ export class ComboService
     let allItemsAvailable = true;
 
     for (const ref of combo.items || []) {
-      const item = itemsMap.get(ref.itemId);
+      const refItemIdStr = ref.itemId.toString();
+      const item = itemsMap.get(refItemIdStr);
       const isItemAvailable =
         Boolean(item) &&
         item!.status === ItemStatus.AVAILABLE &&
@@ -403,16 +437,18 @@ export class ComboService
         stockLimits.push(0);
       }
 
-      itemDetails.push({
-        itemId: ref.itemId,
-        name: item ? item.name : 'Món không tồn tại',
-        category: item ? item.category : ItemCategory.OTHER,
-        size: item?.size ?? null,
-        quantity: ref.quantity,
-        unitPrice,
-        currentStock,
-        isItemAvailable,
-      });
+      itemDetails.push(
+        ComboItemDetailRes.from({
+          itemId: refItemIdStr,
+          name: item ? item.name : 'Món không tồn tại',
+          category: item ? item.category : ItemCategory.OTHER,
+          size: item?.size ?? null,
+          quantity: ref.quantity,
+          unitPrice,
+          currentStock,
+          isItemAvailable,
+        }),
+      );
     }
 
     const availableStock =
@@ -424,10 +460,12 @@ export class ComboService
       allItemsAvailable;
 
     const savingsAmount = Math.max(0, originalTotalPrice - combo.price);
+    const comboIdStr = (combo._id ?? (combo as any).comboId)?.toString();
+    const branchIdStr = (combo.branchId ?? '').toString();
 
-    return {
-      comboId: combo.comboId,
-      branchId: combo.branchId,
+    return ComboRes.from({
+      comboId: comboIdStr,
+      branchId: branchIdStr,
       name: combo.name,
       price: combo.price,
       originalTotalPrice,
@@ -440,6 +478,6 @@ export class ComboService
       items: itemDetails,
       createdAt: combo.createdAt ? combo.createdAt.toISOString() : undefined,
       updatedAt: combo.updatedAt ? combo.updatedAt.toISOString() : undefined,
-    };
+    });
   }
 }

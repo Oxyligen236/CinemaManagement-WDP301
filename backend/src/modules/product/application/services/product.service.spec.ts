@@ -17,6 +17,7 @@ describe('ProductService', () => {
     find: jest.Mock;
     findOne: jest.Mock;
     findOneAndUpdate: jest.Mock;
+    findById: jest.Mock;
     updateOne: jest.Mock;
   };
 
@@ -36,6 +37,7 @@ describe('ProductService', () => {
     mockItemModel = {
       find: jest.fn(),
       findOne: jest.fn(),
+      findById: jest.fn(),
       findOneAndUpdate: jest.fn(),
       updateOne: jest.fn(),
     };
@@ -323,9 +325,9 @@ describe('ProductService', () => {
       ]);
 
       expect(mockItemModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { itemId: 'ITEM-1', stockQuantity: { $gte: 2 } },
+        { _id: 'ITEM-1', stockQuantity: { $gte: 2 } },
         { $inc: { stockQuantity: -2 } },
-        { new: true },
+        expect.objectContaining({ new: true }),
       );
       expect(mockItemModel.updateOne).not.toHaveBeenCalled();
     });
@@ -335,6 +337,7 @@ describe('ProductService', () => {
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue([
             {
+              _id: 'ITEM-1',
               itemId: 'ITEM-1',
               stockQuantity: 2,
               status: ItemStatus.AVAILABLE,
@@ -351,6 +354,7 @@ describe('ProductService', () => {
 
       mockItemModel.findOneAndUpdate.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
+          _id: 'ITEM-1',
           itemId: 'ITEM-1',
           stockQuantity: 0,
           status: ItemStatus.AVAILABLE,
@@ -366,7 +370,7 @@ describe('ProductService', () => {
       ]);
 
       expect(mockItemModel.updateOne).toHaveBeenCalledWith(
-        { itemId: 'ITEM-1' },
+        { _id: 'ITEM-1' },
         { $set: { status: ItemStatus.OUT_OF_STOCK } },
         {},
       );
@@ -383,6 +387,7 @@ describe('ProductService', () => {
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue([
             {
+              _id: 'COMBO-1',
               comboId: 'COMBO-1',
               items: [
                 { itemId: 'ITEM-POPCORN', quantity: 2 },
@@ -406,14 +411,14 @@ describe('ProductService', () => {
       ]);
 
       expect(mockItemModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { itemId: 'ITEM-POPCORN', stockQuantity: { $gte: 4 } },
+        { _id: 'ITEM-POPCORN', stockQuantity: { $gte: 4 } },
         { $inc: { stockQuantity: -4 } },
-        { new: true },
+        expect.objectContaining({ new: true }),
       );
       expect(mockItemModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { itemId: 'ITEM-COKE', stockQuantity: { $gte: 2 } },
+        { _id: 'ITEM-COKE', stockQuantity: { $gte: 2 } },
         { $inc: { stockQuantity: -2 } },
-        { new: true },
+        expect.objectContaining({ new: true }),
       );
     });
 
@@ -459,7 +464,7 @@ describe('ProductService', () => {
         exec: jest.fn().mockResolvedValue(null),
       });
 
-      mockItemModel.findOne.mockReturnValue({
+      mockItemModel.findById.mockReturnValue({
         select: jest.fn().mockReturnValue({
           lean: jest.fn().mockReturnValue({
             exec: jest.fn().mockResolvedValue({

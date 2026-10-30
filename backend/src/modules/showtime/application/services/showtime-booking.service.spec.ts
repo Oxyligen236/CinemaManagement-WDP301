@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import type { MovieDocument } from '../../../movie/domain/schemas/movie.schema';
 import type { RoomDocument } from '../../../room/domain/schemas/room.schema';
 import type { SeatDocument } from '../../../room/domain/schemas/seat.schema';
@@ -32,6 +32,13 @@ describe('ShowtimeBookingService', () => {
     find: jest.Mock;
   };
 
+  const SS1_ID = new Types.ObjectId();
+  const SS2_ID = new Types.ObjectId();
+  const ST1_ID = new Types.ObjectId();
+  const S1_ID = new Types.ObjectId();
+  const R1_ID = new Types.ObjectId();
+  const M1_ID = new Types.ObjectId();
+
   beforeEach(() => {
     mockSeatShowtimeModel = {
       find: jest.fn(),
@@ -60,19 +67,21 @@ describe('ShowtimeBookingService', () => {
     mockSeatShowtimeModel.find.mockReturnValue(
       query([
         {
-          seatShowtimeId: 'ss1',
-          showtimeId: 'st1',
-          seatId: 's1',
+          _id: SS1_ID,
+          showtimeId: ST1_ID,
+          seatId: S1_ID,
           seatStatus: SeatShowtimeStatus.EMPTY,
         },
       ]),
     );
     jest.spyOn(service, 'getSeatBookingDetails').mockResolvedValue([]);
-    await expect(service.reserveSeats(['ss1'])).resolves.toEqual([]);
+    await expect(service.reserveSeats([SS1_ID.toString()])).resolves.toEqual(
+      [],
+    );
     expect(mockSeatShowtimeModel.updateOne).toHaveBeenCalledWith(
       {
-        seatShowtimeId: 'ss1',
-        showtimeId: 'st1',
+        _id: SS1_ID,
+        showtimeId: ST1_ID,
         seatStatus: SeatShowtimeStatus.EMPTY,
       },
       { $set: { seatStatus: SeatShowtimeStatus.RESERVED } },
@@ -85,16 +94,16 @@ describe('ShowtimeBookingService', () => {
       mockSeatShowtimeModel.find.mockReturnValue(
         query([
           {
-            seatShowtimeId: 'ss1',
-            showtimeId: 'st1',
+            _id: SS1_ID,
+            showtimeId: ST1_ID,
             seatStatus: SeatShowtimeStatus.EMPTY,
           },
-          { seatShowtimeId: 'ss2', showtimeId: 'st1', seatStatus: status },
+          { _id: SS2_ID, showtimeId: ST1_ID, seatStatus: status },
         ]),
       );
-      await expect(service.reserveSeats(['ss1', 'ss2'])).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.reserveSeats([SS1_ID.toString(), SS2_ID.toString()]),
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(mockSeatShowtimeModel.updateOne).not.toHaveBeenCalled();
     },
   );
@@ -103,13 +112,13 @@ describe('ShowtimeBookingService', () => {
     mockSeatShowtimeModel.find.mockReturnValue(
       query([
         {
-          seatShowtimeId: 'ss1',
-          showtimeId: 'st1',
+          _id: SS1_ID,
+          showtimeId: ST1_ID,
           seatStatus: SeatShowtimeStatus.EMPTY,
         },
         {
-          seatShowtimeId: 'ss2',
-          showtimeId: 'st1',
+          _id: SS2_ID,
+          showtimeId: ST1_ID,
           seatStatus: SeatShowtimeStatus.EMPTY,
         },
       ]),
@@ -121,13 +130,13 @@ describe('ShowtimeBookingService', () => {
       .mockReturnValueOnce({
         exec: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
       });
-    await expect(service.reserveSeats(['ss1', 'ss2'])).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(
+      service.reserveSeats([SS1_ID.toString(), SS2_ID.toString()]),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(mockSeatShowtimeModel.updateMany).toHaveBeenCalledWith(
       {
-        seatShowtimeId: { $in: ['ss1'] },
-        showtimeId: 'st1',
+        _id: { $in: [SS1_ID] },
+        showtimeId: ST1_ID,
         seatStatus: SeatShowtimeStatus.RESERVED,
       },
       { $set: { seatStatus: SeatShowtimeStatus.EMPTY } },
@@ -138,10 +147,12 @@ describe('ShowtimeBookingService', () => {
     mockSeatShowtimeModel.updateMany.mockReturnValue({
       exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
     });
-    await expect(service.releaseSeats(['reserved', 'booked'])).resolves.toBe(1);
+    await expect(
+      service.releaseSeats([SS1_ID.toString(), SS2_ID.toString()]),
+    ).resolves.toBe(1);
     expect(mockSeatShowtimeModel.updateMany).toHaveBeenCalledWith(
       {
-        seatShowtimeId: { $in: ['reserved', 'booked'] },
+        _id: { $in: [SS1_ID, SS2_ID] },
         seatStatus: SeatShowtimeStatus.RESERVED,
       },
       { $set: { seatStatus: SeatShowtimeStatus.EMPTY } },
@@ -158,10 +169,12 @@ describe('ShowtimeBookingService', () => {
       mockSeatShowtimeModel.updateMany.mockReturnValue({
         exec: jest.fn().mockResolvedValue({ modifiedCount: 2 }),
       });
-      await expect(service.confirmSeats(['ss1', 'ss2'])).resolves.toBe(2);
+      await expect(
+        service.confirmSeats([SS1_ID.toString(), SS2_ID.toString()]),
+      ).resolves.toBe(2);
       expect(mockSeatShowtimeModel.updateMany).toHaveBeenCalledWith(
         {
-          seatShowtimeId: { $in: ['ss1', 'ss2'] },
+          _id: { $in: [SS1_ID, SS2_ID] },
           seatStatus: SeatShowtimeStatus.RESERVED,
         },
         { $set: { seatStatus: SeatShowtimeStatus.BOOKED } },
@@ -172,9 +185,9 @@ describe('ShowtimeBookingService', () => {
       mockSeatShowtimeModel.updateMany.mockReturnValue({
         exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
       });
-      await expect(service.confirmSeats(['ss1', 'ss2'])).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.confirmSeats([SS1_ID.toString(), SS2_ID.toString()]),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 
@@ -182,9 +195,9 @@ describe('ShowtimeBookingService', () => {
     mockSeatShowtimeModel.find.mockReturnValue(
       query([
         {
-          seatShowtimeId: 'ss1',
-          showtimeId: 'st1',
-          seatId: 's1',
+          _id: SS1_ID,
+          showtimeId: ST1_ID,
+          seatId: S1_ID,
           seatStatus: SeatShowtimeStatus.EMPTY,
         },
       ]),
@@ -192,9 +205,9 @@ describe('ShowtimeBookingService', () => {
     mockShowtimeModel.find.mockReturnValue(
       query([
         {
-          showtimeId: 'st1',
-          roomId: 'r1',
-          movieId: 'm1',
+          _id: ST1_ID,
+          roomId: R1_ID,
+          movieId: M1_ID,
           startTime: new Date('2026-01-01'),
           endTime: new Date('2026-01-01T02:00:00Z'),
           basePrice: 100,
@@ -204,7 +217,7 @@ describe('ShowtimeBookingService', () => {
     mockSeatModel.find.mockReturnValue(
       query([
         {
-          seatId: 's1',
+          _id: S1_ID,
           rowPosition: 'A',
           columnPosition: 2,
           seatType: 'STANDARD',
@@ -212,16 +225,18 @@ describe('ShowtimeBookingService', () => {
       ]),
     );
     mockRoomModel.find.mockReturnValue(
-      query([{ roomId: 'r1', roomName: 'Room 1' }]),
+      query([{ _id: R1_ID, roomName: 'Room 1' }]),
     );
     mockMovieModel.find.mockReturnValue(
-      query([{ movieId: 'm1', movieName: 'Film' }]),
+      query([{ _id: M1_ID, movieName: 'Film' }]),
     );
-    await expect(service.getSeatBookingDetails(['ss1'])).resolves.toEqual([
+    await expect(
+      service.getSeatBookingDetails([SS1_ID.toString()]),
+    ).resolves.toEqual([
       {
-        seatShowtimeId: 'ss1',
-        showtimeId: 'st1',
-        seatId: 's1',
+        seatShowtimeId: SS1_ID.toString(),
+        showtimeId: ST1_ID.toString(),
+        seatId: S1_ID.toString(),
         rowPosition: 'A',
         columnPosition: 2,
         seatType: 'STANDARD',
@@ -229,9 +244,9 @@ describe('ShowtimeBookingService', () => {
         basePrice: 100,
         startTime: new Date('2026-01-01'),
         endTime: new Date('2026-01-01T02:00:00Z'),
-        roomId: 'r1',
+        roomId: R1_ID.toString(),
         roomName: 'Room 1',
-        movieId: 'm1',
+        movieId: M1_ID.toString(),
         movieName: 'Film',
       },
     ]);

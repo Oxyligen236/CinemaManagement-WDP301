@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import {
   DayPriceSelection,
   DayPriceSelectionSubSchema,
@@ -15,24 +14,21 @@ export type ShowtimeDocument = HydratedDocument<Showtime>;
   timestamps: true,
 })
 export class Showtime {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  showtimeId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Movie',
     required: true,
-    trim: true,
   })
-  movieId!: string;
+  movieId!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Room',
     required: true,
-    trim: true,
   })
-  roomId!: string;
+  roomId!: Types.ObjectId;
 
   @Prop({
     required: true,
@@ -52,15 +48,15 @@ export class Showtime {
 
   /** @deprecated Giữ để đọc dữ liệu cũ; thay bằng dayPriceSelections (không còn được ghi). */
   @Prop({
-    trim: true,
+    type: MongooseSchema.Types.ObjectId,
   })
-  dayPriceRuleId?: string;
+  dayPriceRuleId?: Types.ObjectId;
 
   /** @deprecated Giữ để đọc dữ liệu cũ; thay bằng seatPriceSelections (không còn được ghi). */
   @Prop({
-    trim: true,
+    type: MongooseSchema.Types.ObjectId,
   })
-  seatPriceRuleId?: string;
+  seatPriceRuleId?: Types.ObjectId;
 
   // Snapshot hệ số giá theo loại ghế (UC-05). Suất cũ không có -> [] (coi như 1.0)
   @Prop({ type: [SeatPriceSelectionSubSchema], default: [] })
@@ -74,6 +70,5 @@ export class Showtime {
 export const ShowtimeSchema = SchemaFactory.createForClass(Showtime);
 
 ShowtimeSchema.index({ startTime: 1 });
-
 ShowtimeSchema.index({ movieId: 1, startTime: 1 });
 ShowtimeSchema.index({ roomId: 1, startTime: 1, endTime: 1 });

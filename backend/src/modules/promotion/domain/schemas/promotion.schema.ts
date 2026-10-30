@@ -1,9 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Types } from 'mongoose';
 import { DiscountType } from '../enums/discount-type.enum';
 
 export type PromotionDocument = HydratedDocument<Promotion> & {
+  _id: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -13,12 +13,7 @@ export type PromotionDocument = HydratedDocument<Promotion> & {
   timestamps: true,
 })
 export class Promotion {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  promotionId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
     required: true,

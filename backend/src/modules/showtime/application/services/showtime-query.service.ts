@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter } from 'mongoose';
+import { isValidObjectId, Model, QueryFilter, Types } from 'mongoose';
 import { Room, RoomDocument } from '../../../room/domain/schemas/room.schema';
 import { Page } from '../../../../common/dto/page.dto';
 import {
@@ -27,12 +27,15 @@ export class ShowtimeQueryService
   /**
    * Kiểm tra xem phim có suất chiếu đang lên lịch hoặc đang diễn ra không.
    *
-   * @param movieId - Mã định danh phim (string, khớp schema Showtime.movieId)
+   * @param movieId - Mã định danh phim (string ObjectId)
    * @returns true nếu có ít nhất 1 suất chiếu có endTime >= now
    */
   async hasActiveShowtimes(movieId: string): Promise<boolean> {
+    const movieFilter = isValidObjectId(movieId)
+      ? { movieId: new Types.ObjectId(movieId) }
+      : { movieId };
     const found = await this.showtimeModel.exists({
-      movieId,
+      ...movieFilter,
       endTime: { $gte: new Date() },
     });
     return found !== null;
@@ -46,21 +49,34 @@ export class ShowtimeQueryService
     const filter: QueryFilter<ShowtimeDocument> = {};
 
     if (query.movieId) {
-      filter.movieId = query.movieId;
+      if (isValidObjectId(query.movieId)) {
+        filter.movieId = new Types.ObjectId(query.movieId);
+      } else {
+        filter.movieId = query.movieId;
+      }
     }
     if (query.branchId) {
+      const branchQuery = isValidObjectId(query.branchId)
+        ? { branchId: new Types.ObjectId(query.branchId) }
+        : { branchId: query.branchId };
       const rooms = await this.roomModel
-        .find({ branchId: query.branchId })
-        .select('roomId')
+        .find(branchQuery)
+        .select('_id')
         .lean()
         .exec();
-      let roomIds = rooms.map((room) => room.roomId);
+      let roomIds = rooms.map((room) => room._id.toString());
       if (query.roomId) {
         roomIds = roomIds.filter((id) => id === query.roomId);
       }
-      filter.roomId = { $in: roomIds };
+      filter.roomId = {
+        $in: roomIds.map((id) =>
+          isValidObjectId(id) ? new Types.ObjectId(id) : id,
+        ),
+      };
     } else if (query.roomId) {
-      filter.roomId = query.roomId;
+      filter.roomId = isValidObjectId(query.roomId)
+        ? new Types.ObjectId(query.roomId)
+        : query.roomId;
     }
 
     const startTime: { $gte?: Date; $lt?: Date; $lte?: Date } = {};
@@ -126,10 +142,16 @@ export class ShowtimeQueryService
     }
 
     const query: QueryFilter<ShowtimeDocument> = {
-      roomId: { $in: scopedRoomIds },
+      roomId: {
+        $in: scopedRoomIds.map((id) =>
+          isValidObjectId(id) ? new Types.ObjectId(id) : id,
+        ),
+      },
     };
     if (filter.movieId) {
-      query.movieId = filter.movieId;
+      query.movieId = isValidObjectId(filter.movieId)
+        ? new Types.ObjectId(filter.movieId)
+        : filter.movieId;
     }
     const startTime: { $gte?: Date; $lt?: Date } = {};
     if (filter.from) startTime.$gte = filter.from;
@@ -156,7 +178,9 @@ export class ShowtimeQueryService
   }
 
   async getShowtimeDetail(showtimeId: string): Promise<ShowtimeResDto> {
-    const doc = await this.showtimeModel.findOne({ showtimeId }).exec();
+    const doc = isValidObjectId(showtimeId)
+      ? await this.showtimeModel.findById(showtimeId).exec()
+      : null;
     if (!doc) {
       throw new NotFoundException('Showtime not found');
     }

@@ -22,8 +22,9 @@ describe('PromotionAdminService', () => {
   let mockPromotionModel: any;
   let mockEventBus: jest.Mocked<InternalEventBus>;
 
+  const samplePromotionId = '507f1f77bcf86cd799439011';
   const samplePromotion = {
-    promotionId: 'test-uuid-1',
+    _id: samplePromotionId,
     promotionCode: 'SUMMER2026',
     discountValue: 20,
     discountType: DiscountType.PERCENTAGE,
@@ -38,9 +39,10 @@ describe('PromotionAdminService', () => {
     mockPromotionModel = {
       create: jest.fn(),
       findOne: jest.fn(),
+      findById: jest.fn(),
       find: jest.fn(),
       countDocuments: jest.fn(),
-      findOneAndUpdate: jest.fn(),
+      findByIdAndUpdate: jest.fn(),
     };
 
     mockEventBus = {
@@ -152,44 +154,44 @@ describe('PromotionAdminService', () => {
 
   describe('getPromotionById', () => {
     it('should return promotion by id', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
+      mockPromotionModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(samplePromotion),
       });
 
-      const result = await service.getPromotionById('test-uuid-1');
+      const result = await service.getPromotionById(samplePromotionId);
 
-      expect(result.promotionId).toBe('test-uuid-1');
+      expect(result.promotionId).toBe(samplePromotionId);
     });
 
     it('should throw NotFoundException if not found', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
+      mockPromotionModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
       });
 
-      await expect(service.getPromotionById('unknown-id')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.getPromotionById('507f1f77bcf86cd799439099'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('updatePromotion', () => {
     it('should update and publish event', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
+      mockPromotionModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(samplePromotion),
       });
-      mockPromotionModel.findOneAndUpdate.mockReturnValue({
+      mockPromotionModel.findByIdAndUpdate.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           ...samplePromotion,
           discountValue: 25,
         }),
       });
 
-      const result = await service.updatePromotion('test-uuid-1', {
+      const result = await service.updatePromotion(samplePromotionId, {
         discountValue: 25,
       });
 
-      expect(mockPromotionModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { promotionId: 'test-uuid-1' },
+      expect(mockPromotionModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        samplePromotionId,
         { $set: { discountValue: 25 } },
         { new: true },
       );
@@ -200,17 +202,20 @@ describe('PromotionAdminService', () => {
 
   describe('changePromotionStatus', () => {
     it('should toggle status to false and publish event', async () => {
-      mockPromotionModel.findOneAndUpdate.mockReturnValue({
+      mockPromotionModel.findByIdAndUpdate.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           ...samplePromotion,
           isActive: false,
         }),
       });
 
-      const result = await service.changePromotionStatus('test-uuid-1', false);
+      const result = await service.changePromotionStatus(
+        samplePromotionId,
+        false,
+      );
 
-      expect(mockPromotionModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { promotionId: 'test-uuid-1' },
+      expect(mockPromotionModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        samplePromotionId,
         { $set: { isActive: false } },
         { new: true },
       );

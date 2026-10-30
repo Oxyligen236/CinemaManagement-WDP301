@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Schema as MongooseSchema, Types } from 'mongoose';
 
 /**
  * Snapshot hệ số giá theo loại ghế tại thời điểm lưu suất chiếu.
@@ -9,8 +10,8 @@ export class SeatPriceSelection {
   @Prop({ type: String, required: true })
   seatType!: string;
 
-  @Prop({ type: String, default: null })
-  ruleId!: string | null;
+  @Prop({ type: MongooseSchema.Types.ObjectId, default: null })
+  ruleId!: Types.ObjectId | null;
 
   @Prop({ type: Number, required: true, default: 1 })
   multiplier!: number;
@@ -24,8 +25,8 @@ export class DayPriceSelection {
   @Prop({ type: String, required: true })
   dayType!: string;
 
-  @Prop({ type: String, default: null })
-  ruleId!: string | null;
+  @Prop({ type: MongooseSchema.Types.ObjectId, default: null })
+  ruleId!: Types.ObjectId | null;
 
   @Prop({ type: Number, required: true, default: 1 })
   multiplier!: number;

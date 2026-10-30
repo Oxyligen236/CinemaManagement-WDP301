@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import { ShowtimeQueryService } from './showtime-query.service';
 import { Room } from '../../../room/domain/schemas/room.schema';
 import { Showtime } from '../../domain/schemas/showtime.schema';
@@ -11,10 +12,14 @@ const chain = (result: unknown) => ({
   exec: jest.fn().mockResolvedValue(result),
 });
 
+const ST_ID = new Types.ObjectId();
+const MOVIE_ID = new Types.ObjectId();
+const ROOM_ID = new Types.ObjectId();
+
 const doc = (o: Record<string, unknown> = {}) => ({
-  showtimeId: 'st-1',
-  movieId: 'm-1',
-  roomId: 'r-1',
+  _id: ST_ID,
+  movieId: MOVIE_ID,
+  roomId: ROOM_ID,
   startTime: new Date('2026-10-25T02:30:00Z'),
   endTime: new Date('2026-10-25T05:16:00Z'),
   basePrice: 75000,
@@ -119,17 +124,16 @@ describe('ShowtimeQueryService', () => {
     });
 
     it('map 2 mảng snapshot; suất cũ không có -> []', async () => {
+      const ruleId = new Types.ObjectId();
       showtimeModel.find.mockReturnValue(
         chain([
           doc({
-            seatPriceSelections: [
-              { seatType: 'VIP', ruleId: 'a1', multiplier: 1.5 },
-            ],
+            seatPriceSelections: [{ seatType: 'VIP', ruleId, multiplier: 1.5 }],
             dayPriceSelections: [
               { dayType: 'WEEKEND', ruleId: null, multiplier: 1 },
             ],
           }),
-          doc({ showtimeId: 'st-old' }),
+          doc({ _id: new Types.ObjectId() }),
         ]),
       );
       showtimeModel.countDocuments.mockReturnValue(chain(2));
@@ -137,7 +141,7 @@ describe('ShowtimeQueryService', () => {
       const page = await service.searchShowtimesByRooms(['r-1'], {}, 1, 10);
 
       expect(page.items[0].seatPriceSelections).toEqual([
-        { seatType: 'VIP', ruleId: 'a1', multiplier: 1.5 },
+        { seatType: 'VIP', ruleId: ruleId.toString(), multiplier: 1.5 },
       ]);
       expect(page.items[0].dayPriceSelections).toEqual([
         { dayType: 'WEEKEND', ruleId: null, multiplier: 1 },

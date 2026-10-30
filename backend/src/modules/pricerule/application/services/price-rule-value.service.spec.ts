@@ -26,8 +26,11 @@ import { PriceRuleOptionQueryService } from './price-rule-option-query.service';
 import { PriceRuleValueService } from './price-rule-value.service';
 
 const T = new Date('2026-10-23T00:00:00Z');
+const RULE_ID_1 = '507f1f77bcf86cd799439011';
+const RULE_ID_2 = '507f1f77bcf86cd799439012';
+
 const rule = (o: Partial<Record<string, unknown>> = {}) => ({
-  ruleId: 'r-vip-15',
+  _id: RULE_ID_1,
   seatType: 'VIP',
   adjustmentValue: 1.5,
   createdAt: T,
@@ -49,12 +52,13 @@ const FIELD: PriceFieldResDto = {
   group: PriceGroup.SEAT,
   fieldKey: 'VIP',
   label: 'VIP Seat Multiplier',
-  values: [{ ruleId: 'r-vip-15', multiplier: 1.5, updatedAt: T }],
+  values: [{ ruleId: RULE_ID_1, multiplier: 1.5, updatedAt: T }],
 };
 
 const newModel = () => ({
   findOne: jest.fn(),
   findOneAndUpdate: jest.fn(),
+  findByIdAndDelete: jest.fn(),
   exists: jest.fn(),
   countDocuments: jest.fn(),
   create: jest.fn(),
@@ -88,7 +92,7 @@ describe('PriceRuleValueService', () => {
       seatModel.countDocuments.mockReturnValue(chain(1));
       seatModel.exists.mockReturnValue(chain(null));
       seatModel.create.mockResolvedValue(
-        rule({ ruleId: 'r-new', adjustmentValue: 1.7 }),
+        rule({ _id: RULE_ID_2, adjustmentValue: 1.7 }),
       );
     });
 
@@ -103,7 +107,7 @@ describe('PriceRuleValueService', () => {
       });
       expect(res.message).toBe(MSG_CREATE_SUCCESS);
       expect(res.value).toEqual({
-        ruleId: 'r-new',
+        ruleId: RULE_ID_2,
         multiplier: 1.7,
         updatedAt: T,
       });
@@ -121,7 +125,7 @@ describe('PriceRuleValueService', () => {
       dayModel.countDocuments.mockReturnValue(chain(0));
       dayModel.exists.mockReturnValue(chain(null));
       dayModel.create.mockResolvedValue(
-        rule({ ruleId: 'd1', adjustmentValue: 1.2, dayType: 'WEEKEND' }),
+        rule({ _id: RULE_ID_2, adjustmentValue: 1.2, dayType: 'WEEKEND' }),
       );
       await service.createPriceValue(PriceGroup.DAY, 'WEEKEND', {
         multiplier: 1.2,
@@ -238,22 +242,22 @@ describe('PriceRuleValueService', () => {
       const res = await service.updatePriceValue(
         PriceGroup.SEAT,
         'VIP',
-        'r-vip-15',
+        RULE_ID_1,
         { multiplier: 1.8 },
       );
       expect(seatModel.findOneAndUpdate).toHaveBeenCalledTimes(1);
       expect(seatModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { ruleId: 'r-vip-15', seatType: 'VIP' },
+        { _id: RULE_ID_1, seatType: 'VIP' },
         { $set: { adjustmentValue: 1.8 } },
         { new: true },
       );
       expect(seatModel.exists).toHaveBeenCalledWith({
         seatType: 'VIP',
         adjustmentValue: 1.8,
-        ruleId: { $ne: 'r-vip-15' },
+        _id: { $ne: expect.anything() },
       });
       expect(res.message).toBe(MSG03);
-      expect(res.value.ruleId).toBe('r-vip-15');
+      expect(res.value.ruleId).toBe(RULE_ID_1);
       expect(res.value.multiplier).toBe(1.8);
     });
 
@@ -262,7 +266,7 @@ describe('PriceRuleValueService', () => {
       const res = await service.updatePriceValue(
         PriceGroup.SEAT,
         'VIP',
-        'r-vip-15',
+        RULE_ID_1,
         { multiplier: 1.5 },
       );
       expect(res.message).toBe(MSG03);
@@ -271,7 +275,7 @@ describe('PriceRuleValueService', () => {
     it('trùng giá trị khác cùng trường -> 409', async () => {
       seatModel.exists.mockReturnValue(chain({ _id: 'x' }));
       const err = await service
-        .updatePriceValue(PriceGroup.SEAT, 'VIP', 'r-vip-15', {
+        .updatePriceValue(PriceGroup.SEAT, 'VIP', RULE_ID_1, {
           multiplier: 1.7,
         })
         .catch((e: unknown) => e);
@@ -283,7 +287,9 @@ describe('PriceRuleValueService', () => {
     it('ruleId không tồn tại / thuộc trường khác -> 404', async () => {
       seatModel.findOne.mockReturnValue(chain(null));
       const err = await service
-        .updatePriceValue(PriceGroup.SEAT, 'VIP', 'nope', { multiplier: 1.7 })
+        .updatePriceValue(PriceGroup.SEAT, 'VIP', '507f1f77bcf86cd799439099', {
+          multiplier: 1.7,
+        })
         .catch((e: unknown) => e);
       expect(err).toBeInstanceOf(NotFoundException);
       expect((err as Error).message).toBe(MSG_NOT_FOUND);
@@ -291,7 +297,7 @@ describe('PriceRuleValueService', () => {
 
     it('multiplier < 1.0 -> AF-2, không gọi DB', async () => {
       const err = await service
-        .updatePriceValue(PriceGroup.SEAT, 'VIP', 'r-vip-15', {
+        .updatePriceValue(PriceGroup.SEAT, 'VIP', RULE_ID_1, {
           multiplier: 0.8,
         })
         .catch((e: unknown) => e);
@@ -302,7 +308,7 @@ describe('PriceRuleValueService', () => {
     it('DB reject -> 500 MSG_SAVE_FAILED', async () => {
       seatModel.findOneAndUpdate.mockReturnValue(failing());
       const err = await service
-        .updatePriceValue(PriceGroup.SEAT, 'VIP', 'r-vip-15', {
+        .updatePriceValue(PriceGroup.SEAT, 'VIP', RULE_ID_1, {
           multiplier: 1.8,
         })
         .catch((e: unknown) => e);
@@ -314,19 +320,19 @@ describe('PriceRuleValueService', () => {
   describe('deletePriceValue', () => {
     beforeEach(() => {
       seatModel.findOne.mockReturnValue(chain(rule()));
-      seatModel.deleteOne.mockReturnValue(chain({ deletedCount: 1 }));
+      seatModel.findByIdAndDelete.mockReturnValue(chain({ _id: RULE_ID_1 }));
     });
 
     it('xóa vật lý đúng 1 lần, trả MSG_DELETE_SUCCESS với giá trị vừa xóa', async () => {
       const res = await service.deletePriceValue(
         PriceGroup.SEAT,
         'VIP',
-        'r-vip-15',
+        RULE_ID_1,
       );
-      expect(seatModel.deleteOne).toHaveBeenCalledTimes(1);
-      expect(seatModel.deleteOne).toHaveBeenCalledWith({ ruleId: 'r-vip-15' });
+      expect(seatModel.findByIdAndDelete).toHaveBeenCalledTimes(1);
+      expect(seatModel.findByIdAndDelete).toHaveBeenCalledWith(RULE_ID_1);
       expect(res.message).toBe(MSG_DELETE_SUCCESS);
-      expect(res.value.ruleId).toBe('r-vip-15');
+      expect(res.value.ruleId).toBe(RULE_ID_1);
       expect(res.field).toBe(FIELD);
     });
 
@@ -335,7 +341,7 @@ describe('PriceRuleValueService', () => {
       const res = await service.deletePriceValue(
         PriceGroup.SEAT,
         'VIP',
-        'r-vip-15',
+        RULE_ID_1,
       );
       expect(res.field.values).toEqual([]);
     });
@@ -343,24 +349,24 @@ describe('PriceRuleValueService', () => {
     it('ruleId không tồn tại / thuộc trường khác -> 404', async () => {
       seatModel.findOne.mockReturnValue(chain(null));
       const err = await service
-        .deletePriceValue(PriceGroup.SEAT, 'VIP', 'nope')
+        .deletePriceValue(PriceGroup.SEAT, 'VIP', '507f1f77bcf86cd799439099')
         .catch((e: unknown) => e);
       expect(err).toBeInstanceOf(NotFoundException);
-      expect(seatModel.deleteOne).not.toHaveBeenCalled();
+      expect(seatModel.findByIdAndDelete).not.toHaveBeenCalled();
     });
 
-    it('xóa đồng thời (deletedCount 0) -> 404', async () => {
-      seatModel.deleteOne.mockReturnValue(chain({ deletedCount: 0 }));
+    it('xóa đồng thời (findByIdAndDelete null) -> 404', async () => {
+      seatModel.findByIdAndDelete.mockReturnValue(chain(null));
       const err = await service
-        .deletePriceValue(PriceGroup.SEAT, 'VIP', 'r-vip-15')
+        .deletePriceValue(PriceGroup.SEAT, 'VIP', RULE_ID_1)
         .catch((e: unknown) => e);
       expect(err).toBeInstanceOf(NotFoundException);
     });
 
     it('DB reject -> 500 MSG_SAVE_FAILED', async () => {
-      seatModel.deleteOne.mockReturnValue(failing());
+      seatModel.findByIdAndDelete.mockReturnValue(failing());
       const err = await service
-        .deletePriceValue(PriceGroup.SEAT, 'VIP', 'r-vip-15')
+        .deletePriceValue(PriceGroup.SEAT, 'VIP', RULE_ID_1)
         .catch((e: unknown) => e);
       expect(err).toBeInstanceOf(InternalServerErrorException);
       expect((err as Error).message).toBe(MSG_SAVE_FAILED);

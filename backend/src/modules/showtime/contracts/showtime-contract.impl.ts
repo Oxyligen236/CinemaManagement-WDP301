@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
 import {
   SeatShowtime,
   SeatShowtimeDocument,
@@ -32,42 +32,39 @@ export class ShowtimeContractImpl implements ShowtimeContract {
   async getSeatShowtimeDetail(
     seatShowtimeId: string,
   ): Promise<SeatShowtimeDetailDto | null> {
-    const seatShowtime = await this.seatShowtimeModel
-      .findOne({ seatShowtimeId })
-      .lean()
-      .exec();
+    const seatShowtime = isValidObjectId(seatShowtimeId)
+      ? await this.seatShowtimeModel.findById(seatShowtimeId).lean().exec()
+      : null;
     if (!seatShowtime) return null;
+
     const [showtime, seat] = await Promise.all([
-      this.showtimeModel
-        .findOne({ showtimeId: seatShowtime.showtimeId })
-        .lean()
-        .exec(),
-      this.seatModel.findOne({ seatId: seatShowtime.seatId }).lean().exec(),
+      this.showtimeModel.findById(seatShowtime.showtimeId).lean().exec(),
+      this.seatModel.findById(seatShowtime.seatId).lean().exec(),
     ]);
     if (!showtime || !seat) return null;
+
     const [movie, room] = await Promise.all([
-      this.movieModel.findOne({ movieId: showtime.movieId }).lean().exec(),
-      this.roomModel.findOne({ roomId: showtime.roomId }).lean().exec(),
+      this.movieModel.findById(showtime.movieId).lean().exec(),
+      this.roomModel.findById(showtime.roomId).lean().exec(),
     ]);
     if (!movie || !room) return null;
-    const branch = await this.branchModel
-      .findOne({ branchId: room.branchId })
-      .lean()
-      .exec();
+
+    const branch = await this.branchModel.findById(room.branchId).lean().exec();
+
     return {
-      seatShowtimeId: seatShowtime.seatShowtimeId,
-      showtimeId: showtime.showtimeId,
-      movieId: showtime.movieId,
+      seatShowtimeId: seatShowtime._id.toString(),
+      showtimeId: showtime._id.toString(),
+      movieId: movie._id.toString(),
       movieTitle: movie.movieName,
-      roomId: room.roomId,
+      roomId: room._id.toString(),
       roomName: room.roomName,
-      seatId: seat.seatId,
+      seatId: seat._id.toString(),
       rowPosition: seat.rowPosition,
       columnPosition: seat.columnPosition,
       price: showtime.basePrice,
       startTime: showtime.startTime,
       endTime: showtime.endTime,
-      branchId: room.branchId,
+      branchId: room.branchId?.toString() ?? '',
       branchName: branch?.branchName ?? '',
       branchAddress: branch?.address,
     };

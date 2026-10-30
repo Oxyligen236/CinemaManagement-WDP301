@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { ItemStatus } from '../enums/item-status.enum';
 import { ItemCategory } from '../enums/item-category.enum';
 import { ItemSize } from '../enums/item-size.enum';
@@ -12,19 +11,15 @@ export type ItemDocument = HydratedDocument<Item>;
   timestamps: true,
 })
 export class Item {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  itemId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Branch',
     required: true,
-    trim: true,
     index: true,
   })
-  branchId!: string;
+  branchId!: Types.ObjectId;
 
   @Prop({
     required: true,

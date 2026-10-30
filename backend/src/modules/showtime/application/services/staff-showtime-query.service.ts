@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model, Types } from 'mongoose';
 import {
   Branch,
   BranchDocument,
@@ -57,18 +57,22 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
       );
     }
 
+    const branchFilter = isValidObjectId(branchId)
+      ? { $or: [{ _id: new Types.ObjectId(branchId) }, { branchId }] }
+      : { branchId };
+
     const branch = await this.branchModel
-      .findOne({ branchId })
-      .select('branchId branchName')
+      .findOne(branchFilter)
+      .select('_id branchId branchName')
       .lean()
       .exec();
 
     const rooms = await this.roomModel
       .find({
-        branchId,
+        ...branchFilter,
         roomStatus: RoomStatus.AVAILABLE,
       })
-      .select('roomId roomName branchId')
+      .select('_id roomId roomName branchId')
       .lean()
       .exec();
 
@@ -76,8 +80,18 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
       return [];
     }
 
-    const roomIds = rooms.map((r) => r.roomId);
-    const roomMap = new Map(rooms.map((r) => [r.roomId, r]));
+    const roomObjIds: (Types.ObjectId | string)[] = [];
+    const roomMap = new Map<string, (typeof rooms)[0]>();
+    for (const r of rooms) {
+      if (r._id) {
+        roomObjIds.push(r._id);
+        roomMap.set(r._id.toString(), r);
+      }
+      if ((r as any).roomId) {
+        roomObjIds.push((r as any).roomId);
+        roomMap.set((r as any).roomId, r);
+      }
+    }
 
     const now = targetDate ? new Date(targetDate) : new Date();
     const start = new Date(
@@ -87,7 +101,7 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
 
     const showtimes = await this.showtimeModel
       .find({
-        roomId: { $in: roomIds },
+        roomId: { $in: roomObjIds },
         startTime: { $gte: start, $lt: end },
       })
       .sort({ startTime: 1 })
@@ -100,14 +114,45 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
 
     const movieIds = [...new Set(showtimes.map((s) => s.movieId))];
     const movies = await this.movieModel
-      .find({ movieId: { $in: movieIds } })
+      .find({
+        $or: [
+          {
+            _id: {
+              $in: movieIds
+                .filter(isValidObjectId)
+                .map((id) => new Types.ObjectId(id as any)),
+            },
+          },
+          { movieId: { $in: movieIds.map((id) => id.toString()) } } as any,
+        ],
+      })
       .lean()
       .exec();
-    const movieMap = new Map(movies.map((m) => [m.movieId, m]));
+    const movieMap = new Map<string, (typeof movies)[0]>();
+    for (const m of movies) {
+      const idStr = m._id?.toString() ?? (m as any).movieId ?? '';
+      movieMap.set(idStr, m);
+      if ((m as any).movieId) movieMap.set((m as any).movieId, m);
+    }
 
-    const showtimeIds = showtimes.map((s) => s.showtimeId);
+    const showtimeObjectIds = showtimes.map(
+      (s) => s._id ?? (s as any).showtimeId,
+    );
     const seatShowtimes = await this.seatShowtimeModel
-      .find({ showtimeId: { $in: showtimeIds } })
+      .find({
+        $or: [
+          {
+            showtimeId: {
+              $in: showtimeObjectIds
+                .filter(isValidObjectId)
+                .map((id) => new Types.ObjectId(id as any)),
+            },
+          },
+          {
+            showtimeId: { $in: showtimeObjectIds.map((id) => id.toString()) },
+          } as any,
+        ],
+      })
       .select('showtimeId seatStatus')
       .lean()
       .exec();
@@ -118,10 +163,11 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
     >();
 
     for (const ss of seatShowtimes) {
-      let stats = seatShowtimeStatsByShowtime.get(ss.showtimeId);
+      const stIdStr = ss.showtimeId.toString();
+      let stats = seatShowtimeStatsByShowtime.get(stIdStr);
       if (!stats) {
         stats = { total: 0, available: 0 };
-        seatShowtimeStatsByShowtime.set(ss.showtimeId, stats);
+        seatShowtimeStatsByShowtime.set(stIdStr, stats);
       }
       stats.total += 1;
       if (ss.seatStatus === SeatShowtimeStatus.EMPTY) {
@@ -132,7 +178,12 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
     const roomsNeedingSeatCount = [
       ...new Set(
         showtimes
-          .filter((s) => !seatShowtimeStatsByShowtime.has(s.showtimeId))
+          .filter(
+            (s) =>
+              !seatShowtimeStatsByShowtime.has(
+                s._id?.toString() ?? (s as any).showtimeId ?? '',
+              ),
+          )
           .map((s) => s.roomId),
       ),
     ];
@@ -144,16 +195,30 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
 
     if (roomsNeedingSeatCount.length > 0) {
       const roomSeats = await this.seatModel
-        .find({ roomId: { $in: roomsNeedingSeatCount } })
+        .find({
+          $or: [
+            {
+              roomId: {
+                $in: roomsNeedingSeatCount
+                  .filter(isValidObjectId)
+                  .map((id) => new Types.ObjectId(id as any)),
+              },
+            },
+            {
+              roomId: { $in: roomsNeedingSeatCount.map((id) => id.toString()) },
+            } as any,
+          ],
+        })
         .select('roomId status')
         .lean()
         .exec();
 
       for (const seat of roomSeats) {
-        let stats = roomSeatStats.get(seat.roomId);
+        const rIdStr = seat.roomId.toString();
+        let stats = roomSeatStats.get(rIdStr);
         if (!stats) {
           stats = { total: 0, available: 0 };
-          roomSeatStats.set(seat.roomId, stats);
+          roomSeatStats.set(rIdStr, stats);
         }
         stats.total += 1;
         if (seat.status === SeatStatus.AVAILABLE) {
@@ -167,10 +232,13 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
     const branchName = branch?.branchName || '';
 
     return showtimes.map((st) => {
-      const movie = movieMap.get(st.movieId);
-      const stats = seatShowtimeStatsByShowtime.get(st.showtimeId) ||
-        roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
-      const room = roomMap.get(st.roomId);
+      const stIdStr = st._id?.toString() ?? (st as any).showtimeId ?? '';
+      const rIdStr = st.roomId?.toString() ?? (st as any).roomId ?? '';
+      const mIdStr = st.movieId?.toString() ?? (st as any).movieId ?? '';
+      const movie = movieMap.get(mIdStr);
+      const stats = seatShowtimeStatsByShowtime.get(stIdStr) ||
+        roomSeatStats.get(rIdStr) || { total: 0, available: 0 };
+      const room = roomMap.get(rIdStr);
 
       const moviePoster = movie as unknown as {
         posterKey?: string;
@@ -188,22 +256,22 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
         }
       }
 
-      const item = new StaffShowtimeItemResDto();
-      item.showtimeId = st.showtimeId;
-      item.movieId = st.movieId;
-      item.movieTitle = movie?.movieName || 'Unknown';
-      item.moviePosterUrl = moviePosterUrl;
-      item.roomId = st.roomId;
-      item.roomName = room?.roomName || 'Cinema';
-      item.branchId = branchId;
-      item.branchName = branchName;
-      item.startTime = st.startTime;
-      item.endTime = st.endTime;
-      item.basePrice = st.basePrice;
-      item.format = '2D';
-      item.availableSeats = stats.available;
-      item.totalSeats = stats.total;
-      return item;
+      return StaffShowtimeItemResDto.from({
+        showtimeId: stIdStr,
+        movieId: mIdStr,
+        movieTitle: movie?.movieName || 'Unknown',
+        moviePosterUrl,
+        roomId: rIdStr,
+        roomName: room?.roomName || 'Cinema',
+        branchId,
+        branchName,
+        startTime: st.startTime,
+        endTime: st.endTime,
+        basePrice: st.basePrice,
+        format: '2D',
+        availableSeats: stats.available,
+        totalSeats: stats.total,
+      });
     });
   }
 }

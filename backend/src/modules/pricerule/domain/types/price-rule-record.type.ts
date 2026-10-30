@@ -1,6 +1,9 @@
+import { Types } from 'mongoose';
+
 /** Hình dạng chung của document `seat_price_rules` / `day_price_rules` (mỗi document = 1 giá trị hệ số). */
 export interface PriceRuleRecord {
-  ruleId: string;
+  _id: Types.ObjectId | string;
+  ruleId?: string;
   seatType?: string;
   dayType?: string;
   adjustmentValue: number;

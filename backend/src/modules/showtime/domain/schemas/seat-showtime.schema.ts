@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { SeatShowtimeStatus } from '../enums/seat-showtime-status.enum';
 
 export type SeatShowtimeDocument = HydratedDocument<SeatShowtime>;
@@ -10,24 +9,21 @@ export type SeatShowtimeDocument = HydratedDocument<SeatShowtime>;
   timestamps: true,
 })
 export class SeatShowtime {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  seatShowtimeId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Showtime',
     required: true,
-    trim: true,
   })
-  showtimeId!: string;
+  showtimeId!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Seat',
     required: true,
-    trim: true,
   })
-  seatId!: string;
+  seatId!: Types.ObjectId;
 
   @Prop({
     type: String,

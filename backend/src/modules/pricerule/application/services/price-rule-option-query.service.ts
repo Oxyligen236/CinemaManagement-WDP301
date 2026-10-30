@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 import {
   DEFAULT_MULTIPLIER,
   MSG_INVALID_SELECTION,
@@ -111,9 +111,12 @@ export class PriceRuleOptionQueryService
         const { model, keyName } = this.modelAndKey(field.group);
         let doc: PriceRuleRecord | null;
         try {
+          const idQuery = isValidObjectId(selected.ruleId)
+            ? { _id: selected.ruleId }
+            : { _id: null };
           doc = await model
             .findOne({
-              ruleId: selected.ruleId,
+              ...idQuery,
               [keyName]: field.fieldKey,
               adjustmentValue: { $gte: MULTIPLIER_MIN },
             })
@@ -124,7 +127,7 @@ export class PriceRuleOptionQueryService
           throw new InternalServerErrorException(MSG_LOAD_FAILED);
         }
         if (!doc) throw new BadRequestException(MSG_INVALID_SELECTION);
-        ruleId = doc.ruleId;
+        ruleId = String(doc._id ?? doc.ruleId);
         multiplier = doc.adjustmentValue;
       }
 

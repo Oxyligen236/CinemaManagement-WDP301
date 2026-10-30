@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Types } from 'mongoose';
 import { DayType } from '../enums/day-type.enum';
 
 export type DayPriceRuleDocument = HydratedDocument<DayPriceRule>;
@@ -10,12 +9,7 @@ export type DayPriceRuleDocument = HydratedDocument<DayPriceRule>;
   timestamps: true,
 })
 export class DayPriceRule {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  ruleId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
     type: String,

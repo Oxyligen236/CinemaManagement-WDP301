@@ -28,12 +28,15 @@ export function resolvePriceField(
 
 /** Ánh xạ document (adjustmentValue) sang DTO (multiplier). */
 export function toPriceValueDto(doc: {
-  ruleId: string;
+  _id?: unknown;
+  ruleId?: string;
   adjustmentValue: number;
+  updatedAt?: Date;
 }): PriceValueResDto {
-  return {
-    ruleId: doc.ruleId,
+  const ruleId = String(doc._id ?? doc.ruleId ?? '');
+  return PriceValueResDto.from({
+    ruleId,
     multiplier: doc.adjustmentValue,
     updatedAt: (doc as unknown as { updatedAt: Date }).updatedAt,
-  };
+  });
 }

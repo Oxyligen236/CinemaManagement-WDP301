@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Types } from 'mongoose';
 import { SeatType } from '../enums/seat-type.enum';
 
 export type SeatPriceRuleDocument = HydratedDocument<SeatPriceRule>;
@@ -10,12 +9,7 @@ export type SeatPriceRuleDocument = HydratedDocument<SeatPriceRule>;
   timestamps: true,
 })
 export class SeatPriceRule {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  ruleId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
     type: String,

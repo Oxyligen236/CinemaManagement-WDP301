@@ -1,14 +1,17 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { ComboStatus } from '../enums/combo-status.enum';
 
 export type ComboDocument = HydratedDocument<Combo>;
 
 @Schema({ _id: false })
 export class ComboItemRef {
-  @Prop({ type: String, required: true, trim: true })
-  itemId!: string;
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Item',
+    required: true,
+  })
+  itemId!: Types.ObjectId;
 
   @Prop({ type: Number, required: true, min: 1 })
   quantity!: number;
@@ -21,19 +24,15 @@ export const ComboItemRefSchema = SchemaFactory.createForClass(ComboItemRef);
   timestamps: true,
 })
 export class Combo {
-  @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  comboId!: string;
+  _id!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Branch',
     required: true,
-    trim: true,
     index: true,
   })
-  branchId!: string;
+  branchId!: Types.ObjectId;
 
   @Prop({
     required: true,

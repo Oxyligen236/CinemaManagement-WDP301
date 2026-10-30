@@ -6,7 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 import { CreatePromotionUsecase } from '../usecase/create-promotion.usecase';
 import { UpdatePromotionUsecase } from '../usecase/update-promotion.usecase';
 import { ChangePromotionStatusUsecase } from '../usecase/change-promotion-status.usecase';
@@ -91,9 +91,11 @@ export class PromotionAdminService
       isActive: dto.isActive !== undefined ? dto.isActive : true,
     });
 
+    const promotionId = created._id.toString();
+
     await this.eventBus.publish(
       new PromotionCreatedEvent(
-        created.promotionId,
+        promotionId,
         created.promotionCode,
         created.discountType,
         created.discountValue,
@@ -103,17 +105,17 @@ export class PromotionAdminService
       ),
     );
 
-    return PromotionResponseDto.of(
-      created.promotionId,
-      created.promotionCode,
-      created.discountValue,
-      created.discountType,
-      created.startDate,
-      created.endDate,
-      created.isActive,
-      created.createdAt,
-      created.updatedAt,
-    );
+    return PromotionResponseDto.from({
+      promotionId,
+      promotionCode: created.promotionCode,
+      discountValue: created.discountValue,
+      discountType: created.discountType,
+      startDate: created.startDate,
+      endDate: created.endDate,
+      isActive: created.isActive,
+      createdAt: created.createdAt,
+      updatedAt: created.updatedAt,
+    });
   }
 
   async getPromotions(
@@ -152,17 +154,17 @@ export class PromotionAdminService
 
     return Page.from(
       items.map((p) =>
-        PromotionResponseDto.of(
-          p.promotionId,
-          p.promotionCode,
-          p.discountValue,
-          p.discountType,
-          p.startDate,
-          p.endDate,
-          p.isActive,
-          p.createdAt,
-          p.updatedAt,
-        ),
+        PromotionResponseDto.from({
+          promotionId: p._id.toString(),
+          promotionCode: p.promotionCode,
+          discountValue: p.discountValue,
+          discountType: p.discountType,
+          startDate: p.startDate,
+          endDate: p.endDate,
+          isActive: p.isActive,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        }),
       ),
       total,
       page,
@@ -171,29 +173,34 @@ export class PromotionAdminService
   }
 
   async getPromotionById(promotionId: string): Promise<PromotionResponseDto> {
-    const promotion = await this.promotionModel.findOne({ promotionId }).exec();
+    const promotion = isValidObjectId(promotionId)
+      ? await this.promotionModel.findById(promotionId).exec()
+      : null;
     if (!promotion) {
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
 
-    return PromotionResponseDto.of(
-      promotion.promotionId,
-      promotion.promotionCode,
-      promotion.discountValue,
-      promotion.discountType,
-      promotion.startDate,
-      promotion.endDate,
-      promotion.isActive,
-      promotion.createdAt,
-      promotion.updatedAt,
-    );
+    return PromotionResponseDto.from({
+      promotionId: promotion._id.toString(),
+      promotionCode: promotion.promotionCode,
+      discountValue: promotion.discountValue,
+      discountType: promotion.discountType,
+      startDate: promotion.startDate,
+      endDate: promotion.endDate,
+      isActive: promotion.isActive,
+      createdAt: promotion.createdAt,
+      updatedAt: promotion.updatedAt,
+    });
   }
 
   async updatePromotion(
     promotionId: string,
     dto: UpdatePromotionDto,
   ): Promise<PromotionResponseDto> {
-    const existing = await this.promotionModel.findOne({ promotionId }).exec();
+    if (!isValidObjectId(promotionId)) {
+      throw new NotFoundException(`Promotion with id ${promotionId} not found`);
+    }
+    const existing = await this.promotionModel.findById(promotionId).exec();
     if (!existing) {
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
@@ -228,62 +235,65 @@ export class PromotionAdminService
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
 
     const updated = await this.promotionModel
-      .findOneAndUpdate({ promotionId }, { $set: updates }, { new: true })
+      .findByIdAndUpdate(promotionId, { $set: updates }, { new: true })
       .exec();
     if (!updated) {
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
 
+    const updatedId = updated._id.toString();
+
     await this.eventBus.publish(
-      new PromotionUpdatedEvent(
-        updated.promotionId,
-        updated.promotionCode,
-        dto,
-      ),
+      new PromotionUpdatedEvent(updatedId, updated.promotionCode, dto),
     );
 
-    return PromotionResponseDto.of(
-      updated.promotionId,
-      updated.promotionCode,
-      updated.discountValue,
-      updated.discountType,
-      updated.startDate,
-      updated.endDate,
-      updated.isActive,
-      updated.createdAt,
-      updated.updatedAt,
-    );
+    return PromotionResponseDto.from({
+      promotionId: updatedId,
+      promotionCode: updated.promotionCode,
+      discountValue: updated.discountValue,
+      discountType: updated.discountType,
+      startDate: updated.startDate,
+      endDate: updated.endDate,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    });
   }
 
   async changePromotionStatus(
     promotionId: string,
     isActive: boolean,
   ): Promise<PromotionResponseDto> {
+    if (!isValidObjectId(promotionId)) {
+      throw new NotFoundException(`Promotion with id ${promotionId} not found`);
+    }
     const updated = await this.promotionModel
-      .findOneAndUpdate({ promotionId }, { $set: { isActive } }, { new: true })
+      .findByIdAndUpdate(promotionId, { $set: { isActive } }, { new: true })
       .exec();
     if (!updated) {
       throw new NotFoundException(`Promotion with id ${promotionId} not found`);
     }
 
+    const updatedId = updated._id.toString();
+
     await this.eventBus.publish(
       new PromotionStatusChangedEvent(
-        updated.promotionId,
+        updatedId,
         updated.promotionCode,
         updated.isActive,
       ),
     );
 
-    return PromotionResponseDto.of(
-      updated.promotionId,
-      updated.promotionCode,
-      updated.discountValue,
-      updated.discountType,
-      updated.startDate,
-      updated.endDate,
-      updated.isActive,
-      updated.createdAt,
-      updated.updatedAt,
-    );
+    return PromotionResponseDto.from({
+      promotionId: updatedId,
+      promotionCode: updated.promotionCode,
+      discountValue: updated.discountValue,
+      discountType: updated.discountType,
+      startDate: updated.startDate,
+      endDate: updated.endDate,
+      isActive: updated.isActive,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    });
   }
 }

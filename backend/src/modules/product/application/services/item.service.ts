@@ -6,8 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { Model, Types } from 'mongoose';
 import ExcelJS from 'exceljs';
 import { Item, ItemDocument } from '../../domain/schemas/item.schema';
 import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
@@ -61,6 +60,12 @@ import { ImportItemsExcelUsecase } from '../usecase/import-items-excel.usecase';
 import { GetItemExcelTemplateUsecase } from '../usecase/get-item-excel-template.usecase';
 import { GetConcessionOptionsUsecase } from '../usecase/get-concession-options.usecase';
 
+function toObjectId(id: string | Types.ObjectId): Types.ObjectId {
+  return typeof id === 'string' && Types.ObjectId.isValid(id)
+    ? new Types.ObjectId(id)
+    : (id as unknown as Types.ObjectId);
+}
+
 @Injectable()
 export class ItemService
   implements
@@ -89,13 +94,15 @@ export class ItemService
   private async validateManagerBranch(
     managerUserId: string,
   ): Promise<BranchDocument> {
-    const user = await this.userModel.findOne({ userId: managerUserId }).exec();
+    const user = await this.userModel
+      .findOne({ _id: toObjectId(managerUserId) })
+      .exec();
     if (!user || !user.branchId) {
       throw new ForbiddenException(CONCESSION_MESSAGES.NO_BRANCH);
     }
 
     const branch = await this.branchModel
-      .findOne({ branchId: user.branchId })
+      .findOne({ _id: toObjectId(user.branchId) })
       .exec();
     if (!branch || branch.branchStatus !== BranchStatus.ACTIVE) {
       throw new ForbiddenException(CONCESSION_MESSAGES.NO_BRANCH);
@@ -108,9 +115,12 @@ export class ItemService
     const isLowStock =
       item.stockQuantity <= item.lowStockThreshold &&
       item.status !== ItemStatus.INACTIVE;
-    return {
-      itemId: item.itemId,
-      branchId: item.branchId,
+    const itemIdStr = (item._id ?? (item as any).itemId)?.toString();
+    const branchIdStr = (item.branchId ?? '').toString();
+
+    return ItemRes.from({
+      itemId: itemIdStr,
+      branchId: branchIdStr,
       name: item.name,
       category: item.category,
       size: item.size ?? null,
@@ -124,7 +134,7 @@ export class ItemService
       description: item.description ?? null,
       createdAt: item.createdAt ? item.createdAt.toISOString() : undefined,
       updatedAt: item.updatedAt ? item.updatedAt.toISOString() : undefined,
-    };
+    });
   }
 
   async createItem(
@@ -133,12 +143,12 @@ export class ItemService
     imageKey?: string,
   ): Promise<ItemMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchObjId = branch._id;
 
     const trimmedName = req.name.trim();
     const existing = await this.itemModel
       .findOne({
-        branchId,
+        branchId: branchObjId,
         name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
       })
       .exec();
@@ -154,7 +164,7 @@ export class ItemService
     );
 
     const item = new this.itemModel({
-      branchId,
+      branchId: branchObjId,
       name: trimmedName,
       category: req.category,
       size: req.size || null,
@@ -170,10 +180,10 @@ export class ItemService
     });
 
     const saved = await item.save();
-    return {
+    return ItemMutationRes.from({
       message: CONCESSION_MESSAGES.CREATE_ITEM_SUCCESS,
       item: this.mapToItemRes(saved),
-    };
+    });
   }
 
   async updateItem(
@@ -183,9 +193,12 @@ export class ItemService
     imageKey?: string,
   ): Promise<ItemMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchObjId = branch._id;
+    const itemObjId = toObjectId(itemId);
 
-    const item = await this.itemModel.findOne({ itemId, branchId }).exec();
+    const item = await this.itemModel
+      .findOne({ _id: itemObjId, branchId: branchObjId })
+      .exec();
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
@@ -194,8 +207,8 @@ export class ItemService
       const trimmedName = req.name.trim();
       const existing = await this.itemModel
         .findOne({
-          branchId,
-          itemId: { $ne: itemId },
+          branchId: branchObjId,
+          _id: { $ne: itemObjId },
           name: { $regex: new RegExp(`^${escapeRegex(trimmedName)}$`, 'i') },
         })
         .exec();
@@ -235,10 +248,10 @@ export class ItemService
     }
 
     const updated = await item.save();
-    return {
+    return ItemMutationRes.from({
       message: CONCESSION_MESSAGES.UPDATE_ITEM_SUCCESS,
       item: this.mapToItemRes(updated),
-    };
+    });
   }
 
   async queryBranchItems(
@@ -246,9 +259,9 @@ export class ItemService
     query: QueryBranchItemsReq,
   ): Promise<Page<ItemRes>> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchObjId = branch._id;
 
-    const filter: Record<string, any> = { branchId };
+    const filter: Record<string, any> = { branchId: branchObjId };
 
     if (query.category) {
       filter.category = query.category;
@@ -288,7 +301,7 @@ export class ItemService
   async getItemDetail(managerUserId: string, itemId: string): Promise<ItemRes> {
     const branch = await this.validateManagerBranch(managerUserId);
     const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
+      .findOne({ _id: toObjectId(itemId), branchId: branch._id })
       .exec();
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
@@ -302,8 +315,9 @@ export class ItemService
     req: AdjustItemStockReq,
   ): Promise<StockAdjustmentRes> {
     const branch = await this.validateManagerBranch(managerUserId);
+    const itemObjId = toObjectId(itemId);
     const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
+      .findOne({ _id: itemObjId, branchId: branch._id })
       .exec();
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
@@ -333,13 +347,13 @@ export class ItemService
     item.status = resolveItemStockStatus(nextStock, item.status);
     await item.save();
 
-    return {
+    return StockAdjustmentRes.from({
       message: CONCESSION_MESSAGES.STOCK_UPDATE_SUCCESS,
-      itemId: item.itemId,
+      itemId: (item._id ?? (item as any).itemId)?.toString(),
       previousStock,
       currentStock: nextStock,
       status: item.status,
-    };
+    });
   }
 
   async changeItemStatus(
@@ -349,7 +363,7 @@ export class ItemService
   ): Promise<ItemMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
     const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
+      .findOne({ _id: toObjectId(itemId), branchId: branch._id })
       .exec();
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
@@ -358,10 +372,10 @@ export class ItemService
     item.status = resolveItemStockStatus(item.stockQuantity, req.status);
     const saved = await item.save();
 
-    return {
+    return ItemMutationRes.from({
       message: CONCESSION_MESSAGES.STATUS_UPDATE_SUCCESS,
       item: this.mapToItemRes(saved),
-    };
+    });
   }
 
   async deleteItem(
@@ -369,21 +383,22 @@ export class ItemService
     itemId: string,
   ): Promise<DeleteMutationRes> {
     const branch = await this.validateManagerBranch(managerUserId);
+    const itemObjId = toObjectId(itemId);
     const item = await this.itemModel
-      .findOne({ itemId, branchId: branch.branchId })
+      .findOne({ _id: itemObjId, branchId: branch._id })
       .exec();
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
 
     await this.itemModel
-      .deleteOne({ itemId, branchId: branch.branchId })
+      .deleteOne({ _id: itemObjId, branchId: branch._id })
       .exec();
 
-    return {
+    return DeleteMutationRes.from({
       message: CONCESSION_MESSAGES.DELETE_SUCCESS,
       id: itemId,
-    };
+    });
   }
 
   async getItemExcelTemplate(): Promise<Buffer> {
@@ -397,11 +412,11 @@ export class ItemService
       { header: 'Tên món (*)', key: 'name', width: 28 },
       { header: 'Danh mục (*)', key: 'category', width: 22 },
       { header: 'Kích cỡ', key: 'size', width: 18 },
-      { header: 'Giá bán (*)', key: 'price', width: 16 },
-      { header: 'Tồn kho (*)', key: 'stockQuantity', width: 14 },
-      { header: 'Ngưỡng cảnh báo', key: 'lowStockThreshold', width: 18 },
-      { header: 'Giá vốn', key: 'costPrice', width: 16 },
-      { header: 'Mô tả', key: 'description', width: 32 },
+      { header: 'Giá bán (VNĐ) (*)', key: 'price', width: 20 },
+      { header: 'Giá vốn (VNĐ)', key: 'costPrice', width: 20 },
+      { header: 'Số lượng tồn (*)', key: 'stockQuantity', width: 20 },
+      { header: 'Định mức tối thiểu', key: 'lowStockThreshold', width: 24 },
+      { header: 'Mô tả', key: 'description', width: 35 },
     ];
 
     const headerRow = worksheet.getRow(1);
@@ -409,45 +424,82 @@ export class ItemService
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF2D2D2D' },
+      fgColor: { argb: 'FF1E293B' },
     };
     headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.height = 28;
 
     worksheet.addRow({
-      name: 'Bắp rang bơ (L)',
-      category: 'POPCORN',
-      size: 'LARGE',
+      name: 'Bắp rang bơ phô mai',
+      category: 'Bắp rang (POPCORN)',
+      size: 'Lớn (LARGE)',
       price: 55000,
-      stockQuantity: 120,
-      lowStockThreshold: 15,
       costPrice: 20000,
-      description: 'Bắp rang bơ truyền thống giòn rụm',
+      stockQuantity: 100,
+      lowStockThreshold: 15,
+      description: 'Bắp rang vị phô mai thơm ngon',
     });
 
     worksheet.addRow({
-      name: 'Coca-Cola (L)',
-      category: 'BEVERAGE',
-      size: 'LARGE',
+      name: 'Nước ngọt có gas Coca',
+      category: 'Nước uống (BEVERAGE)',
+      size: 'Vừa (MEDIUM)',
       price: 35000,
-      stockQuantity: 200,
-      lowStockThreshold: 20,
       costPrice: 10000,
-      description: 'Nước ngọt có ga ly lớn mát lạnh',
+      stockQuantity: 200,
+      lowStockThreshold: 30,
+      description: 'Ly giấy 22oz',
     });
 
-    worksheet.addRow({
-      name: 'Bim bim Snack khoai tây',
-      category: 'SNACK',
-      size: 'STANDARD',
-      price: 25000,
-      stockQuantity: 60,
-      lowStockThreshold: 10,
-      costPrice: 12000,
-      description: 'Snack khoai tây giòn cay',
+    const guideSheet = workbook.addWorksheet('HuongDanNhapLieu');
+    guideSheet.columns = [
+      { header: 'Cột dữ liệu', key: 'col', width: 25 },
+      { header: 'Quy định / Giá trị hợp lệ', key: 'rule', width: 60 },
+    ];
+    const guideHeader = guideSheet.getRow(1);
+    guideHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    guideHeader.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF334155' },
+    };
+    guideHeader.height = 24;
+
+    guideSheet.addRow({
+      col: 'Tên món (*)',
+      rule: 'Bắt buộc, tối đa 200 ký tự. Không được trùng tên với món khác trong chi nhánh.',
+    });
+    guideSheet.addRow({
+      col: 'Danh mục (*)',
+      rule: 'POPCORN (hoặc Bắp rang), DRINK / BEVERAGE (hoặc Nước uống), COMBO, SNACK, OTHER',
+    });
+    guideSheet.addRow({
+      col: 'Kích cỡ',
+      rule: 'Không bắt buộc. Nhập: STANDARD / S / Tiêu chuẩn, MEDIUM / M / Vừa, LARGE / L / Lớn, hoặc để trống',
+    });
+    guideSheet.addRow({
+      col: 'Giá bán (VNĐ) (*)',
+      rule: 'Số nguyên >= 0',
+    });
+    guideSheet.addRow({
+      col: 'Giá vốn (VNĐ)',
+      rule: 'Số nguyên >= 0 (Mặc định: 0)',
+    });
+    guideSheet.addRow({
+      col: 'Số lượng tồn (*)',
+      rule: 'Số nguyên >= 0. Nếu = 0 món sẽ tự động ở trạng thái Hết hàng (OUT_OF_STOCK)',
+    });
+    guideSheet.addRow({
+      col: 'Định mức tối thiểu',
+      rule: 'Số nguyên >= 0. Cảnh báo sắp hết hàng khi tồn kho <= mức này (Mặc định: 10)',
+    });
+    guideSheet.addRow({
+      col: 'Mô tả',
+      rule: 'Tối đa 1000 ký tự',
     });
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer as any);
+    const uint8Array = await workbook.xlsx.writeBuffer();
+    return Buffer.from(uint8Array);
   }
 
   async importItemsExcel(
@@ -456,10 +508,10 @@ export class ItemService
     req?: ImportItemsExcelReq,
   ): Promise<ImportItemsExcelRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchObjId = branch._id;
 
-    if (!fileBuffer || fileBuffer.length === 0) {
-      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_EMPTY_FILE);
+    if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
+      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_FILE_REQUIRED);
     }
 
     const workbook = new ExcelJS.Workbook();
@@ -468,97 +520,130 @@ export class ItemService
         fileBuffer as unknown as Parameters<typeof workbook.xlsx.load>[0],
       );
     } catch {
-      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_EMPTY_FILE);
+      throw new BadRequestException(CONCESSION_MESSAGES.INVALID_EXCEL_FORMAT);
     }
 
     const worksheet = workbook.worksheets[0];
-    if (!worksheet || worksheet.rowCount < 2) {
-      throw new BadRequestException(CONCESSION_MESSAGES.EXCEL_EMPTY_FILE);
+    if (!worksheet) {
+      throw new BadRequestException(CONCESSION_MESSAGES.EMPTY_EXCEL_SHEET);
     }
 
-    const errors: ExcelRowErrorRes[] = [];
+    const stockMode = req?.stockMode ?? ExcelStockMode.OVERWRITE;
+    let totalRows = 0;
     let successCount = 0;
     let createdCount = 0;
     let updatedCount = 0;
-    let totalRows = 0;
+    const errors: ExcelRowErrorRes[] = [];
 
-    const stockMode = req?.stockMode ?? ExcelStockMode.OVERWRITE;
+    const rowsToProcess: {
+      rowNumber: number;
+      nameVal: string;
+      categoryVal: unknown;
+      sizeVal: unknown;
+      priceVal: unknown;
+      costVal: unknown;
+      stockVal: unknown;
+      thresholdVal: unknown;
+      descVal: string;
+    }[] = [];
 
-    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
-      const row = worksheet.getRow(rowNumber);
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+
       const nameVal = row.getCell(1).text?.trim();
-      const catVal = row.getCell(2).text?.trim();
-      const sizeVal = row.getCell(3).text?.trim();
+      const categoryVal = row.getCell(2).value;
+      const sizeVal = row.getCell(3).value;
       const priceVal = row.getCell(4).value;
-      const stockVal = row.getCell(5).value;
-      const thresholdVal = row.getCell(6).value;
-      const costVal = row.getCell(7).value;
+      const costVal = row.getCell(5).value;
+      const stockVal = row.getCell(6).value;
+      const thresholdVal = row.getCell(7).value;
       const descVal = row.getCell(8).text?.trim();
 
-      const isRowEmpty =
-        !nameVal &&
-        !catVal &&
-        !sizeVal &&
-        priceVal === null &&
-        stockVal === null &&
-        !descVal;
-
-      if (isRowEmpty) {
-        continue;
+      if (!nameVal && !categoryVal && !priceVal && !stockVal) {
+        return;
       }
 
       totalRows++;
+      rowsToProcess.push({
+        rowNumber,
+        nameVal,
+        categoryVal,
+        sizeVal,
+        priceVal,
+        costVal,
+        stockVal,
+        thresholdVal,
+        descVal,
+      });
+    });
+
+    for (const itemRow of rowsToProcess) {
+      const {
+        rowNumber,
+        nameVal,
+        categoryVal,
+        sizeVal,
+        priceVal,
+        costVal,
+        stockVal,
+        thresholdVal,
+        descVal,
+      } = itemRow;
 
       if (!nameVal) {
         errors.push({
           rowNumber,
-          name: undefined,
-          reason: 'Tên món không được để trống.',
+          reason: 'Tên món không được để trống',
         });
         continue;
       }
 
-      const parsedCategory = parseExcelCategory(catVal);
+      if (nameVal.length > 200) {
+        errors.push({
+          rowNumber,
+          name: nameVal,
+          reason: 'Tên món vượt quá 200 ký tự',
+        });
+        continue;
+      }
+
+      const parsedCategory = parseExcelCategory(
+        categoryVal !== null && categoryVal !== undefined
+          ? String(categoryVal)
+          : null,
+      );
       if (!parsedCategory) {
         errors.push({
           rowNumber,
           name: nameVal,
-          reason: `Danh mục không hợp lệ (${catVal || 'trống'}). Chấp nhận: POPCORN, BEVERAGE, SNACK, OTHER.`,
+          reason: `Danh mục "${String(categoryVal)}" không hợp lệ`,
         });
         continue;
       }
 
-      const parsedSize = parseExcelSize(sizeVal);
-
+      const parsedSize = parseExcelSize(
+        sizeVal !== null && sizeVal !== undefined ? String(sizeVal) : null,
+      );
       const parsedPrice = Number(priceVal);
-      if (
-        priceVal === null ||
-        priceVal === undefined ||
-        isNaN(parsedPrice) ||
-        parsedPrice < 0
-      ) {
-        const priceStr =
-          typeof priceVal === 'string' || typeof priceVal === 'number'
-            ? String(priceVal)
-            : 'trống';
+      if (isNaN(parsedPrice) || parsedPrice < 0) {
         errors.push({
           rowNumber,
           name: nameVal,
-          reason: `Giá bán không hợp lệ (${priceStr}). Phải là số >= 0.`,
+          reason: `Giá bán "${String(priceVal)}" không hợp lệ (phải >= 0)`,
         });
         continue;
       }
 
-      const parsedStock = Number(stockVal ?? 0);
-      if (isNaN(parsedStock) || parsedStock < 0) {
-        const stockStr =
-          typeof stockVal === 'string' || typeof stockVal === 'number'
-            ? String(stockVal)
-            : 'trống';
+      const parsedStock = Number(stockVal);
+      if (
+        isNaN(parsedStock) ||
+        parsedStock < 0 ||
+        !Number.isInteger(parsedStock)
+      ) {
         errors.push({
           rowNumber,
           name: nameVal,
-          reason: `Tồn kho không hợp lệ (${stockStr}). Phải là số nguyên >= 0.`,
+          reason: `Số lượng tồn "${String(stockVal)}" không hợp lệ (phải là số nguyên >= 0)`,
         });
         continue;
       }
@@ -574,7 +659,7 @@ export class ItemService
 
       const existing = await this.itemModel
         .findOne({
-          branchId,
+          branchId: branchObjId,
           name: { $regex: new RegExp(`^${escapeRegex(nameVal)}$`, 'i') },
         })
         .exec();
@@ -608,8 +693,7 @@ export class ItemService
         );
 
         const newItem = new this.itemModel({
-          itemId: randomUUID(),
-          branchId,
+          branchId: branchObjId,
           name: nameVal,
           category: parsedCategory,
           size: parsedSize,
@@ -643,20 +727,21 @@ export class ItemService
     managerUserId: string,
   ): Promise<ConcessionOptionsRes> {
     const branch = await this.validateManagerBranch(managerUserId);
-    const branchId = branch.branchId;
+    const branchObjId = branch._id;
+    const branchIdStr = branchObjId.toString();
 
     const items = await this.itemModel
       .find({
-        branchId,
+        branchId: branchObjId,
         status: { $ne: ItemStatus.INACTIVE },
       })
-      .select('itemId name category size price stockQuantity')
+      .select('name category size price stockQuantity')
       .sort({ name: 1 })
       .exec();
 
     return {
       branch: {
-        branchId,
+        branchId: branchIdStr,
         branchName: branch.branchName,
         address: branch.address,
       },
@@ -665,7 +750,7 @@ export class ItemService
       itemStatuses: Object.values(ItemStatus),
       comboStatuses: Object.values(ComboStatus),
       availableItemsForCombo: items.map((i) => ({
-        itemId: i.itemId,
+        itemId: (i._id ?? (i as any).itemId)?.toString(),
         name: i.name,
         category: i.category,
         size: i.size ?? null,
@@ -696,34 +781,44 @@ export class ItemService
       return map;
     }
 
+    const productObjIds = productIds.map(toObjectId);
     const items = await this.itemModel
-      .find({ itemId: { $in: productIds } })
+      .find({ _id: { $in: productObjIds } })
       .exec();
 
     for (const item of items) {
-      map.set(item.itemId, {
-        productId: item.itemId,
-        productName: item.name,
-        imageUrl: this.resolveImageUrl(item.imageKey),
-        unitPrice: item.price,
-        branchId: item.branchId,
-      });
+      const idStr = (item._id ?? (item as any).itemId)?.toString();
+      map.set(
+        idStr,
+        ProductSummaryRes.from({
+          productId: idStr,
+          productName: item.name,
+          imageUrl: this.resolveImageUrl(item.imageKey),
+          unitPrice: item.price,
+          branchId: item.branchId?.toString(),
+        }),
+      );
     }
 
     const remainingIds = productIds.filter((id) => !map.has(id));
     if (remainingIds.length > 0) {
+      const remainingObjIds = remainingIds.map(toObjectId);
       const combos = await this.comboModel
-        .find({ comboId: { $in: remainingIds } })
+        .find({ _id: { $in: remainingObjIds } })
         .exec();
 
       for (const combo of combos) {
-        map.set(combo.comboId, {
-          productId: combo.comboId,
-          productName: combo.name,
-          imageUrl: this.resolveImageUrl(combo.imageKey),
-          unitPrice: combo.price,
-          branchId: combo.branchId,
-        });
+        const idStr = (combo._id ?? (combo as any).comboId)?.toString();
+        map.set(
+          idStr,
+          ProductSummaryRes.from({
+            productId: idStr,
+            productName: combo.name,
+            imageUrl: this.resolveImageUrl(combo.imageKey),
+            unitPrice: combo.price,
+            branchId: combo.branchId?.toString(),
+          }),
+        );
       }
     }
 

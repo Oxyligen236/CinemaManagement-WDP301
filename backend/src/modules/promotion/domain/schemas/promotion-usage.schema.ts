@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type PromotionUsageDocument = HydratedDocument<PromotionUsage> & {
   createdAt: Date;
@@ -13,29 +12,28 @@ export type PromotionUsageDocument = HydratedDocument<PromotionUsage> & {
 })
 export class PromotionUsage {
   @Prop({
-    required: true,
-    unique: true,
-    default: () => randomUUID(),
-  })
-  usageId!: string;
-
-  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Promotion',
     required: true,
     index: true,
   })
-  promotionId!: string;
+  promotionId!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
     required: true,
     index: true,
   })
-  userId!: string;
+  userId!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Order',
     required: true,
     index: true,
   })
-  orderId!: string;
+  orderId!: Types.ObjectId;
 
   @Prop({
     required: true,

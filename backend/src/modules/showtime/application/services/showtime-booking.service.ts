@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model } from 'mongoose';
+import { ClientSession, isValidObjectId, Model, Types } from 'mongoose';
 import {
   Movie,
   MovieDocument,
@@ -55,26 +55,30 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
       throw new ConflictException(SEAT_BOOKING_MESSAGES.DUPLICATED_SEATS);
     }
 
+    const objectIds = seatShowtimeIds.map((id) =>
+      isValidObjectId(id) ? new Types.ObjectId(id) : (id as any),
+    );
     const seats = await this.seatShowtimeModel
-      .find({ seatShowtimeId: { $in: seatShowtimeIds } })
+      .find({ _id: { $in: objectIds } })
       .lean()
       .exec();
     if (
       seats.length !== seatShowtimeIds.length ||
       seats.some((seat) => seat.seatStatus !== SeatShowtimeStatus.EMPTY) ||
-      new Set(seats.map((seat) => seat.showtimeId)).size !== 1
+      new Set(seats.map((seat) => seat.showtimeId.toString())).size !== 1
     ) {
       throw new ConflictException(SEAT_BOOKING_MESSAGES.SEATS_UNAVAILABLE);
     }
 
     const showtimeId = seats[0].showtimeId;
-    const reserved: string[] = [];
+    const reserved: Types.ObjectId[] = [];
     try {
-      for (const id of seatShowtimeIds) {
+      for (const item of seats) {
+        const id = item._id;
         const result = await this.seatShowtimeModel
           .updateOne(
             {
-              seatShowtimeId: id,
+              _id: id,
               showtimeId,
               seatStatus: SeatShowtimeStatus.EMPTY,
             },
@@ -93,7 +97,7 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
         await this.seatShowtimeModel
           .updateMany(
             {
-              seatShowtimeId: { $in: reserved },
+              _id: { $in: reserved },
               showtimeId,
               seatStatus: SeatShowtimeStatus.RESERVED,
             },
@@ -118,10 +122,13 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
    */
   async releaseSeats(seatShowtimeIds: string[]): Promise<number> {
     if (!seatShowtimeIds.length) return 0;
+    const objectIds = seatShowtimeIds.map((id) =>
+      isValidObjectId(id) ? new Types.ObjectId(id) : (id as any),
+    );
     const result = await this.seatShowtimeModel
       .updateMany(
         {
-          seatShowtimeId: { $in: seatShowtimeIds },
+          _id: { $in: objectIds },
           seatStatus: SeatShowtimeStatus.RESERVED,
         },
         { $set: { seatStatus: SeatShowtimeStatus.EMPTY } },
@@ -147,10 +154,13 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
     session?: ClientSession,
   ): Promise<number> {
     if (!seatShowtimeIds.length) return 0;
+    const objectIds = seatShowtimeIds.map((id) =>
+      isValidObjectId(id) ? new Types.ObjectId(id) : (id as any),
+    );
     const result = await this.seatShowtimeModel
       .updateMany(
         {
-          seatShowtimeId: { $in: seatShowtimeIds },
+          _id: { $in: objectIds },
           seatStatus: SeatShowtimeStatus.RESERVED,
         },
         { $set: { seatStatus: SeatShowtimeStatus.BOOKED } },
@@ -179,8 +189,11 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
   async getSeatBookingDetails(
     seatShowtimeIds: string[],
   ): Promise<SeatBookingDetail[]> {
+    const objectIds = seatShowtimeIds.map((id) =>
+      isValidObjectId(id) ? new Types.ObjectId(id) : (id as any),
+    );
     const seatShowtimes = await this.seatShowtimeModel
-      .find({ seatShowtimeId: { $in: seatShowtimeIds } })
+      .find({ _id: { $in: objectIds } })
       .lean()
       .exec();
     if (seatShowtimes.length !== new Set(seatShowtimeIds).size)
@@ -189,40 +202,54 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
       ...new Set(seatShowtimes.map((item) => item.showtimeId)),
     ];
     const showtimes = await this.showtimeModel
-      .find({ showtimeId: { $in: showtimeIds } })
+      .find({ _id: { $in: showtimeIds } })
       .lean()
       .exec();
+    const seatIds = seatShowtimes.map((item) => item.seatId);
     const physicalSeats = await this.seatModel
-      .find({ seatId: { $in: seatShowtimes.map((item) => item.seatId) } })
+      .find({ _id: { $in: seatIds } })
       .lean()
       .exec();
+    const roomIds = showtimes.map((item) => item.roomId);
     const rooms = await this.roomModel
-      .find({ roomId: { $in: showtimes.map((item) => item.roomId) } })
+      .find({ _id: { $in: roomIds } })
       .lean()
       .exec();
+    const movieIds = showtimes.map((item) => item.movieId);
     const movies = await this.movieModel
-      .find({ movieId: { $in: showtimes.map((item) => item.movieId) } })
+      .find({ _id: { $in: movieIds } })
       .lean()
       .exec();
+
     const showtimeById = new Map(
-      showtimes.map((item) => [item.showtimeId, item]),
+      showtimes.map((item) => [item._id.toString(), item]),
     );
-    const seatById = new Map(physicalSeats.map((item) => [item.seatId, item]));
-    const roomById = new Map(rooms.map((item) => [item.roomId, item]));
-    const movieById = new Map(movies.map((item) => [item.movieId, item]));
+    const seatById = new Map<string, (typeof physicalSeats)[0]>();
+    for (const seat of physicalSeats) {
+      seatById.set(seat._id.toString(), seat);
+    }
+    const roomById = new Map(rooms.map((item) => [item._id.toString(), item]));
+    const movieById = new Map(
+      movies.map((item) => [item._id.toString(), item]),
+    );
 
     return seatShowtimes
       .map((item) => {
-        const showtime = showtimeById.get(item.showtimeId);
-        const seat = seatById.get(item.seatId);
-        const room = showtime && roomById.get(showtime.roomId);
-        const movie = showtime && movieById.get(showtime.movieId);
+        const itemSstId = item._id.toString();
+        const itemStId = item.showtimeId.toString();
+        const itemSeatId = item.seatId.toString();
+        const showtime = showtimeById.get(itemStId);
+        const seat = seatById.get(itemSeatId);
+        const stRoomId = showtime?.roomId.toString() ?? '';
+        const stMovieId = showtime?.movieId.toString() ?? '';
+        const room = showtime && roomById.get(stRoomId);
+        const movie = showtime && movieById.get(stMovieId);
         if (!showtime || !seat || !room || !movie)
           throw new NotFoundException('Seat booking details are incomplete');
         return {
-          seatShowtimeId: item.seatShowtimeId,
-          showtimeId: item.showtimeId,
-          seatId: item.seatId,
+          seatShowtimeId: itemSstId,
+          showtimeId: itemStId,
+          seatId: itemSeatId,
           rowPosition: seat.rowPosition,
           columnPosition: seat.columnPosition,
           seatType: seat.seatType,
@@ -230,10 +257,10 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
           basePrice: showtime.basePrice,
           startTime: showtime.startTime,
           endTime: showtime.endTime,
-          roomId: room.roomId,
+          roomId: stRoomId,
           roomName: room.roomName,
-          branchId: room.branchId,
-          movieId: movie.movieId,
+          branchId: room.branchId?.toString(),
+          movieId: stMovieId,
           movieName: movie.movieName,
         };
       })

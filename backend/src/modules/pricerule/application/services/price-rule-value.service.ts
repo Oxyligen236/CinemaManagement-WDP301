@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId, Types } from 'mongoose';
 import {
   MAX_VALUES_PER_FIELD,
   MSG03,
@@ -117,8 +117,9 @@ export class PriceRuleValueService
     const { model, keyName } = this.modelAndKey(group);
 
     try {
+      const idQuery = isValidObjectId(ruleId) ? { _id: ruleId } : { _id: null };
       const current = await model
-        .findOne({ ruleId, [keyName]: field.fieldKey })
+        .findOne({ ...idQuery, [keyName]: field.fieldKey })
         .lean()
         .exec();
       if (!current) throw new NotFoundException(MSG_NOT_FOUND);
@@ -127,14 +128,14 @@ export class PriceRuleValueService
         .exists({
           [keyName]: field.fieldKey,
           adjustmentValue: multiplier,
-          ruleId: { $ne: ruleId },
+          _id: { $ne: new Types.ObjectId(String(current._id)) },
         })
         .exec();
       if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
 
       const updated = await model
         .findOneAndUpdate(
-          { ruleId, [keyName]: field.fieldKey },
+          { _id: current._id, [keyName]: field.fieldKey },
           { $set: { adjustmentValue: multiplier } },
           { new: true },
         )
@@ -161,14 +162,15 @@ export class PriceRuleValueService
     const { model, keyName } = this.modelAndKey(group);
 
     try {
+      const idQuery = isValidObjectId(ruleId) ? { _id: ruleId } : { _id: null };
       const current = await model
-        .findOne({ ruleId, [keyName]: field.fieldKey })
+        .findOne({ ...idQuery, [keyName]: field.fieldKey })
         .lean()
         .exec();
       if (!current) throw new NotFoundException(MSG_NOT_FOUND);
 
-      const result = await model.deleteOne({ ruleId }).exec();
-      if (result.deletedCount === 0) {
+      const result = await model.findByIdAndDelete(current._id).exec();
+      if (!result) {
         throw new NotFoundException(MSG_NOT_FOUND);
       }
 
