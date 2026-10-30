@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { OrderStatus } from '../enums/order-status.enum';
 
 export type OrderDocument = HydratedDocument<Order>;
@@ -11,22 +10,18 @@ export type OrderDocument = HydratedDocument<Order>;
 })
 export class Order {
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
     required: true,
-    unique: true,
-    default: () => randomUUID(),
   })
-  orderId!: string;
+  userId!: Types.ObjectId;
 
   @Prop({
-    required: true,
-    trim: true,
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Promotion',
+    required: false,
   })
-  userId!: string;
-
-  @Prop({
-    trim: true,
-  })
-  promotionId?: string;
+  promotionId?: Types.ObjectId;
 
   @Prop({
     required: true,
@@ -44,12 +39,12 @@ export class Order {
   status!: OrderStatus;
 
   @Prop({
-    type: String,
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Branch',
     required: false,
-    trim: true,
     index: true,
   })
-  branchId?: string;
+  branchId?: Types.ObjectId;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

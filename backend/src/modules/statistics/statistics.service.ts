@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { AuthenticatedUser } from '../auth/domain/types/authenticated-user.type';
 import { Role } from '../auth/infra/decorators/role.decorator';
 import { UserBranchQueryService } from '../user/application/services/user-branch-query.service';
@@ -47,10 +47,14 @@ export class StatisticsService {
     query: FinancialStatisticsQueryDto,
   ) {
     const branchId = await this.resolveBranch(user, query.branchId);
-    const { start, end, date } = this.dayRange(query.date);
+    const { start, end, date } = this.dateRange(query.date);
+    const branchObjectId =
+      branchId && Types.ObjectId.isValid(branchId)
+        ? new Types.ObjectId(branchId)
+        : undefined;
     const paidOrders = {
       status: PAID,
-      ...(branchId ? { branchId } : {}),
+      ...(branchObjectId ? { branchId: branchObjectId } : {}),
       createdAt: { $gte: start, $lt: end },
     };
     const orderLookup = [
@@ -58,7 +62,7 @@ export class StatisticsService {
         $lookup: {
           from: 'orders',
           localField: 'orderId',
-          foreignField: 'orderId',
+          foreignField: '_id',
           as: 'order',
         },
       },
@@ -96,7 +100,7 @@ export class StatisticsService {
             $lookup: {
               from: 'seat_showtimes',
               localField: 'seatShowtimeId',
-              foreignField: 'seatShowtimeId',
+              foreignField: '_id',
               as: 'seat',
             },
           },
@@ -105,7 +109,7 @@ export class StatisticsService {
             $lookup: {
               from: 'showtimes',
               localField: 'seat.showtimeId',
-              foreignField: 'showtimeId',
+              foreignField: '_id',
               as: 'showtime',
             },
           },
@@ -114,14 +118,14 @@ export class StatisticsService {
             $lookup: {
               from: 'movies',
               localField: 'showtime.movieId',
-              foreignField: 'movieId',
+              foreignField: '_id',
               as: 'movie',
             },
           },
           { $unwind: '$movie' },
           {
             $group: {
-              _id: '$movie.movieId',
+              _id: '$movie._id',
               movieName: { $first: '$movie.movieName' },
               ticketsSold: { $sum: 1 },
               ticketRevenue: { $sum: '$price' },
@@ -203,7 +207,7 @@ export class StatisticsService {
         $lookup: {
           from: 'items',
           localField: 'productId',
-          foreignField: 'itemId',
+          foreignField: '_id',
           as: 'item',
         },
       },
@@ -211,7 +215,7 @@ export class StatisticsService {
         $lookup: {
           from: 'combos',
           localField: 'productId',
-          foreignField: 'comboId',
+          foreignField: '_id',
           as: 'combo',
         },
       },
@@ -264,22 +268,28 @@ export class StatisticsService {
     start: Date,
     end: Date,
   ) {
+    const branchObjectId =
+      branchId && Types.ObjectId.isValid(branchId)
+        ? new Types.ObjectId(branchId)
+        : undefined;
     return this.showtimes.aggregate([
       { $match: { startTime: { $gte: start, $lt: end } } },
       {
         $lookup: {
           from: 'rooms',
           localField: 'roomId',
-          foreignField: 'roomId',
+          foreignField: '_id',
           as: 'room',
         },
       },
       { $unwind: '$room' },
-      ...(branchId ? [{ $match: { 'room.branchId': branchId } }] : []),
+      ...(branchObjectId
+        ? [{ $match: { 'room.branchId': branchObjectId } }]
+        : []),
       {
         $lookup: {
           from: 'seat_showtimes',
-          localField: 'showtimeId',
+          localField: '_id',
           foreignField: 'showtimeId',
           as: 'seats',
         },
@@ -288,7 +298,7 @@ export class StatisticsService {
       {
         $lookup: {
           from: 'seat_orders',
-          localField: 'seats.seatShowtimeId',
+          localField: 'seats._id',
           foreignField: 'seatShowtimeId',
           as: 'seatOrder',
         },
@@ -298,7 +308,7 @@ export class StatisticsService {
         $lookup: {
           from: 'orders',
           localField: 'seatOrder.orderId',
-          foreignField: 'orderId',
+          foreignField: '_id',
           as: 'order',
         },
       },
@@ -307,14 +317,14 @@ export class StatisticsService {
         $lookup: {
           from: 'movies',
           localField: 'movieId',
-          foreignField: 'movieId',
+          foreignField: '_id',
           as: 'movie',
         },
       },
       { $unwind: '$movie' },
       {
         $group: {
-          _id: { movieId: '$movieId', showtimeId: '$showtimeId' },
+          _id: { movieId: '$movieId', showtimeId: '$_id' },
           movieName: { $first: '$movie.movieName' },
           ticketsSold: {
             $sum: { $cond: [{ $eq: ['$order.status', PAID] }, 1, 0] },
@@ -338,7 +348,7 @@ export class StatisticsService {
       {
         $project: {
           _id: 0,
-          movieId: '$_id',
+          movieId: { $toString: '$_id' },
           movieName: 1,
           showtimeCount: 1,
           ticketsSold: 1,

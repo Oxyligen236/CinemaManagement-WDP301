@@ -7,8 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from '../../domain/schemas/order.schema';
 import {
   SeatOrder,
@@ -112,6 +111,12 @@ export class PosOrderService
     private readonly internalEventBus: InternalEventBus,
   ) {}
 
+  private toOrderObjectId(orderId: string): Types.ObjectId {
+    return Types.ObjectId.isValid(orderId)
+      ? new Types.ObjectId(orderId)
+      : (orderId as unknown as Types.ObjectId);
+  }
+
   async createPosBookingOrder(
     staffContext: { staffId: string; branchId: string },
     request: CreatePosOrderReq,
@@ -185,24 +190,34 @@ export class PosOrderService
     }, 0);
     const totalAmount = ticketSubtotal + productSubtotal;
 
-    const orderId = randomUUID();
+    const orderObjectId = new Types.ObjectId();
+    const orderId = orderObjectId.toString();
     const createdAt = new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
 
+    const staffObjectId = Types.ObjectId.isValid(staffContext.staffId)
+      ? new Types.ObjectId(staffContext.staffId)
+      : (staffContext.staffId as unknown as Types.ObjectId);
+
+    const branchObjectId = Types.ObjectId.isValid(staffContext.branchId)
+      ? new Types.ObjectId(staffContext.branchId)
+      : (staffContext.branchId as unknown as Types.ObjectId);
+
     try {
       await this.orderModel.create({
-        orderId,
-        userId: staffContext.staffId,
-        branchId: staffContext.branchId,
+        _id: orderObjectId,
+        userId: staffObjectId,
+        branchId: branchObjectId,
         totalAmount,
         status: OrderStatus.PENDING,
       });
 
       if (hasSeats && reservedSeats.length > 0) {
         const seatOrdersData = reservedSeats.map((seat) => ({
-          seatOrderId: randomUUID(),
-          orderId,
-          seatShowtimeId: seat.seatShowtimeId,
+          orderId: orderObjectId,
+          seatShowtimeId: Types.ObjectId.isValid(seat.seatShowtimeId)
+            ? new Types.ObjectId(seat.seatShowtimeId)
+            : (seat.seatShowtimeId as unknown as Types.ObjectId),
           price: seat.basePrice,
           orderAt: createdAt,
         }));
@@ -211,9 +226,10 @@ export class PosOrderService
 
       if (request.products?.length) {
         const productOrdersData = request.products.map((item) => ({
-          productOrderId: randomUUID(),
-          orderId,
-          productId: item.productId,
+          orderId: orderObjectId,
+          productId: Types.ObjectId.isValid(item.productId)
+            ? new Types.ObjectId(item.productId)
+            : (item.productId as unknown as Types.ObjectId),
           quantity: item.quantity,
           unitPrice: productsMap.get(item.productId)?.unitPrice ?? 0,
         }));
@@ -225,9 +241,11 @@ export class PosOrderService
           request.seatShowtimeIds!,
         );
       }
-      await this.orderModel.deleteOne({ orderId }).exec();
-      await this.seatOrderModel.deleteMany({ orderId }).exec();
-      await this.productOrderModel.deleteMany({ orderId }).exec();
+      await this.orderModel.deleteOne({ _id: orderObjectId }).exec();
+      await this.seatOrderModel.deleteMany({ orderId: orderObjectId }).exec();
+      await this.productOrderModel
+        .deleteMany({ orderId: orderObjectId })
+        .exec();
       throw dbError;
     }
 
@@ -243,9 +261,11 @@ export class PosOrderService
           request.seatShowtimeIds!,
         );
       }
-      await this.orderModel.deleteOne({ orderId }).exec();
-      await this.seatOrderModel.deleteMany({ orderId }).exec();
-      await this.productOrderModel.deleteMany({ orderId }).exec();
+      await this.orderModel.deleteOne({ _id: orderObjectId }).exec();
+      await this.seatOrderModel.deleteMany({ orderId: orderObjectId }).exec();
+      await this.productOrderModel
+        .deleteMany({ orderId: orderObjectId })
+        .exec();
       throw queueError;
     }
 
@@ -298,7 +318,7 @@ export class PosOrderService
     orderId: string,
     request: ApplyPromotionReq,
   ): Promise<PosBookingSummaryRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -314,7 +334,7 @@ export class PosOrderService
     const validation = await this.promotionContract.validatePromotionCode({
       code: request.promotionCode,
       orderAmount: order.totalAmount,
-      userId: order.userId,
+      userId: order.userId.toString(),
     });
 
     if (!validation.isValid) {
@@ -323,7 +343,12 @@ export class PosOrderService
       );
     }
 
-    order.promotionId = validation.promotionId;
+    if (
+      validation.promotionId &&
+      Types.ObjectId.isValid(validation.promotionId)
+    ) {
+      order.promotionId = new Types.ObjectId(validation.promotionId);
+    }
     order.totalAmount = Math.max(
       0,
       order.totalAmount - validation.discountAmount,
@@ -338,7 +363,7 @@ export class PosOrderService
     orderId: string,
     request?: CancelPosOrderReq,
   ): Promise<{ success: boolean; message: string }> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -351,8 +376,13 @@ export class PosOrderService
       );
     }
 
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
-    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+    const orderObjectId = this.toOrderObjectId(orderId);
+    const seatOrders = await this.seatOrderModel
+      .find({ orderId: orderObjectId })
+      .exec();
+    const seatShowtimeIds = seatOrders.map((so) =>
+      so.seatShowtimeId.toString(),
+    );
 
     order.status = OrderStatus.CANCELLED;
     await order.save();
@@ -388,7 +418,7 @@ export class PosOrderService
     orderId: string,
     request: ProcessPosCashPaymentReq,
   ): Promise<PosCashPaymentResultRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -412,8 +442,13 @@ export class PosOrderService
       cashReceived: request.cashReceived,
     });
 
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
-    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+    const orderObjectId = this.toOrderObjectId(orderId);
+    const seatOrders = await this.seatOrderModel
+      .find({ orderId: orderObjectId })
+      .exec();
+    const seatShowtimeIds = seatOrders.map((so) =>
+      so.seatShowtimeId.toString(),
+    );
 
     let tickets: TicketItemSummaryDto[] = [];
     if (seatShowtimeIds.length > 0) {
@@ -424,11 +459,13 @@ export class PosOrderService
       });
     }
 
-    const productOrders = await this.productOrderModel.find({ orderId }).exec();
+    const productOrders = await this.productOrderModel
+      .find({ orderId: orderObjectId })
+      .exec();
     if (productOrders.length) {
       await this.productContract.deductConcessionStock(
         productOrders.map((po) => ({
-          productId: po.productId,
+          productId: po.productId.toString(),
           quantity: po.quantity,
         })),
       );
@@ -446,8 +483,8 @@ export class PosOrderService
           amountToPay,
           'CASH',
           new Date(),
-          order.promotionId,
-          order.userId,
+          order.promotionId ? order.promotionId.toString() : undefined,
+          order.userId.toString(),
         ),
       );
     } catch (eventError) {
@@ -474,7 +511,7 @@ export class PosOrderService
     orderId: string,
     request: InitiatePosQrPaymentReq,
   ): Promise<PosQrPaymentRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -510,7 +547,7 @@ export class PosOrderService
     staffContext: { staffId: string; branchId: string },
     orderId: string,
   ): Promise<PosCashPaymentResultRes | PosQrPaymentRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -541,8 +578,13 @@ export class PosOrderService
       statusSummary.status === PaymentStatus.SUCCESS ||
       (statusSummary.status as string) === 'SUCCESS'
     ) {
-      const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
-      const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+      const orderObjectId = this.toOrderObjectId(orderId);
+      const seatOrders = await this.seatOrderModel
+        .find({ orderId: orderObjectId })
+        .exec();
+      const seatShowtimeIds = seatOrders.map((so) =>
+        so.seatShowtimeId.toString(),
+      );
 
       let tickets: TicketItemSummaryDto[] = [];
       if (seatShowtimeIds.length > 0) {
@@ -554,12 +596,12 @@ export class PosOrderService
       }
 
       const productOrders = await this.productOrderModel
-        .find({ orderId })
+        .find({ orderId: orderObjectId })
         .exec();
       if (productOrders.length) {
         await this.productContract.deductConcessionStock(
           productOrders.map((po) => ({
-            productId: po.productId,
+            productId: po.productId.toString(),
             quantity: po.quantity,
           })),
         );
@@ -578,8 +620,8 @@ export class PosOrderService
             amountToPay,
             paymentMethod,
             new Date(),
-            order.promotionId,
-            order.userId,
+            order.promotionId ? order.promotionId.toString() : undefined,
+            order.userId.toString(),
           ),
         );
       } catch (eventError) {
@@ -621,7 +663,7 @@ export class PosOrderService
     },
     orderId: string,
   ): Promise<PosReceiptRes> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
+    const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -648,8 +690,13 @@ export class PosOrderService
     }
 
     let tickets = await this.ticketContract.getTicketsByOrderId(orderId);
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
-    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+    const orderObjectId = this.toOrderObjectId(orderId);
+    const seatOrders = await this.seatOrderModel
+      .find({ orderId: orderObjectId })
+      .exec();
+    const seatShowtimeIds = seatOrders.map((so) =>
+      so.seatShowtimeId.toString(),
+    );
 
     if (!tickets.length && seatShowtimeIds.length) {
       tickets = await this.ticketContract.createTicketsForOrder({
@@ -686,15 +733,17 @@ export class PosOrderService
       ? new Date(firstTicket.startTime).toLocaleDateString('vi-VN')
       : undefined;
 
-    const productOrders = await this.productOrderModel.find({ orderId }).exec();
-    const productIds = productOrders.map((po) => po.productId);
+    const productOrders = await this.productOrderModel
+      .find({ orderId: orderObjectId })
+      .exec();
+    const productIds = productOrders.map((po) => po.productId.toString());
     const productsMap: Map<string, ProductSummaryDto> = productIds.length
       ? await this.productContract.getProductsByIds(productIds)
       : new Map<string, ProductSummaryDto>();
 
     return {
       orderId,
-      orderCode: order.orderId.slice(-8).toUpperCase(),
+      orderCode: order._id.toString().slice(-8).toUpperCase(),
       branchName:
         firstTicket?.branchName ||
         staffContext.branchName ||
@@ -740,9 +789,10 @@ export class PosOrderService
         };
       }),
       products: productOrders.map((po) => {
-        const prod = productsMap.get(po.productId);
+        const pIdStr = po.productId.toString();
+        const prod = productsMap.get(pIdStr);
         return {
-          productName: prod?.productName || po.productId,
+          productName: prod?.productName || pIdStr,
           quantity: po.quantity,
           unitPrice: po.unitPrice,
           subTotal: po.quantity * po.unitPrice,
@@ -755,15 +805,20 @@ export class PosOrderService
     orderId: string,
     branchId: string,
   ): Promise<void> {
-    const order = await this.orderModel.findOne({ orderId }).exec();
-    if (order?.branchId && order.branchId !== branchId) {
+    const order = await this.orderModel.findById(orderId).exec();
+    if (order?.branchId && order.branchId.toString() !== branchId) {
       throw new ForbiddenException(
         'Đơn hàng không thuộc chi nhánh của nhân viên',
       );
     }
 
-    const seatOrders = await this.seatOrderModel.find({ orderId }).exec();
-    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+    const orderObjectId = this.toOrderObjectId(orderId);
+    const seatOrders = await this.seatOrderModel
+      .find({ orderId: orderObjectId })
+      .exec();
+    const seatShowtimeIds = seatOrders.map((so) =>
+      so.seatShowtimeId.toString(),
+    );
     if (seatShowtimeIds.length) {
       const seats =
         await this.showtimeBookingService.getSeatBookingDetails(
@@ -780,18 +835,21 @@ export class PosOrderService
   private async buildPosBookingSummary(
     order: OrderDocument,
   ): Promise<PosBookingSummaryRes> {
+    const orderObjectId = order._id;
     const seatOrders = await this.seatOrderModel
-      .find({ orderId: order.orderId })
+      .find({ orderId: orderObjectId })
       .exec();
-    const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
+    const seatShowtimeIds = seatOrders.map((so) =>
+      so.seatShowtimeId.toString(),
+    );
     const seats = seatShowtimeIds.length
       ? await this.showtimeBookingService.getSeatBookingDetails(seatShowtimeIds)
       : [];
 
     const productOrders = await this.productOrderModel
-      .find({ orderId: order.orderId })
+      .find({ orderId: orderObjectId })
       .exec();
-    const productIds = productOrders.map((po) => po.productId);
+    const productIds = productOrders.map((po) => po.productId.toString());
     const productsMap: Map<string, ProductSummaryDto> = productIds.length
       ? await this.productContract.getProductsByIds(productIds)
       : new Map<string, ProductSummaryDto>();
@@ -805,8 +863,8 @@ export class PosOrderService
     );
 
     return {
-      orderId: order.orderId,
-      userId: order.userId,
+      orderId: order._id.toString(),
+      userId: order.userId.toString(),
       status: order.status,
       totalAmount: order.totalAmount,
       createdAt,
@@ -821,10 +879,11 @@ export class PosOrderService
         price: s.basePrice,
       })),
       products: productOrders.map((po) => {
-        const prod = productsMap.get(po.productId);
+        const pIdStr = po.productId.toString();
+        const prod = productsMap.get(pIdStr);
         return {
-          productId: po.productId,
-          productName: prod?.productName || po.productId,
+          productId: pIdStr,
+          productName: prod?.productName || pIdStr,
           quantity: po.quantity,
           unitPrice: po.unitPrice,
         };

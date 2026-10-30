@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { PaymentContractImpl } from './payment-contract.impl';
 import { Payment } from '../domain/schemas/payment.schema';
 import { PaymentMethod } from '../domain/enums/payment-method.enum';
@@ -10,13 +11,16 @@ describe('PaymentContractImpl', () => {
   let contract: PaymentContractImpl;
 
   function MockPaymentConstructor(dto: Partial<Payment>): {
-    save: () => Promise<Partial<Payment>>;
+    _id: Types.ObjectId;
+    save: () => Promise<Partial<Payment> & { _id: Types.ObjectId }>;
   } & Partial<Payment> {
+    const _id = new Types.ObjectId('507f1f77bcf86cd799439011');
     return {
+      _id,
       ...dto,
       save: jest.fn().mockResolvedValue({
+        _id,
         ...dto,
-        paymentId: dto.paymentId || 'pay-001',
       }),
     };
   }
@@ -98,6 +102,7 @@ describe('PaymentContractImpl', () => {
         sort: jest.fn().mockReturnValue({
           lean: jest.fn().mockReturnValue({
             exec: jest.fn().mockResolvedValue({
+              _id: new Types.ObjectId('507f1f77bcf86cd799439011'),
               paymentId: 'pay-003',
               orderId: 'ord-003',
               amount: 80000,

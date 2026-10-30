@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { Role } from '../../../auth/infra/decorators/role.decorator';
 import { ScanTicketUsecase } from '../usecase/scan-ticket.usecase';
@@ -46,6 +46,11 @@ export class TicketService
     private readonly eventBus: InternalEventBus,
   ) {}
 
+  private getTicketId(ticket: unknown): string {
+    const t = ticket as { _id?: { toString(): string }; ticketId?: string };
+    return t._id ? t._id.toString() : t.ticketId || '';
+  }
+
   async scanTicket(
     dto: ScanTicketReq,
     staffContext: StaffScanContextReq,
@@ -75,7 +80,7 @@ export class TicketService
     }
 
     const showtimeDetail = await this.showtimeContract.getSeatShowtimeDetail(
-      ticket.seatShowtimeId,
+      ticket.seatShowtimeId.toString(),
     );
 
     if (!showtimeDetail) {
@@ -124,12 +129,16 @@ export class TicketService
     const scannedAt = new Date();
     ticket.ticketStatus = TicketStatus.USED;
     ticket.usedAt = scannedAt;
-    ticket.scannedBy = staffContext.staffId;
+    if (staffContext.staffId) {
+      ticket.scannedBy = Types.ObjectId.isValid(staffContext.staffId)
+        ? new Types.ObjectId(staffContext.staffId)
+        : (staffContext.staffId as unknown as Types.ObjectId);
+    }
     await ticket.save();
 
     await this.eventBus.publish(
       new TicketScannedEvent(
-        ticket.ticketId,
+        this.getTicketId(ticket),
         ticket.ticketCode,
         staffContext.staffId,
         scannedAt,
@@ -139,13 +148,13 @@ export class TicketService
     const seatLabel = `${showtimeDetail.rowPosition || ''}${showtimeDetail.columnPosition || ''}`;
 
     return ScanTicketResultRes.of(
-      ticket.ticketId,
+      this.getTicketId(ticket),
       ticket.ticketCode,
-      ticket.orderId,
+      ticket.orderId.toString(),
       ticket.price,
       ticket.ticketStatus,
       ticket.usedAt,
-      ticket.seatShowtimeId,
+      ticket.seatShowtimeId.toString(),
       showtimeDetail.movieTitle,
       showtimeDetail.roomName,
       seatLabel,
@@ -173,7 +182,7 @@ export class TicketService
     }
 
     const showtimeDetail = await this.showtimeContract.getSeatShowtimeDetail(
-      ticket.seatShowtimeId,
+      ticket.seatShowtimeId.toString(),
     );
 
     const seatLabel = showtimeDetail
@@ -181,13 +190,13 @@ export class TicketService
       : '';
 
     return TicketDetailRes.of(
-      ticket.ticketId,
+      this.getTicketId(ticket),
       ticket.ticketCode,
-      ticket.orderId,
+      ticket.orderId.toString(),
       ticket.price,
       ticket.ticketStatus,
       ticket.usedAt,
-      ticket.seatShowtimeId,
+      ticket.seatShowtimeId.toString(),
       showtimeDetail?.movieTitle ?? '',
       showtimeDetail?.roomName ?? '',
       seatLabel,
@@ -203,7 +212,12 @@ export class TicketService
     orderId: string,
     session?: ClientSession,
   ): Promise<TicketItemSummaryRes[]> {
-    const ticketQuery = this.ticketModel.find({ orderId });
+    const filter = Types.ObjectId.isValid(orderId)
+      ? { orderId: new Types.ObjectId(orderId) }
+      : { orderId };
+    const ticketQuery = this.ticketModel.find(
+      filter as Record<string, unknown>,
+    );
     if (session) ticketQuery.session(session);
     const tickets = await ticketQuery.exec();
     if (!tickets || tickets.length === 0) {
@@ -213,19 +227,19 @@ export class TicketService
     const results: TicketItemSummaryRes[] = [];
     for (const ticket of tickets) {
       const showtimeDetail = await this.showtimeContract.getSeatShowtimeDetail(
-        ticket.seatShowtimeId,
+        ticket.seatShowtimeId.toString(),
       );
       const seatLabel = showtimeDetail
         ? `${showtimeDetail.rowPosition || ''}${showtimeDetail.columnPosition || ''}`
         : '';
 
       results.push({
-        ticketId: ticket.ticketId,
+        ticketId: this.getTicketId(ticket),
         ticketCode: ticket.ticketCode,
         price: ticket.price,
         ticketStatus: ticket.ticketStatus,
         usedAt: ticket.usedAt,
-        seatShowtimeId: ticket.seatShowtimeId,
+        seatShowtimeId: ticket.seatShowtimeId.toString(),
         movieTitle: showtimeDetail?.movieTitle ?? '',
         roomName: showtimeDetail?.roomName ?? '',
         seatLabel,
@@ -266,7 +280,7 @@ export class TicketService
     if (!orderId) {
       throw new BadRequestException('Mã đơn hàng không được để trống');
     }
-    const existing = await this.getTicketsByOrderId(orderId);
+    const existing = await this.getTicketsByOrderId(orderId, session);
     if (existing.length > 0) {
       return existing;
     }
@@ -277,6 +291,10 @@ export class TicketService
 
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const ticketsToCreate = [];
+
+    const orderObjectId = Types.ObjectId.isValid(orderId)
+      ? new Types.ObjectId(orderId)
+      : orderId;
 
     for (const seatShowtimeId of seatShowtimeIds) {
       const showtimeDetail =
@@ -294,9 +312,10 @@ export class TicketService
       const ticketCode = `TK-${dateStr}-${randomSuffix}`;
 
       ticketsToCreate.push({
-        ticketId: randomUUID(),
-        orderId,
-        seatShowtimeId,
+        orderId: orderObjectId,
+        seatShowtimeId: Types.ObjectId.isValid(seatShowtimeId)
+          ? new Types.ObjectId(seatShowtimeId)
+          : seatShowtimeId,
         ticketCode,
         price: showtimeDetail.price ?? 0,
         ticketStatus: TicketStatus.VALID,

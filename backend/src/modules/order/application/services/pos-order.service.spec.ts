@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { PosOrderService } from './pos-order.service';
 import { Order } from '../../domain/schemas/order.schema';
 import { SeatOrder } from '../../domain/schemas/seat-order.schema';
@@ -53,6 +54,7 @@ describe('PosOrderService', () => {
   };
 
   const mockOrder = {
+    _id: new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1'),
     orderId: 'order-pos-123',
     userId: 'staff-001',
     totalAmount: 180000,
@@ -61,6 +63,7 @@ describe('PosOrderService', () => {
   };
 
   const mockOrderModel = {
+    findById: jest.fn(),
     findOne: jest.fn(),
     find: jest.fn(),
     create: jest.fn(),
@@ -105,12 +108,17 @@ describe('PosOrderService', () => {
   const mockPromotionContract: PromotionContract = {
     getPromotionById: jest.fn(),
     validatePromotionCode: jest.fn(),
+    recordPromotionUsage: jest.fn(),
   };
 
   const mockPaymentContract: PaymentContract = {
     processCashPayment: jest.fn(),
     generateQrPayment: jest.fn(),
     checkPaymentStatus: jest.fn(),
+    createVnpayPayment: jest.fn(),
+    verifyVnpayReturn: jest.fn(),
+    verifyVnpayIpn: jest.fn(),
+    getVnpayPaymentStatus: jest.fn(),
   };
 
   const mockQueueService: QueueService = {
@@ -120,7 +128,6 @@ describe('PosOrderService', () => {
 
   const mockEventBus: InternalEventBus = {
     publish: jest.fn().mockResolvedValue(undefined),
-    subscribe: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -210,7 +217,7 @@ describe('PosOrderService', () => {
       expect(mockShowtimeBooking.reserveSeats).not.toHaveBeenCalled();
       expect(mockSeatOrderModel.insertMany).not.toHaveBeenCalled();
       expect(mockOrderModel.create).toHaveBeenCalledWith({
-        orderId: expect.any(String),
+        _id: expect.any(Types.ObjectId),
         userId: staffContext.staffId,
         branchId: staffContext.branchId,
         totalAmount: 120000,
@@ -310,14 +317,20 @@ describe('PosOrderService', () => {
       expect(result.status).toBe(OrderStatus.PENDING);
       expect(result.totalAmount).toBe(150000);
       expect(result.userId).toBe('staff-001');
-      expect((result as Record<string, unknown>).customerPhone).toBeUndefined();
-      expect((result as Record<string, unknown>).customerName).toBeUndefined();
       expect(
-        (result as Record<string, unknown>).discountAmount,
+        (result as unknown as Record<string, unknown>).customerPhone,
       ).toBeUndefined();
-      expect((result as Record<string, unknown>).finalAmount).toBeUndefined();
+      expect(
+        (result as unknown as Record<string, unknown>).customerName,
+      ).toBeUndefined();
+      expect(
+        (result as unknown as Record<string, unknown>).discountAmount,
+      ).toBeUndefined();
+      expect(
+        (result as unknown as Record<string, unknown>).finalAmount,
+      ).toBeUndefined();
       const expectedCreatedOrder: Record<string, unknown> = {
-        orderId: expect.any(String),
+        _id: expect.any(Types.ObjectId),
         userId: staffContext.staffId,
         branchId: staffContext.branchId,
         totalAmount: 150000,
@@ -331,7 +344,7 @@ describe('PosOrderService', () => {
 
   describe('cancelPosOrder & verifyOrderBranch', () => {
     it('should throw NotFoundException when order not found', async () => {
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(null),
       });
 
@@ -341,7 +354,7 @@ describe('PosOrderService', () => {
     });
 
     it('should throw ForbiddenException if order belongs to different branch via seats', async () => {
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           ...mockOrder,
           status: OrderStatus.PENDING,
@@ -370,7 +383,7 @@ describe('PosOrderService', () => {
         status: OrderStatus.PENDING,
         save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(orderToCancel),
       });
       mockSeatOrderModel.find.mockReturnValue({
@@ -397,7 +410,7 @@ describe('PosOrderService', () => {
 
   describe('confirmPosCashPayment', () => {
     it('should throw BadRequestException if cash received is less than totalAmount', async () => {
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           ...mockOrder,
           status: OrderStatus.PENDING,
@@ -422,7 +435,7 @@ describe('PosOrderService', () => {
         totalAmount: 150000,
         save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(pendingOrder),
       });
       mockSeatOrderModel.find.mockReturnValue({
@@ -498,7 +511,7 @@ describe('PosOrderService', () => {
         totalAmount: 180000,
         save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(pendingOrder),
       });
       mockSeatOrderModel.find.mockReturnValue({
@@ -545,7 +558,7 @@ describe('PosOrderService', () => {
         totalAmount: 180000,
         save: jest.fn().mockResolvedValue(true),
       };
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(pendingOrder),
       });
       mockSeatOrderModel.find.mockReturnValue({
@@ -607,7 +620,7 @@ describe('PosOrderService', () => {
         status: OrderStatus.PAID,
         totalAmount: 180000,
       };
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue(paidOrder),
       });
       mockSeatOrderModel.find.mockReturnValue({
@@ -661,18 +674,22 @@ describe('PosOrderService', () => {
       expect(receipt.totalAmount).toBe(180000);
       expect(receipt.tickets).toHaveLength(1);
       expect(receipt.products).toHaveLength(1);
-      expect((receipt as Record<string, unknown>).customerName).toBeUndefined();
       expect(
-        (receipt as Record<string, unknown>).customerPhone,
+        (receipt as unknown as Record<string, unknown>).customerName,
       ).toBeUndefined();
       expect(
-        (receipt as Record<string, unknown>).discountAmount,
+        (receipt as unknown as Record<string, unknown>).customerPhone,
       ).toBeUndefined();
-      expect((receipt as Record<string, unknown>).finalAmount).toBeUndefined();
+      expect(
+        (receipt as unknown as Record<string, unknown>).discountAmount,
+      ).toBeUndefined();
+      expect(
+        (receipt as unknown as Record<string, unknown>).finalAmount,
+      ).toBeUndefined();
     });
 
     it('should throw BadRequestException if order is not PAID', async () => {
-      mockOrderModel.findOne.mockReturnValue({
+      mockOrderModel.findById.mockReturnValue({
         exec: jest.fn().mockResolvedValue({
           ...mockOrder,
           status: OrderStatus.PENDING,

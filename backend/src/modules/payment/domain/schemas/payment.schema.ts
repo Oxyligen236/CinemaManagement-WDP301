@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { PaymentMethod } from '../enums/payment-method.enum';
 import { PaymentStatus } from '../enums/payment-status.enum';
 
@@ -12,17 +11,11 @@ export type PaymentDocument = HydratedDocument<Payment>;
 })
 export class Payment {
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Order',
     required: true,
-    unique: true,
-    default: () => randomUUID(),
   })
-  paymentId!: string;
-
-  @Prop({
-    required: true,
-    trim: true,
-  })
-  orderId!: string;
+  orderId!: Types.ObjectId;
 
   @Prop({
     required: true,

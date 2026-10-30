@@ -47,7 +47,11 @@ import {
 import { BranchQueryService } from '../../../branch/application/services/branch-query.service';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { QueryMyOrdersReq } from '../dto/req.dto';
+import {
+  QueryMyOrdersReq,
+  QueryStaffOrdersReq,
+  QueryAdminOrdersReq,
+} from '../dto/req.dto';
 import { PAYMENT_CONTRACT } from '../../contracts/payment.contract';
 
 describe('OrderService', () => {
@@ -995,6 +999,8 @@ describe('OrderService', () => {
 
       const result = await service.getMyOrderHistory('user-001', {
         status: OrderStatus.PAID,
+        page: 1,
+        limit: 10,
       });
 
       expect(mockOrderModel.find).toHaveBeenCalledWith({
@@ -1014,6 +1020,8 @@ describe('OrderService', () => {
 
       const result = await service.getMyOrderHistory('user-001', {
         status: 'CANCELLED,EXPIRED',
+        page: 1,
+        limit: 10,
       });
 
       expect(mockOrderModel.find).toHaveBeenCalledWith({
@@ -1031,7 +1039,10 @@ describe('OrderService', () => {
     it('tra ve tat ca khi khong truyen status', async () => {
       setupPaginateMocks();
 
-      const result = await service.getMyOrderHistory('user-001', {});
+      const result = await service.getMyOrderHistory('user-001', {
+        page: 1,
+        limit: 10,
+      });
 
       expect(mockOrderModel.find).toHaveBeenCalledWith({
         userId: 'user-001',
@@ -1079,6 +1090,8 @@ describe('OrderService', () => {
 
       await service.queryStaffOrders({
         status: 'CANCELLED,EXPIRED',
+        page: 1,
+        limit: 10,
       });
 
       expect(mockOrderModel.find).toHaveBeenCalledWith({
@@ -1091,6 +1104,8 @@ describe('OrderService', () => {
 
       await service.queryAdminOrders({
         status: 'CANCELLED,EXPIRED',
+        page: 1,
+        limit: 10,
       });
 
       expect(mockOrderModel.find).toHaveBeenCalledWith({

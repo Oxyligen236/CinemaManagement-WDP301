@@ -11,7 +11,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../../auth/infra/guards/role.guard';
 import { Roles } from '../../../auth/infra/decorators/role.decorator';
@@ -49,7 +49,11 @@ export class PosStaffController {
   ): Promise<{ staffId: string; branchId: string; staffName: string }> {
     const authUser = req.user as AuthUser;
     const user = await this.userModel
-      .findOne({ userId: authUser.sub })
+      .findById(
+        Types.ObjectId.isValid(authUser.sub)
+          ? new Types.ObjectId(authUser.sub)
+          : authUser.sub,
+      )
       .select('branchId firstName lastName isActive')
       .lean()
       .exec();
@@ -65,7 +69,7 @@ export class PosStaffController {
 
     return {
       staffId: authUser.sub,
-      branchId: user.branchId,
+      branchId: user.branchId.toString(),
       staffName,
     };
   }

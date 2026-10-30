@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { VNPay, ignoreLogger } from 'vnpay';
 import { Payment, PaymentDocument } from '../domain/schemas/payment.schema';
@@ -40,17 +40,20 @@ export class PaymentContractImpl implements PaymentContract {
       throw new BadRequestException('Số tiền thanh toán không hợp lệ');
     }
 
+    const orderObjectId = Types.ObjectId.isValid(params.orderId)
+      ? new Types.ObjectId(params.orderId)
+      : params.orderId;
+
     let payment = await this.paymentModel
       .findOne({
-        orderId: params.orderId,
+        orderId: orderObjectId,
         method: PaymentMethod.VNPAY,
         status: PaymentStatus.PENDING,
       })
       .exec();
     if (!payment) {
       payment = await this.paymentModel.create({
-        paymentId: randomUUID(),
-        orderId: params.orderId,
+        orderId: orderObjectId,
         amount: params.amount,
         method: PaymentMethod.VNPAY,
         status: PaymentStatus.PENDING,
@@ -59,6 +62,7 @@ export class PaymentContractImpl implements PaymentContract {
       throw new BadRequestException('Số tiền đơn hàng đã thay đổi');
     }
 
+    const paymentId = payment._id.toString();
     const vnpay = new VNPay({
       tmnCode,
       secureSecret,
@@ -71,11 +75,11 @@ export class PaymentContractImpl implements PaymentContract {
       vnp_Amount: params.amount,
       vnp_IpAddr: params.ipAddr,
       vnp_ReturnUrl: params.returnUrl,
-      vnp_TxnRef: payment.paymentId,
+      vnp_TxnRef: paymentId,
       vnp_OrderInfo: `Thanh toan don ${params.orderId}`,
     });
     return {
-      paymentId: payment.paymentId,
+      paymentId,
       orderId: params.orderId,
       paymentUrl,
       status: payment.status,
@@ -94,17 +98,18 @@ export class PaymentContractImpl implements PaymentContract {
       enableLog: false,
       loggerFn: ignoreLogger,
     }).verifyReturnUrl(query as Parameters<VNPay['verifyReturnUrl']>[0]);
-    const paymentId =
-      typeof query.vnp_TxnRef === 'string' ? query.vnp_TxnRef : '';
-    const payment = await this.paymentModel
-      .findOne({ paymentId, method: PaymentMethod.VNPAY })
-      .exec();
+    const txnRef = typeof query.vnp_TxnRef === 'string' ? query.vnp_TxnRef : '';
+
+    const queryFilter = Types.ObjectId.isValid(txnRef)
+      ? { _id: new Types.ObjectId(txnRef), method: PaymentMethod.VNPAY }
+      : { method: PaymentMethod.VNPAY };
+    const payment = await this.paymentModel.findOne(queryFilter).exec();
     if (!payment) throw new NotFoundException('Không tìm thấy giao dịch VNPay');
     if (!result.isVerified || Number(result.vnp_Amount) !== payment.amount)
       throw new BadRequestException('Thông tin giao dịch VNPay không hợp lệ');
     return {
       isSuccess: result.isVerified && result.isSuccess,
-      orderId: payment.orderId,
+      orderId: payment.orderId.toString(),
       message: result.message,
       responseCode: String(query.vnp_ResponseCode || ''),
     };
@@ -124,9 +129,12 @@ export class PaymentContractImpl implements PaymentContract {
     }).verifyIpnCall(query as Parameters<VNPay['verifyIpnCall']>[0]);
     if (!result.isVerified)
       return { RspCode: '97', Message: 'Invalid checksum' };
-    const payment = await this.paymentModel
-      .findOne({ paymentId: result.vnp_TxnRef, method: PaymentMethod.VNPAY })
-      .exec();
+
+    const txnRef = String(result.vnp_TxnRef || '');
+    const queryFilter = Types.ObjectId.isValid(txnRef)
+      ? { _id: new Types.ObjectId(txnRef), method: PaymentMethod.VNPAY }
+      : { method: PaymentMethod.VNPAY };
+    const payment = await this.paymentModel.findOne(queryFilter).exec();
     if (!payment) return { RspCode: '01', Message: 'Order not found' };
     // vnpay SDK normalizes vnp_Amount back to VND after verification.
     if (Number(result.vnp_Amount) !== payment.amount)
@@ -136,13 +144,13 @@ export class PaymentContractImpl implements PaymentContract {
         ? {
             RspCode: '00',
             Message: 'Confirm Success',
-            orderId: payment.orderId,
+            orderId: payment.orderId.toString(),
             isSuccess: true,
           }
         : {
             RspCode: '02',
             Message: 'Order already confirmed',
-            orderId: payment.orderId,
+            orderId: payment.orderId.toString(),
             isSuccess: false,
           };
     }
@@ -154,14 +162,17 @@ export class PaymentContractImpl implements PaymentContract {
     return {
       RspCode: '00',
       Message: 'Confirm Success',
-      orderId: payment.orderId,
+      orderId: payment.orderId.toString(),
       isSuccess: result.isSuccess,
     };
   }
 
   async getVnpayPaymentStatus(orderId: string) {
+    const orderFilter = Types.ObjectId.isValid(orderId)
+      ? { orderId: new Types.ObjectId(orderId), method: PaymentMethod.VNPAY }
+      : { orderId, method: PaymentMethod.VNPAY };
     const payment = await this.paymentModel
-      .findOne({ orderId, method: PaymentMethod.VNPAY })
+      .findOne(orderFilter as Record<string, unknown>)
       .sort({ createdAt: -1 })
       .lean()
       .exec();
@@ -182,9 +193,12 @@ export class PaymentContractImpl implements PaymentContract {
     const changeAmount = params.cashReceived - params.totalAmount;
     const now = new Date();
 
+    const orderObjectId = Types.ObjectId.isValid(params.orderId)
+      ? new Types.ObjectId(params.orderId)
+      : params.orderId;
+
     const payment = new this.paymentModel({
-      paymentId: randomUUID(),
-      orderId: params.orderId,
+      orderId: orderObjectId,
       amount: params.totalAmount,
       method: PaymentMethod.CASH,
       status: PaymentStatus.SUCCESS,
@@ -194,8 +208,8 @@ export class PaymentContractImpl implements PaymentContract {
     const saved = await payment.save();
 
     return {
-      paymentId: saved.paymentId,
-      orderId: saved.orderId,
+      paymentId: saved._id.toString(),
+      orderId: saved.orderId.toString(),
       amount: saved.amount,
       cashReceived: params.cashReceived,
       changeAmount,
@@ -219,17 +233,20 @@ export class PaymentContractImpl implements PaymentContract {
     const description =
       params.description || `MYCAST ${params.orderId.slice(0, 8)}`;
 
+    const orderObjectId = Types.ObjectId.isValid(params.orderId)
+      ? new Types.ObjectId(params.orderId)
+      : params.orderId;
+
     let payment = await this.paymentModel
       .findOne({
-        orderId: params.orderId,
+        orderId: orderObjectId,
         status: PaymentStatus.PENDING,
       })
       .exec();
 
     if (!payment) {
       payment = new this.paymentModel({
-        paymentId: randomUUID(),
-        orderId: params.orderId,
+        orderId: orderObjectId,
         amount: params.amount,
         method,
         status: PaymentStatus.PENDING,
@@ -248,8 +265,8 @@ export class PaymentContractImpl implements PaymentContract {
     const qrPayload = `00020101021238540010A00000072701240006${bankId}0110${accountNo}0208QRIBFTTA5303704540${params.amount}5802VN62${description.length}${description}6304`;
 
     return {
-      paymentId: payment.paymentId,
-      orderId: payment.orderId,
+      paymentId: payment._id.toString(),
+      orderId: payment.orderId.toString(),
       amount: payment.amount,
       method: payment.method,
       status: payment.status,
@@ -261,10 +278,18 @@ export class PaymentContractImpl implements PaymentContract {
   async checkPaymentStatus(
     identifier: string,
   ): Promise<PaymentStatusSummaryDto> {
+    const isObjectId = Types.ObjectId.isValid(identifier);
+    const query = isObjectId
+      ? {
+          $or: [
+            { _id: new Types.ObjectId(identifier) },
+            { orderId: new Types.ObjectId(identifier) },
+          ],
+        }
+      : { orderId: identifier };
+
     const payment = await this.paymentModel
-      .findOne({
-        $or: [{ paymentId: identifier }, { orderId: identifier }],
-      })
+      .findOne(query as Record<string, unknown>)
       .sort({ createdAt: -1 })
       .lean()
       .exec();
@@ -276,8 +301,8 @@ export class PaymentContractImpl implements PaymentContract {
     }
 
     return {
-      paymentId: payment.paymentId,
-      orderId: payment.orderId,
+      paymentId: payment._id.toString(),
+      orderId: payment.orderId.toString(),
       amount: payment.amount,
       method: payment.method,
       status: payment.status,

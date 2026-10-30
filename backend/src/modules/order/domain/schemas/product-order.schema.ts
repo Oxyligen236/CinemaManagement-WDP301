@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type ProductOrderDocument = HydratedDocument<ProductOrder>;
 
@@ -10,23 +9,18 @@ export type ProductOrderDocument = HydratedDocument<ProductOrder>;
 })
 export class ProductOrder {
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Order',
     required: true,
-    unique: true,
-    default: () => randomUUID(),
   })
-  productOrderId!: string;
+  orderId!: Types.ObjectId;
 
   @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Product',
     required: true,
-    trim: true,
   })
-  orderId!: string;
-
-  @Prop({
-    required: true,
-    trim: true,
-  })
-  productId!: string;
+  productId!: Types.ObjectId;
 
   @Prop({
     required: true,
