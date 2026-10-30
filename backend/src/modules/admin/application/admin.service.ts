@@ -22,27 +22,6 @@ import { REGISTRATION_MESSAGES } from '../../user/domain/constants/auth-message.
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Tìm chi nhánh ACTIVE theo id mà frontend gửi lên.
-   *
-   * Dữ liệu `branches` tồn tại 2 thế hệ: bản cũ lưu `branchId` là UUID/hex
-   * dạng string, bản sau khi migrate sang ObjectId thì `branchId` lại được ghi
-   * đúng BSON ObjectId. Query `{ branchId: '<hex string>' }` không khớp được
-   * document thế hệ sau vì Mongoose giữ nguyên kiểu string khi so sánh, nên
-   * phải dò thêm theo `_id` (giá trị `branchId` luôn trùng `_id`).
-   */
-  private async findActiveBranch(branchId: string) {
-    const filter = isValidObjectId(branchId)
-      ? { $or: [{ _id: branchId }, { branchId }] }
-      : { branchId };
-
-    return this.branchModel
-      .findOne({ ...filter, branchStatus: BranchStatus.ACTIVE })
-      .select('branchId')
-      .lean()
-      .exec();
-  }
-
   async getDashboard(authUser: AuthUser) {
     const admin = await this.prisma.user.findUnique({
       where: { id: authUser.sub },
@@ -323,7 +302,9 @@ export class AdminService {
       }
 
       if (input.role !== undefined && input.role !== (self.role as any)) {
-        throw new ForbiddenException('You cannot change your own role');
+        throw new ForbiddenException(
+          'Không thể thay đổi vai trò của chính bạn.',
+        );
       }
 
       if (input.isActive === false) {
@@ -368,7 +349,7 @@ export class AdminService {
       });
 
       return {
-        message: 'User updated successfully',
+        message: 'Câp nhật thông tin người dùng thành công.',
         user: { ...user, userId: user.id },
       };
     } catch (error: any) {
@@ -378,7 +359,7 @@ export class AdminService {
         );
       }
       if (error?.code === 'P2025') {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException('Không tìm thấy người dùng.');
       }
       throw error;
     }
