@@ -191,13 +191,13 @@ model User {
 }
 
 model Branch {
-  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
   branchName   String
   address      String
-  hotline      String?       @default("1900 2224")
-  branchStatus BranchStatus  @default(ACTIVE)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  hotline      String?      @default("1900 2224")
+  branchStatus BranchStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   users            User[]
   rooms            Room[]
@@ -302,8 +302,8 @@ model SeatShowtime {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 
-  showtime   Showtime           @relation(fields: [showtimeId], references: [id])
-  seat       Seat               @relation(fields: [seatId], references: [id])
+  showtime   Showtime    @relation(fields: [showtimeId], references: [id])
+  seat       Seat        @relation(fields: [seatId], references: [id])
   seatOrders SeatOrder[]
   tickets    Ticket[]
 
@@ -401,13 +401,13 @@ model SeatOrder {
 }
 
 model ProductOrder {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  orderId    String   @db.ObjectId
-  productId  String   @db.ObjectId
-  quantity   Int
-  unitPrice  Float
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String   @db.ObjectId
+  productId String   @db.ObjectId
+  quantity  Int
+  unitPrice Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   order Order @relation(fields: [orderId], references: [id])
 
@@ -448,21 +448,21 @@ model Payment {
 }
 
 model Promotion {
-  id                String         @id @default(auto()) @map("_id") @db.ObjectId
-  promotionCode     String         @unique
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  promotionCode     String       @unique
   discountValue     Float
-  discountType      DiscountType   @default(PERCENTAGE)
+  discountType      DiscountType @default(PERCENTAGE)
   startDate         DateTime
   endDate           DateTime
-  isActive          Boolean        @default(true)
+  isActive          Boolean      @default(true)
   minOrderValue     Float?
   maxDiscountAmount Float?
   usageLimit        Int?
-  usedCount         Int?           @default(0)
+  usedCount         Int?         @default(0)
   title             String?
   description       String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   orders Order[]
   usages PromotionUsage[]
