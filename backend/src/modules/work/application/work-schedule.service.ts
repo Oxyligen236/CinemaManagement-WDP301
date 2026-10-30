@@ -70,7 +70,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: userId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -81,7 +81,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -116,7 +116,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -333,7 +333,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -391,7 +391,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });

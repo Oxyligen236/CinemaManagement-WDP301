@@ -662,6 +662,11 @@ export default function StaffPosPage() {
     });
   }, [seats]);
 
+  const maxColumn = useMemo(() => {
+    if (seats.length === 0) return 10;
+    return Math.max(...seats.map((s) => s.columnPosition), 1);
+  }, [seats]);
+
   return (
     <div className="space-y-4 font-['Arial',sans-serif]">
       {/* 1. Header Banner & Utility Bar */}
@@ -1013,54 +1018,72 @@ export default function StaffPosPage() {
                         {rowKey}
                       </span>
                       <div className="flex items-center gap-1.5">
-                        {items.map((seat) => {
-                          const isSelected = selectedSeatIds.includes(
-                            seat.seatShowtimeId,
+                        {(() => {
+                          const colMap = new Map(
+                            items.map((s) => [s.columnPosition, s]),
                           );
-                          const isBooked = seat.seatStatus === "BOOKED";
-                          const isReserved = seat.seatStatus === "RESERVED";
-                          const type = (seat.seatType || "").toUpperCase();
-                          const isVip = type.includes("VIP");
-                          const isCouple =
-                            type.includes("COUPLE") || type.includes("ĐÔI");
-
-                          let btnClasses =
-                            "w-8 h-8 text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer ";
-
-                          if (isSelected) {
-                            btnClasses +=
-                              "bg-[#da291c] text-white border-2 border-[#b91c1c] shadow-md ring-2 ring-[#da291c]/30 scale-105";
-                          } else if (isBooked) {
-                            btnClasses +=
-                              "bg-[#e5e5e5] text-[#999] border border-[#ccc] cursor-not-allowed";
-                          } else if (isReserved) {
-                            btnClasses +=
-                              "bg-[#fed7aa] text-[#c2410c] border border-[#f97316] cursor-not-allowed";
-                          } else {
-                            if (isCouple) {
-                              btnClasses +=
-                                "w-16 bg-[#fce7f3] text-[#9d174d] border border-[#f472b6] hover:bg-[#fbcfe8]";
-                            } else if (isVip) {
-                              btnClasses +=
-                                "bg-[#fef3c7] text-[#92400e] border border-[#f59e0b] hover:bg-[#fde68a]";
-                            } else {
-                              btnClasses +=
-                                "bg-white text-[#231f20] border border-[#dad2b4] hover:border-[#da291c] hover:bg-[#efebdb]";
+                          return Array.from(
+                            { length: maxColumn },
+                            (_, idx) => idx + 1,
+                          ).map((colNum) => {
+                            const seat = colMap.get(colNum);
+                            if (!seat) {
+                              return (
+                                <div
+                                  key={`aisle-${rowKey}-${colNum}`}
+                                  className="w-8 h-8 flex items-center justify-center select-none"
+                                />
+                              );
                             }
-                          }
 
-                          return (
-                            <button
-                              key={seat.seatShowtimeId}
-                              disabled={isBooked || isReserved}
-                              onClick={() => toggleSeat(seat)}
-                              className={btnClasses}
-                              title={`Ghế ${rowKey}${seat.columnPosition} - ${seat.seatType}`}
-                            >
-                              {seat.columnPosition}
-                            </button>
-                          );
-                        })}
+                            const isSelected = selectedSeatIds.includes(
+                              seat.seatShowtimeId,
+                            );
+                            const isBooked = seat.seatStatus === "BOOKED";
+                            const isReserved = seat.seatStatus === "RESERVED";
+                            const type = (seat.seatType || "").toUpperCase();
+                            const isVip = type.includes("VIP");
+                            const isCouple =
+                              type.includes("COUPLE") || type.includes("ĐÔI");
+
+                            let btnClasses =
+                              "w-8 h-8 text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer ";
+
+                            if (isSelected) {
+                              btnClasses +=
+                                "bg-[#da291c] text-white border-2 border-[#b91c1c] shadow-md ring-2 ring-[#da291c]/30 scale-105";
+                            } else if (isBooked) {
+                              btnClasses +=
+                                "bg-[#e5e5e5] text-[#999] border border-[#ccc] cursor-not-allowed";
+                            } else if (isReserved) {
+                              btnClasses +=
+                                "bg-[#fed7aa] text-[#c2410c] border border-[#f97316] cursor-not-allowed";
+                            } else {
+                              if (isCouple) {
+                                btnClasses +=
+                                  "w-16 bg-[#fce7f3] text-[#9d174d] border border-[#f472b6] hover:bg-[#fbcfe8]";
+                              } else if (isVip) {
+                                btnClasses +=
+                                  "bg-[#fef3c7] text-[#92400e] border border-[#f59e0b] hover:bg-[#fde68a]";
+                              } else {
+                                btnClasses +=
+                                  "bg-white text-[#231f20] border border-[#dad2b4] hover:border-[#da291c] hover:bg-[#efebdb]";
+                              }
+                            }
+
+                            return (
+                              <button
+                                key={seat.seatShowtimeId}
+                                disabled={isBooked || isReserved}
+                                onClick={() => toggleSeat(seat)}
+                                className={btnClasses}
+                                title={`Ghế ${rowKey}${seat.columnPosition} - ${seat.seatType}`}
+                              >
+                                {seat.columnPosition}
+                              </button>
+                            );
+                          });
+                        })()}
                       </div>
                       <span className="w-5 text-center font-bold text-[12px] text-[#6f6247] font-mono">
                         {rowKey}

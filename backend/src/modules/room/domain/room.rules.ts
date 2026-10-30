@@ -20,6 +20,11 @@ export const ROOM_MESSAGES = {
   /** AF-2 / BR-BRM-07: Chặn báo hỏng ghế khi ghế đã bán vé ở suất chiếu sắp tới */
   MSG06_SEAT_SOLD_IN_UPCOMING_SHOWTIME:
     'Không thể đánh dấu ghế Hỏng/Bảo trì vì ghế này đã có khách đặt hoặc mua vé trong suất chiếu sắp tới.',
+  /** Chặn thay đổi layout khi phòng có suất chiếu đã bán vé */
+  MSG07_CANNOT_CHANGE_LAYOUT_WITH_BOOKED_TICKETS:
+    'Không thể thay đổi sơ đồ ghế vì phòng đang có suất chiếu đã bán vé cho khách hàng. Vui lòng đợi các suất chiếu kết thúc trước khi đổi layout.',
+  MSG08_LAYOUT_REPLACED:
+    'Cập nhật sơ đồ bố trí ghế cho phòng chiếu thành công.',
   ROOM_NOT_FOUND: 'Không tìm thấy phòng chiếu trong chi nhánh của bạn.',
   ROOM_NAME_EXISTS: 'Tên phòng chiếu đã tồn tại trong chi nhánh.',
   SEAT_NOT_FOUND: 'Không tìm thấy ghế hợp lệ trong phòng chiếu này.',
