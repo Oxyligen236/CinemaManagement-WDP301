@@ -109,7 +109,7 @@ export const PromotionTable: React.FC<PromotionTableProps> = ({
             <tr>
               <td colSpan={6} className="py-12 text-center text-text-muted">
                 <div className="flex flex-col items-center justify-center">
-                  <svg className="w-12 h-12 text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-12 h-12 text-text-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   <p className="font-medium text-text-sub">Không tìm thấy mã khuyến mãi nào</p>
@@ -119,7 +119,7 @@ export const PromotionTable: React.FC<PromotionTableProps> = ({
             </tr>
           ) : (
             promotions.map((promo) => (
-              <tr key={promo.promotionId} className="hover:bg-slate-50 transition-colors">
+              <tr key={promo.promotionId} className="hover:bg-surface-muted transition-colors">
                 <td className="px-4 py-3.5 font-semibold text-text-main font-mono">
                   {promo.promotionCode}
                 </td>
@@ -148,7 +148,7 @@ export const PromotionTable: React.FC<PromotionTableProps> = ({
                       variant={promo.isActive ? 'ghost' : 'secondary'}
                       size="sm"
                       onClick={() => onToggleStatus(promo)}
-                      className={promo.isActive ? 'text-status-danger hover:bg-red-50' : 'text-status-success hover:bg-emerald-50'}
+                      className={promo.isActive ? 'text-status-danger hover:bg-primary-50' : 'text-status-success hover:bg-emerald-50'}
                       aria-label={`${promo.isActive ? 'Hủy kích hoạt' : 'Kích hoạt'} mã ${promo.promotionCode}`}
                     >
                       {promo.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'}

@@ -674,7 +674,9 @@ export default function StaffPosPage() {
             {staffUser?.branchId && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-[#da291c] text-white">
                 <MapPin className="h-3 w-3" />
-                <span>{BRANCH_NAMES[staffUser.branchId] || staffUser.branchId}</span>
+                <span>
+                  {BRANCH_NAMES[staffUser.branchId] || staffUser.branchId}
+                </span>
               </span>
             )}
           </div>
@@ -908,9 +910,13 @@ export default function StaffPosPage() {
                 ) : !staffUser?.branchId ? (
                   <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-[#fffbeb] border border-[#f59e0b] text-[#b45309]">
                     <AlertTriangle className="h-8 w-8 text-[#d97706] mb-2" />
-                    <p className="font-bold text-[14px]">Chưa gán chi nhánh trực thuộc</p>
+                    <p className="font-bold text-[14px]">
+                      Chưa gán chi nhánh trực thuộc
+                    </p>
                     <p className="text-[12px] text-[#92400e] mt-1 max-w-md">
-                      Tài khoản nhân viên chưa được phân công chi nhánh làm việc. Vui lòng liên hệ Quản trị viên để gán chi nhánh trước khi tải suất chiếu.
+                      Tài khoản nhân viên chưa được phân công chi nhánh làm
+                      việc. Vui lòng liên hệ Quản trị viên để gán chi nhánh
+                      trước khi tải suất chiếu.
                     </p>
                   </div>
                 ) : filteredShowtimes.length === 0 ? (
@@ -1195,11 +1201,13 @@ export default function StaffPosPage() {
               <span>CHI TIẾT ĐƠN HÀNG</span>
             </h3>
             <div className="flex items-center gap-1.5">
-              {selectedSeatIds.length === 0 && productCart.size > 0 && !pendingOrder && (
-                <span className="px-2 py-0.5 text-[10px] font-bold bg-[#f0fdf4] text-[#15803d] border border-[#bbf7d0]">
-                  ĐƠN F&B LẺ
-                </span>
-              )}
+              {selectedSeatIds.length === 0 &&
+                productCart.size > 0 &&
+                !pendingOrder && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-[#f0fdf4] text-[#15803d] border border-[#bbf7d0]">
+                    ĐƠN F&B LẺ
+                  </span>
+                )}
               {pendingOrder && (
                 <span className="px-2 py-0.5 text-[10px] font-bold bg-[#fff8f8] text-[#da291c] border border-[#da291c]">
                   PENDING #
@@ -1229,7 +1237,9 @@ export default function StaffPosPage() {
                     Đơn F&B lẻ (không kèm vé phim)
                   </p>
                 ) : (
-                  <p className="text-xs text-[#888] italic">Chưa chọn ghế nào</p>
+                  <p className="text-xs text-[#888] italic">
+                    Chưa chọn ghế nào
+                  </p>
                 )
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -1317,28 +1327,6 @@ export default function StaffPosPage() {
                   </button>
                 </div>
               </div>
-
-              {!isGuestCustomer ? (
-                <div className="space-y-1 mt-2">
-                  <input
-                    type="text"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="Nhập SĐT khách hàng tích điểm..."
-                    className="w-full bg-white border border-[#dad2b4] px-2.5 py-1 text-xs text-[#231f20] placeholder-[#888] focus:outline-none focus:border-[#da291c] font-mono"
-                  />
-                  {customerPhone.trim() && (
-                    <p className="text-[10px] text-[#15803d] font-semibold flex items-center gap-1">
-                      <CheckCircle className="h-3 w-3" />
-                      Ghi nhận SĐT: {customerPhone.trim()}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-[11px] text-[#888] italic">
-                  Khách vãng lai (không lưu thông tin)
-                </p>
-              )}
             </div>
 
             {/* Khuyến mãi / Voucher */}

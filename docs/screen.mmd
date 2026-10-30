@@ -103,18 +103,39 @@ flowchart TD
     %% Admin Management Flow
     subgraph AdminFlow [Admin Management]
         AdminDashboard["/admin/dashboard (Tổng quan Hệ thống)"]
+        AdminBranches["/admin/branches (Quản lý Chi nhánh)"]
+        AdminFilms["/admin/films (Quản lý Phim)"]
         AdminUsers["/admin/users (Quản lý Người dùng)"]
-        AdminPromotions["/promotions (Quản lý Khuyến mãi)"]
-        AdminOrders["/orders (Quản lý toàn bộ đơn hàng)"]
+        AdminPriceMultipliers["/admin/price-multipliers (Cấu hình giá vé)"]
+        AdminPromotions["/admin/promotions (Quản lý Khuyến mãi)"]
+        AdminWorkSchedules["/admin/work-schedules (Ca làm việc)"]
+        AdminOrders["/admin/orders (Quản lý toàn bộ đơn hàng)"]
         AdminOrderDetail["[Modal] Chi tiết đơn hàng"]
+        CreateFilmModal["[Modal] Tạo Phim"]
+        DeactivateFilmDialog["[Dialog] Xác nhận Vô hiệu hóa"]
+        DeletePriceValueDialog["[Dialog] Xác nhận xóa giá trị hệ số"]
 
         Login -->|"Đăng nhập thành công (Admin)"| AdminDashboard
+        AdminDashboard -->|Quản lý Chi nhánh| AdminBranches
+        AdminDashboard -->|Quản lý Phim| AdminFilms
         AdminDashboard -->|Quản lý Người dùng| AdminUsers
+        AdminDashboard -->|Cấu hình giá| AdminPriceMultipliers
         AdminDashboard -->|Quản lý Khuyến mãi| AdminPromotions
+        AdminDashboard -->|Ca làm việc| AdminWorkSchedules
         AdminDashboard -->|Quản lý Đơn hàng| AdminOrders
         AdminOrders -->|Xem chi tiết| AdminOrderDetail
         AdminOrders -->|"Hủy đơn PENDING"| AdminOrders
         AdminOrderDetail -->|"Hủy đơn (PENDING)"| AdminOrders
+
+        AdminFilms -->|Tạo phim mới| CreateFilmModal
+        CreateFilmModal -->|Lưu thành công / Hủy| AdminFilms
+        AdminFilms -->|Vô hiệu hóa| DeactivateFilmDialog
+        DeactivateFilmDialog -->|Xác nhận / Hủy| AdminFilms
+
+        AdminPriceMultipliers -->|Thêm / Sửa inline| AdminPriceMultipliers
+        AdminPriceMultipliers -->|Xóa giá trị| DeletePriceValueDialog
+        DeletePriceValueDialog -->|Xác nhận / Hủy| AdminPriceMultipliers
+
         AdminDashboard -->|Đăng xuất| Home
     end
 
@@ -157,34 +178,6 @@ flowchart TD
         ChangeStatusDialog -->|Xác nhận thành công| ManageProducts
         BMDashboard -->|Đăng xuất| Home
     end
-    %% Admin Portal
-    AdminPromotions["/promotions (Admin - Quản lý Khuyến mãi)"]
-    AdminMovies["/admin/films (Admin - Quản lý Phim)"]
-
-    Login -->|"Đăng nhập thành công (Admin)"| AdminPromotions
-    Login -->|"Đăng nhập thành công (Admin)"| AdminMovies
-    AdminPromotions <-->|Chuyển tab Sidebar| AdminMovies
-
-    %% Admin Films
-    AdminFilms["/admin/films (Admin - Quản lý Phim)"]
-    CreateFilmModal["Modal Tạo Phim (Chọn poster upload, nhập link trailer)"]
-    DeactivateFilmDialog["Dialog Xác nhận Vô hiệu hóa"]
-
-    Login -->|"Đăng nhập thành công (Admin)"| AdminFilms
-    AdminFilms -->|Click Tạo phim mới| CreateFilmModal
-    CreateFilmModal -->|Lưu thành công / Hủy| AdminFilms
-    AdminFilms -->|Click Vô hiệu hóa| DeactivateFilmDialog
-    DeactivateFilmDialog -->|Xác nhận / Hủy| AdminFilms
-
-    %% Admin Price Multipliers
-    AdminPriceMultipliers["/admin/price-multipliers (Admin - Cấu hình danh sách hệ số giá vé)"]
-    DeletePriceValueDialog["Dialog xác nhận xóa giá trị hệ số"]
-
-    Login -->|"Đăng nhập thành công (Admin)"| AdminPriceMultipliers
-    AdminPriceMultipliers -->|Thêm / Sửa inline thành công, làm mới tại chỗ| AdminPriceMultipliers
-    AdminPriceMultipliers -->|Click Xóa giá trị| DeletePriceValueDialog
-    DeletePriceValueDialog -->|Xác nhận / Hủy| AdminPriceMultipliers
-    AdminPriceMultipliers -->|Chưa đăng nhập / 401| Login
 
     %% Manager Showtimes
     ManagerShowtimes["/manager/showtimes (Manager - Quản lý Suất chiếu)"]

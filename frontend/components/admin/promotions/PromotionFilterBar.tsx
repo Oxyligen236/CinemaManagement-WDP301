@@ -39,7 +39,7 @@ export const PromotionFilterBar: React.FC<PromotionFilterBarProps> = ({
             placeholder="Tìm theo mã khuyến mãi..."
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="h-10 w-full pl-9 pr-3 rounded-lg border border-border-main bg-white text-sm text-text-main placeholder:text-text-muted focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600"
+            className="h-10 w-full pl-9 pr-3 rounded-lg border border-border-main bg-surface text-sm text-text-main placeholder:text-text-muted focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600"
           />
         </div>
 
@@ -47,7 +47,7 @@ export const PromotionFilterBar: React.FC<PromotionFilterBarProps> = ({
         <select
           value={discountType || ''}
           onChange={(e) => onDiscountTypeChange(e.target.value ? (e.target.value as DiscountType) : undefined)}
-          className="h-10 rounded-lg border border-border-main bg-white px-3 text-sm text-text-main focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
+          className="h-10 rounded-lg border border-border-main bg-surface px-3 text-sm text-text-main focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
         >
           <option value="">Tất cả loại chiết khấu</option>
           <option value="PERCENTAGE">Phần trăm (%)</option>
@@ -62,7 +62,7 @@ export const PromotionFilterBar: React.FC<PromotionFilterBarProps> = ({
             if (val === '') onIsActiveChange(undefined);
             else onIsActiveChange(val === 'true');
           }}
-          className="h-10 rounded-lg border border-border-main bg-white px-3 text-sm text-text-main focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
+          className="h-10 rounded-lg border border-border-main bg-surface px-3 text-sm text-text-main focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
         >
           <option value="">Tất cả trạng thái</option>
           <option value="true">Đang kích hoạt</option>

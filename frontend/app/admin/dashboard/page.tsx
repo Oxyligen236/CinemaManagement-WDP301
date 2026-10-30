@@ -8,6 +8,7 @@ import {
   UserCheck,
   UserX,
   ShieldCheck,
+  TicketPercent,
   Loader2,
   AlertTriangle,
   ArrowRight,
@@ -244,6 +245,13 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/admin/promotions"
+              className="inline-flex h-[44px] items-center gap-2 border border-[#c1b687] bg-black/40 px-5 text-[14px] font-bold text-[#c1b687] transition-colors hover:bg-black/60 hover:text-white"
+            >
+              <TicketPercent className="h-4 w-4 text-[#c1b687]" />
+              Quản lý Khuyến mãi
+            </Link>
             <Link
               href="/admin/users"
               className="inline-flex h-[44px] items-center gap-2 bg-[#da291c] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[#b82116]"

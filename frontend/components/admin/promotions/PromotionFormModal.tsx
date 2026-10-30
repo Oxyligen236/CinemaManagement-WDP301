@@ -167,7 +167,7 @@ function PromotionFormFields({
             id="discountTypeSelect"
             value={discountType}
             onChange={(e) => setDiscountType(e.target.value as DiscountType)}
-            className="h-10 rounded-lg border border-border-main bg-white px-3 text-sm text-text-main focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
+            className="h-10 rounded-lg border border-border-main bg-surface px-3 text-sm text-text-main focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600 cursor-pointer"
           >
             <option value="PERCENTAGE">Phần trăm (%)</option>
             <option value="FIXED_AMOUNT">Số tiền cố định (₫)</option>

@@ -237,7 +237,7 @@ export default function AdminOrdersPage() {
                 <th className="px-4 py-3 text-right">Hành động</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-main">
+            <tbody className="divide-y border-border-main">
               {orders.map((o) => (
                 <tr key={o.orderId} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-mono font-bold text-xs text-text-main">
