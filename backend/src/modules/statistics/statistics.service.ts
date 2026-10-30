@@ -28,16 +28,15 @@ export class StatisticsService {
 
   async getFinancial(user: AuthenticatedUser, query: FinancialStatisticsQueryDto) {
     const branchId = await this.resolveBranch(user, query.branchId);
-    const { start, end, date } = this.dayRange(query.date);
+    const { start, end, date, period } = this.dateRange(query.date, query.period);
     const paidOrders = { status: PAID, ...(branchId ? { branchId } : {}), createdAt: { $gte: start, $lt: end } };
     const orderLookup = [{ $lookup: { from: 'orders', localField: 'orderId', foreignField: 'orderId', as: 'order' } }, { $unwind: '$order' }, { $match: Object.fromEntries(Object.entries(paidOrders).map(([key, value]) => [`order.${key}`, value])) }];
 
-    const [ticketTotal, productTotal, products, movies, chart] = await Promise.all([
+    const [ticketTotal, productTotal, products, movies] = await Promise.all([
       this.seatOrders.aggregate([...orderLookup, { $group: { _id: null, total: { $sum: 1 }, revenue: { $sum: '$price' } } }]),
       this.productOrders.aggregate([...orderLookup, { $group: { _id: null, total: { $sum: '$quantity' } } }]),
       this.productStatistics(orderLookup),
-      this.seatOrders.aggregate([...orderLookup, { $lookup: { from: 'seat_showtimes', localField: 'seatShowtimeId', foreignField: 'seatShowtimeId', as: 'seat' } }, { $unwind: '$seat' }, { $lookup: { from: 'showtimes', localField: 'seat.showtimeId', foreignField: 'showtimeId', as: 'showtime' } }, { $unwind: '$showtime' }, { $lookup: { from: 'movies', localField: 'showtime.movieId', foreignField: 'movieId', as: 'movie' } }, { $unwind: '$movie' }, { $group: { _id: '$movie.movieId', movieName: { $first: '$movie.movieName' }, ticketsSold: { $sum: 1 }, ticketRevenue: { $sum: '$price' } } }]),
-      this.dailyChart(branchId, start, end),
+      this.movieStatistics(orderLookup),
     ]);
     const sorted = movies.sort((a, b) => b.ticketsSold - a.ticketsSold || a.movieName.localeCompare(b.movieName));
     const productRevenue = products.reduce((total, product) => total + product.revenue, 0);
@@ -45,7 +44,7 @@ export class StatisticsService {
       const entry = result[product.category] ?? { category: product.category, quantitySold: 0, revenue: 0 };
       entry.quantitySold += product.quantitySold; entry.revenue += product.revenue; result[product.category] = entry; return result;
     }, {}));
-    return { date, branchId: branchId ?? null, totalTicketsSold: ticketTotal[0]?.total ?? 0, totalTicketRevenue: ticketTotal[0]?.revenue ?? 0, totalProductsSold: productTotal[0]?.total ?? 0, totalProductRevenue: productRevenue, products, productsByCategory, topSellingMovie: sorted[0] ?? null, lowestSellingMovie: sorted.at(-1) ?? null, dailyShowtimeChart: chart };
+    return { date, period, branchId: branchId ?? null, totalTicketsSold: ticketTotal[0]?.total ?? 0, totalTicketRevenue: ticketTotal[0]?.revenue ?? 0, totalProductsSold: productTotal[0]?.total ?? 0, totalProductRevenue: productRevenue, products, productsByCategory, movies: sorted, topSellingMovie: sorted[0] ?? null, lowestSellingMovie: sorted.at(-1) ?? null, dailyShowtimeChart: sorted };
   }
 
   private async resolveBranch(user: AuthenticatedUser, requested?: string) {
@@ -55,13 +54,18 @@ export class StatisticsService {
     return branchId;
   }
 
-  private dayRange(input?: string) {
-    const date = input ?? new Date().toISOString().slice(0, 10);
+  private dateRange(input?: string, requestedPeriod: 'day' | 'week' | 'month' = 'day') {
+    const date = input ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
     const [year, month, day] = date.split('-').map(Number);
-    const start = new Date(Date.UTC(year, month - 1, day) - 7 * 60 * 60 * 1000);
-    if (Number.isNaN(start.getTime())) throw new BadRequestException('Ngày không hợp lệ.');
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    return { start, end, date };
+    const localStart = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(localStart.getTime()) || localStart.getUTCDate() !== day) throw new BadRequestException('Ngày không hợp lệ.');
+    if (requestedPeriod === 'week') localStart.setUTCDate(localStart.getUTCDate() - ((localStart.getUTCDay() + 6) % 7));
+    if (requestedPeriod === 'month') localStart.setUTCDate(1);
+    const start = new Date(localStart.getTime() - 7 * 60 * 60 * 1000);
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + (requestedPeriod === 'day' ? 1 : requestedPeriod === 'week' ? 7 : new Date(Date.UTC(localStart.getUTCFullYear(), localStart.getUTCMonth() + 1, 1)).getUTCDate()));
+    if (requestedPeriod === 'month') end.setTime(Date.UTC(localStart.getUTCFullYear(), localStart.getUTCMonth() + 1, 1) - 7 * 60 * 60 * 1000);
+    return { start, end, date, period: requestedPeriod };
   }
 
   private async productStatistics(orderLookup: any[]) {
@@ -73,6 +77,17 @@ export class StatisticsService {
       { $group: { _id: { productId: '$productId', productName: '$productName', category: '$category' }, quantitySold: { $sum: '$quantity' }, revenue: { $sum: '$revenue' } } },
       { $project: { _id: 0, productId: '$_id.productId', productName: '$_id.productName', category: '$_id.category', quantitySold: 1, revenue: 1 } },
       { $sort: { revenue: -1, productName: 1 } },
+    ]);
+  }
+
+  private async movieStatistics(orderLookup: any[]) {
+    return this.seatOrders.aggregate([
+      ...orderLookup,
+      { $lookup: { from: 'seat_showtimes', localField: 'seatShowtimeId', foreignField: 'seatShowtimeId', as: 'seat' } }, { $unwind: '$seat' },
+      { $lookup: { from: 'showtimes', localField: 'seat.showtimeId', foreignField: 'showtimeId', as: 'showtime' } }, { $unwind: '$showtime' },
+      { $lookup: { from: 'movies', localField: 'showtime.movieId', foreignField: 'movieId', as: 'movie' } }, { $unwind: '$movie' },
+      { $group: { _id: '$movie.movieId', movieName: { $first: '$movie.movieName' }, ticketsSold: { $sum: 1 }, ticketRevenue: { $sum: '$price' } } },
+      { $project: { _id: 0, movieId: '$_id', movieName: 1, ticketsSold: 1, ticketRevenue: 1 } }, { $sort: { ticketsSold: -1, movieName: 1 } },
     ]);
   }
 
