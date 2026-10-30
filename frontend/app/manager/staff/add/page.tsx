@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, UserPlus } from "lucide-react";
 import {
@@ -14,9 +14,17 @@ import {
   STATUS_LABELS,
   Staff,
   StaffOptions,
+  getErrorMessage,
   useManagerApi,
 } from "../_lib/staff-api";
-import { ErrorBanner, LockedBranchField } from "../_lib/feedback";
+import { ErrorBanner, FieldError, LockedBranchField } from "../_lib/feedback";
+import {
+  NAME_MAX_LENGTH,
+  validateEmail,
+  validateName,
+  validatePassword,
+} from "@/lib/utils/auth-validation";
+import { FieldErrors, useFormErrors } from "@/lib/utils/use-form-errors";
 
 type CreateForm = {
   email: string;
@@ -37,17 +45,34 @@ const EMPTY_FORM: CreateForm = {
   employmentStatus: "ACTIVE",
 };
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/**
+ * AF-1: kiểm tra các trường bắt buộc theo BR-BRM-13, BR-BRM-14.
+ *
+ * Dùng chung các hàm kiểm tra với màn hình auth và trang quản trị người
+ * dùng để thông báo tiếng Việt thống nhất, thay vì tự khai báo lại regex.
+ */
+function validateCreateForm(form: CreateForm): FieldErrors<CreateForm> {
+  const errors: FieldErrors<CreateForm> = {};
 
-/** AF-1: các trường thiếu/sai theo BR-BRM-13, BR-BRM-14. */
-function findInvalidFields(form: CreateForm) {
-  const fields: string[] = [];
-  if (!EMAIL_PATTERN.test(form.email.trim())) fields.push("email");
-  if (form.password.length < 8) fields.push("password");
-  if (!form.lastName.trim()) fields.push("lastName");
-  if (!form.firstName.trim()) fields.push("firstName");
-  if (!form.jobPosition) fields.push("jobPosition");
-  return fields;
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  const password = validatePassword(form.password, {
+    label: "Mật khẩu tạm thời",
+  });
+  if (password) errors.password = password;
+
+  const lastName = validateName(form.lastName, "Họ");
+  if (lastName) errors.lastName = lastName;
+
+  const firstName = validateName(form.firstName, "Tên");
+  if (firstName) errors.firstName = firstName;
+
+  if (!form.jobPosition) {
+    errors.jobPosition = "Vui lòng chọn vị trí công việc.";
+  }
+
+  return errors;
 }
 
 export default function AddBranchStaffPage() {
@@ -58,6 +83,15 @@ export default function AddBranchStaffPage() {
   const [loadError, setLoadError] = useState<unknown>(null);
   const [error, setError] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
+  const {
+    fieldErrors,
+    setFieldErrors,
+    clearFieldError,
+    validateField,
+    validateAll,
+  } = useFormErrors<CreateForm>(
+    useCallback((values: CreateForm) => validateCreateForm(values), []),
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -68,16 +102,9 @@ export default function AddBranchStaffPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const invalid = findInvalidFields(form);
-    if (invalid.length > 0) {
-      setError(
-        new ApiError(
-          "Thông tin không hợp lệ hoặc thiếu trường bắt buộc.",
-          400,
-          [],
-          invalid,
-        ),
-      );
+    // Lỗi hiện ngay dưới từng trường nên không cần banner chung cho AF-1.
+    if (!validateAll(form)) {
+      setError(null);
       return;
     }
 
@@ -99,13 +126,19 @@ export default function AddBranchStaffPage() {
       );
       router.push(`/manager/staff?created=${encodeURIComponent(result.message)}`);
     } catch (submitError) {
-      setError(submitError);
+      // AF-2: email trùng là lỗi của một trường cụ thể, hiện ngay dưới ô
+      // nhập thay vì banner chung để người dùng biết cần sửa chỗ nào.
+      if (submitError instanceof ApiError && submitError.status === 409) {
+        setFieldErrors((current) => ({
+          ...current,
+          email: getErrorMessage(submitError),
+        }));
+      } else {
+        setError(submitError);
+      }
       setSaving(false);
     }
   }
-
-  const invalidFields = error instanceof ApiError ? error.fields : [];
-  const isInvalid = (field: string) => invalidFields.includes(field);
   const positions =
     options?.jobPositions ?? (Object.keys(POSITION_LABELS) as JobPosition[]);
   const statuses = options?.creatableStatuses ?? ["ACTIVE", "INACTIVE"];
@@ -172,9 +205,22 @@ export default function AddBranchStaffPage() {
               autoComplete="off"
               maxLength={254}
               value={form.email}
-              aria-invalid={isInvalid("email")}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={
+                fieldErrors.email ? "staff-add-email-error" : undefined
+              }
+              onChange={(event) => {
+                setForm({ ...form, email: event.target.value });
+                clearFieldError("email");
+              }}
+              onBlur={(event) =>
+                validateField({ ...form, email: event.target.value }, "email")
+              }
               className={INPUT_CLASS}
+            />
+            <FieldError
+              id="staff-add-email-error"
+              message={fieldErrors.email}
             />
           </div>
 
@@ -190,12 +236,27 @@ export default function AddBranchStaffPage() {
               minLength={8}
               maxLength={100}
               value={form.password}
-              aria-invalid={isInvalid("password")}
-              aria-describedby="staff-add-password-hint"
-              onChange={(event) =>
-                setForm({ ...form, password: event.target.value })
+              aria-invalid={!!fieldErrors.password}
+              aria-describedby={
+                fieldErrors.password
+                  ? "staff-add-password-error"
+                  : "staff-add-password-hint"
+              }
+              onChange={(event) => {
+                setForm({ ...form, password: event.target.value });
+                clearFieldError("password");
+              }}
+              onBlur={(event) =>
+                validateField(
+                  { ...form, password: event.target.value },
+                  "password",
+                )
               }
               className={INPUT_CLASS}
+            />
+            <FieldError
+              id="staff-add-password-error"
+              message={fieldErrors.password}
             />
             <p id="staff-add-password-hint" className="mt-1 text-[11px] text-[#777]">
               Tối thiểu 8 ký tự. Nhân viên nên đổi mật khẩu sau lần đăng nhập
@@ -211,13 +272,27 @@ export default function AddBranchStaffPage() {
               <input
                 id="staff-add-lastname"
                 required
-                maxLength={100}
+                maxLength={NAME_MAX_LENGTH}
                 value={form.lastName}
-                aria-invalid={isInvalid("lastName")}
-                onChange={(event) =>
-                  setForm({ ...form, lastName: event.target.value })
+                aria-invalid={!!fieldErrors.lastName}
+                aria-describedby={
+                  fieldErrors.lastName ? "staff-add-lastname-error" : undefined
+                }
+                onChange={(event) => {
+                  setForm({ ...form, lastName: event.target.value });
+                  clearFieldError("lastName");
+                }}
+                onBlur={(event) =>
+                  validateField(
+                    { ...form, lastName: event.target.value },
+                    "lastName",
+                  )
                 }
                 className={INPUT_CLASS}
+              />
+              <FieldError
+                id="staff-add-lastname-error"
+                message={fieldErrors.lastName}
               />
             </div>
             <div>
@@ -227,13 +302,29 @@ export default function AddBranchStaffPage() {
               <input
                 id="staff-add-firstname"
                 required
-                maxLength={100}
+                maxLength={NAME_MAX_LENGTH}
                 value={form.firstName}
-                aria-invalid={isInvalid("firstName")}
-                onChange={(event) =>
-                  setForm({ ...form, firstName: event.target.value })
+                aria-invalid={!!fieldErrors.firstName}
+                aria-describedby={
+                  fieldErrors.firstName
+                    ? "staff-add-firstname-error"
+                    : undefined
+                }
+                onChange={(event) => {
+                  setForm({ ...form, firstName: event.target.value });
+                  clearFieldError("firstName");
+                }}
+                onBlur={(event) =>
+                  validateField(
+                    { ...form, firstName: event.target.value },
+                    "firstName",
+                  )
                 }
                 className={INPUT_CLASS}
+              />
+              <FieldError
+                id="staff-add-firstname-error"
+                message={fieldErrors.firstName}
               />
             </div>
           </div>
@@ -249,13 +340,19 @@ export default function AddBranchStaffPage() {
                 id="staff-add-position"
                 required
                 value={form.jobPosition}
-                aria-invalid={isInvalid("jobPosition")}
-                onChange={(event) =>
+                aria-invalid={!!fieldErrors.jobPosition}
+                aria-describedby={
+                  fieldErrors.jobPosition
+                    ? "staff-add-position-error"
+                    : undefined
+                }
+                onChange={(event) => {
                   setForm({
                     ...form,
                     jobPosition: event.target.value as JobPosition,
-                  })
-                }
+                  });
+                  clearFieldError("jobPosition");
+                }}
                 className={INPUT_CLASS}
               >
                 {positions.map((position) => (
@@ -264,6 +361,10 @@ export default function AddBranchStaffPage() {
                   </option>
                 ))}
               </select>
+              <FieldError
+                id="staff-add-position-error"
+                message={fieldErrors.jobPosition}
+              />
             </div>
             <div>
               <label htmlFor="staff-add-status" className={LABEL_CLASS}>
@@ -272,7 +373,6 @@ export default function AddBranchStaffPage() {
               <select
                 id="staff-add-status"
                 value={form.employmentStatus}
-                aria-invalid={isInvalid("employmentStatus")}
                 onChange={(event) =>
                   setForm({
                     ...form,
