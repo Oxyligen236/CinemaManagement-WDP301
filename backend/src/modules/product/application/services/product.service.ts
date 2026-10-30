@@ -62,6 +62,7 @@ export class ProductService
     const formatImageUrl = (key?: string | null): string | null => {
       if (!key) return null;
       if (/^https?:\/\//i.test(key)) return key;
+      if (!storagePublicUrl) return null;
       const cleanKey = key.replace(/^\/+/, '');
       return cleanKey ? `${storagePublicUrl}/${cleanKey}` : null;
     };

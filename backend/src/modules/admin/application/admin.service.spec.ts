@@ -1,60 +1,44 @@
-import { Model } from 'mongoose';
 import { AdminService } from './admin.service';
-import { User, UserDocument } from '../../user/domain/schemas/user.schema';
-import { BranchDocument } from '../../branch/domain/schemas/branch.schema';
-import { Role } from '../../user/domain/enums/role.enum';
+import { Role } from '@prisma/client';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 
 type UpdateCall = {
-  filter: Record<string, unknown>;
-  update: Record<string, unknown>;
+  where: { id: string };
+  data: Record<string, unknown>;
 };
 
-/**
- * Capture the raw update document handed to Mongoose so the test can assert
- * on `$unset` directly instead of guessing from a stubbed return value.
- */
-const buildService = (stored: Partial<User> = {}) => {
+const buildService = (stored: Partial<any> = {}) => {
   const calls: UpdateCall[] = [];
   const updated = {
-    userId: 'u-1',
+    id: 'u-1',
     email: 'staff@cinema.local',
     firstName: 'Minh',
     lastName: 'Nguyen',
     role: Role.USER,
     isActive: true,
+    branchId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
-  const userModel = {
-    findOne: jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue({
-            userId: 'u-1',
-            role: Role.STAFF,
-            branchId: 'b-1',
-            ...stored,
-          }),
-        }),
+  const mockPrisma = {
+    user: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'u-1',
+        role: Role.STAFF,
+        branchId: 'b-1',
+        isActive: true,
+        ...stored,
       }),
-    }),
-    findOneAndUpdate: jest.fn(
-      (filter: Record<string, unknown>, update: Record<string, unknown>) => {
-        calls.push({ filter, update });
-        return {
-          select: jest.fn().mockReturnValue({
-            lean: jest.fn().mockReturnValue({
-              exec: jest.fn().mockResolvedValue(updated),
-            }),
-          }),
-        };
-      },
-    ),
-  } as unknown as Model<UserDocument>;
-
-  const branchModel = {} as unknown as Model<BranchDocument>;
+      update: jest.fn((args: UpdateCall) => {
+        calls.push(args);
+        return Promise.resolve(updated);
+      }),
+    },
+  };
 
   return {
-    service: new AdminService(userModel, branchModel),
+    service: new AdminService(mockPrisma as unknown as PrismaService),
     calls,
   };
 };
@@ -63,27 +47,27 @@ describe('AdminService.updateUser (branch cleanup on role change)', () => {
   it('unsets branchId when a staff account becomes a customer', async () => {
     const { service, calls } = buildService();
 
-    await service.updateUser('u-1', { role: Role.USER }, 'admin-1');
+    await service.updateUser('u-1', { role: Role.USER as any }, 'admin-1');
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].update.$unset).toEqual({ branchId: '' });
+    expect(calls[0].data.branchId).toBeNull();
   });
 
-  it('unsets branchId when a branch manager becomes a customer', async () => {
-    const { service, calls } = buildService({ role: Role.BRANCHMANAGER });
+  it('unsets branchId when a manager becomes a customer', async () => {
+    const { service, calls } = buildService({ role: Role.MANAGER });
 
-    await service.updateUser('u-1', { role: Role.USER }, 'admin-1');
+    await service.updateUser('u-1', { role: Role.USER as any }, 'admin-1');
 
-    expect(calls[0].update.$unset).toEqual({ branchId: '' });
+    expect(calls[0].data.branchId).toBeNull();
   });
 
   it('keeps branchId when the new role still works at a branch', async () => {
     const { service, calls } = buildService();
 
-    await service.updateUser('u-1', { role: Role.BRANCHMANAGER }, 'admin-1');
+    await service.updateUser('u-1', { role: Role.MANAGER as any }, 'admin-1');
 
-    expect(calls[0].update.$unset).toBeUndefined();
-    expect(calls[0].update.$set).toEqual({ role: Role.BRANCHMANAGER });
+    expect(calls[0].data.branchId).toBeUndefined();
+    expect(calls[0].data.role).toEqual(Role.MANAGER);
   });
 
   it('keeps branchId when the update does not touch the role', async () => {
@@ -91,8 +75,8 @@ describe('AdminService.updateUser (branch cleanup on role change)', () => {
 
     await service.updateUser('u-1', { firstName: 'Khanh' }, 'admin-1');
 
-    // A rename must not strip the branch the account still works at.
-    expect(calls[0].update.$unset).toBeUndefined();
+    expect(calls[0].data.branchId).toBeUndefined();
+    expect(calls[0].data.firstName).toEqual('Khanh');
   });
 
   it('still bumps tokenVersion when deactivating alongside a demotion', async () => {
@@ -100,11 +84,11 @@ describe('AdminService.updateUser (branch cleanup on role change)', () => {
 
     await service.updateUser(
       'u-1',
-      { role: Role.USER, isActive: false },
+      { role: Role.USER as any, isActive: false },
       'admin-1',
     );
 
-    expect(calls[0].update.$unset).toEqual({ branchId: '' });
-    expect(calls[0].update.$inc).toEqual({ tokenVersion: 1 });
+    expect(calls[0].data.branchId).toBeNull();
+    expect(calls[0].data.tokenVersion).toEqual({ increment: 1 });
   });
 });

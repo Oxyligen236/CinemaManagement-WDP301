@@ -1,77 +1,64 @@
 import { ForbiddenException } from '@nestjs/common';
-import { Model } from 'mongoose';
 import { BranchStaffService } from './branch-staff.service';
-import { UserDocument } from '../../user/domain/schemas/user.schema';
-import { BranchDocument } from '../../branch/domain/schemas/branch.schema';
-import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
-import { Role } from '../../user/domain/enums/role.enum';
-import { JobPosition } from '../../user/domain/enums/job-position.enum';
+import { BranchStatus, Role, JobPosition } from '@prisma/client';
 import { STAFF_MESSAGES } from '../domain/staff.rules';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 
 type ManagerRow = {
-  role: string;
+  role: Role | string;
   isActive: boolean;
-  branchId?: string;
+  branchId?: string | null;
 };
 
 const BRANCH = {
-  branchId: 'branch-a',
+  id: 'branch-a',
   branchName: 'Chi nhánh A',
   address: '1 Lê Lợi',
   branchStatus: BranchStatus.ACTIVE,
 };
 
-/**
- * `getManagerBranch` chạy 2 query: user trước, branch sau. Chỉ cần dựng
- * `findOne().select().lean().exec()` cho từng model.
- */
-const buildService = (manager: ManagerRow | null, branch: unknown = BRANCH) => {
-  const chain = (value: unknown) => ({
-    select: jest.fn().mockReturnValue({
-      lean: jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue(value),
-      }),
-    }),
-  });
+const buildService = (manager: ManagerRow | null, branch: any = BRANCH) => {
+  const mockPrisma = {
+    user: {
+      findUnique: jest.fn().mockResolvedValue(manager),
+    },
+    branch: {
+      findUnique: jest.fn().mockResolvedValue(branch),
+    },
+  };
 
-  const userModel = {
-    findOne: jest.fn().mockReturnValue(chain(manager)),
-  } as unknown as Model<UserDocument>;
-
-  const branchModel = {
-    findOne: jest.fn().mockReturnValue(chain(branch)),
-  } as unknown as Model<BranchDocument>;
-
-  return new BranchStaffService(userModel, branchModel);
+  return new BranchStaffService(mockPrisma as unknown as PrismaService);
 };
 
 describe('BranchStaffService.getOptions - quyền truy cập', () => {
   it('cho phép Branch Manager đã được phân công chi nhánh', async () => {
     const service = buildService({
-      role: Role.BRANCHMANAGER,
+      role: Role.MANAGER,
       isActive: true,
-      branchId: BRANCH.branchId,
+      branchId: BRANCH.id,
     });
 
     await expect(service.getOptions('mgr-1')).resolves.toMatchObject({
-      branch: { branchId: BRANCH.branchId },
+      branch: { branchId: BRANCH.id },
       jobPositions: [JobPosition.TICKET_SELLER],
     });
   });
 
-  // Đây là nguyên nhân thật của 403 trên dữ liệu hiện tại: role đã đúng,
-  // nhưng tài khoản chưa được Admin phân công chi nhánh.
   it('báo lỗi chưa được phân công chi nhánh khi manager không có branchId', async () => {
-    const service = buildService({ role: Role.BRANCHMANAGER, isActive: true });
+    const service = buildService({
+      role: Role.MANAGER,
+      isActive: true,
+      branchId: undefined,
+    });
 
-    await expect(service.getOptions('mgr-nobranch')).rejects.toThrow(
+    await expect(service.getOptions('mgr-unassigned')).rejects.toThrow(
       new ForbiddenException(STAFF_MESSAGES.NO_BRANCH),
     );
   });
 
   it('báo lỗi chưa được phân công chi nhánh khi branchId trỏ tới chi nhánh không tồn tại', async () => {
     const service = buildService(
-      { role: Role.BRANCHMANAGER, isActive: true, branchId: 'branch-missing' },
+      { role: Role.MANAGER, isActive: true, branchId: 'branch-missing' },
       null,
     );
 
@@ -86,7 +73,7 @@ describe('BranchStaffService.getOptions - quyền truy cập', () => {
       const service = buildService({
         role,
         isActive: true,
-        branchId: BRANCH.branchId,
+        branchId: BRANCH.id,
       });
 
       await expect(service.getOptions('other-role')).rejects.toThrow(
@@ -97,9 +84,9 @@ describe('BranchStaffService.getOptions - quyền truy cập', () => {
 
   it('chặn tài khoản Branch Manager đã bị vô hiệu hóa', async () => {
     const service = buildService({
-      role: Role.BRANCHMANAGER,
+      role: Role.MANAGER,
       isActive: false,
-      branchId: BRANCH.branchId,
+      branchId: BRANCH.id,
     });
 
     await expect(service.getOptions('mgr-off')).rejects.toThrow(

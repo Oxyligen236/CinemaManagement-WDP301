@@ -127,6 +127,7 @@ export class UserRegistrationService {
       pending.resendCount += 1;
     }
 
+    const previousBackup = { ...pending };
     const code = String(randomInt(100000, 1000000));
     const now = Date.now();
 
@@ -149,19 +150,37 @@ export class UserRegistrationService {
     } catch (err) {
       if (!isResend) {
         this.pendingRegistrations.delete(pending.email);
+      } else {
+        this.pendingRegistrations.save(pending.email, previousBackup);
       }
       throw err;
     }
   }
 
+  async resendVerificationCode(rawEmail: string) {
+    return this.resendCode(rawEmail);
+  }
+
+  async verifyEmail(rawEmail: string, code: string) {
+    return this.verifyCode(rawEmail, code);
+  }
+
   async resendCode(rawEmail: string) {
+
     const email = String(rawEmail ?? '')
       .trim()
       .toLowerCase();
     const pending = this.pendingRegistrations.get(email);
 
     if (!pending) {
-      throw new BadRequestException(MSG.CODE_INVALID_OR_EXPIRED);
+      throw new BadRequestException(MSG.NO_PENDING_REGISTRATION);
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
     }
 
     if (Date.now() - pending.lastSentAt < RESEND_COOLDOWN_MS) {
