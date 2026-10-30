@@ -206,4 +206,212 @@ describe('WorkScheduleService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('assignDay - Time Restrictions & Vietnam Time', () => {
+    const managerId = 'mgr-1';
+    const branchId = 'branch-101';
+    const scheduleId = 'ws-shift-1';
+    const staffId = 'staff-1';
+    const date = '2026-11-01'; // Vietnam date
+
+    beforeEach(() => {
+      prisma.user.findFirst.mockImplementation(({ where }) => {
+        if (where.role === Role.MANAGER) {
+          return Promise.resolve({ id: managerId, branchId });
+        }
+        if (where.role === Role.STAFF) {
+          return Promise.resolve({
+            id: staffId,
+            branchId,
+            role: Role.STAFF,
+            isActive: true,
+          });
+        }
+        return Promise.resolve(null);
+      });
+      prisma.shiftAssignment.findMany.mockResolvedValue([]);
+      prisma.workSchedule.findMany.mockResolvedValue([]);
+      prisma.shiftAssignment.create.mockImplementation(({ data }) =>
+        Promise.resolve({ id: 'assign-1', ...data }),
+      );
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    // Shift: 09:00 - 20:00 VN Time on 2026-11-01
+    // In UTC: 2026-11-01 02:00:00 to 2026-11-01 13:00:00
+    const mockShift = {
+      id: scheduleId,
+      branchId,
+      shiftName: 'Ca Ngày',
+      startTime: '09:00',
+      endTime: '20:00',
+      isActive: true,
+    };
+
+    it('allows assigning before shift starts (08:00 VN)', async () => {
+      // 08:00 VN = 01:00 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T01:00:00Z'));
+      prisma.workSchedule.findFirst.mockResolvedValue(mockShift);
+
+      const res = await service.assignDay(managerId, scheduleId, date, staffId);
+      expect(res).toBeDefined();
+      expect(res.userId).toBe(staffId);
+    });
+
+    it('allows assigning exactly at shift start (09:00 VN)', async () => {
+      // 09:00 VN = 02:00 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T02:00:00Z'));
+      prisma.workSchedule.findFirst.mockResolvedValue(mockShift);
+
+      const res = await service.assignDay(managerId, scheduleId, date, staffId);
+      expect(res).toBeDefined();
+    });
+
+    it('allows assigning while shift is in progress (10:00 VN)', async () => {
+      // 10:00 VN = 03:00 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T03:00:00Z'));
+      prisma.workSchedule.findFirst.mockResolvedValue(mockShift);
+
+      const res = await service.assignDay(managerId, scheduleId, date, staffId);
+      expect(res).toBeDefined();
+    });
+
+    it('allows assigning 1 second before shift ends (19:59:59 VN)', async () => {
+      // 19:59:59 VN = 12:59:59 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T12:59:59Z'));
+      prisma.workSchedule.findFirst.mockResolvedValue(mockShift);
+
+      const res = await service.assignDay(managerId, scheduleId, date, staffId);
+      expect(res).toBeDefined();
+    });
+
+    it('rejects assigning exactly at shift end (20:00:00 VN)', async () => {
+      // 20:00:00 VN = 13:00:00 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T13:00:00Z'));
+      prisma.workSchedule.findFirst.mockResolvedValue(mockShift);
+
+      await expect(
+        service.assignDay(managerId, scheduleId, date, staffId),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Ca làm việc này đã kết thúc, không thể phân công nhân viên.',
+        ),
+      );
+    });
+
+    it('rejects assigning after shift end (21:00 VN)', async () => {
+      // 21:00 VN = 14:00 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T14:00:00Z'));
+      prisma.workSchedule.findFirst.mockResolvedValue(mockShift);
+
+      await expect(
+        service.assignDay(managerId, scheduleId, date, staffId),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects assigning shift from previous day', async () => {
+      // Current date is 2026-11-02 08:00 VN = 01:00 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-02T01:00:00Z'));
+      prisma.workSchedule.findFirst.mockResolvedValue(mockShift);
+
+      await expect(
+        service.assignDay(managerId, scheduleId, date, staffId),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    describe('Overnight Shift (22:00 -> 06:00 VN next day)', () => {
+      const overnightShift = {
+        id: 'ws-overnight',
+        branchId,
+        shiftName: 'Ca Đêm',
+        startTime: '22:00',
+        endTime: '06:00',
+        isActive: true,
+      };
+
+      it('allows assigning overnight shift at 02:00 VN next day (in progress)', async () => {
+        // Date is 2026-11-01
+        // Shift runs from 2026-11-01 22:00 VN (15:00 UTC) to 2026-11-02 06:00 VN (23:00 UTC Nov 1)
+        // Current: 2026-11-02 02:00 VN = 2026-11-01 19:00:00 UTC
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-11-01T19:00:00Z'));
+        prisma.workSchedule.findFirst.mockResolvedValue(overnightShift);
+
+        const res = await service.assignDay(
+          managerId,
+          overnightShift.id,
+          date,
+          staffId,
+        );
+        expect(res).toBeDefined();
+      });
+
+      it('rejects assigning overnight shift at 06:00:00 VN next day (expired)', async () => {
+        // 2026-11-02 06:00 VN = 2026-11-01 23:00:00 UTC
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-11-01T23:00:00Z'));
+        prisma.workSchedule.findFirst.mockResolvedValue(overnightShift);
+
+        await expect(
+          service.assignDay(managerId, overnightShift.id, date, staffId),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
+  });
+
+  describe('closeDayShift - End time restrictions', () => {
+    const managerId = 'mgr-1';
+    const branchId = 'branch-101';
+    const scheduleId = 'ws-shift-1';
+    const date = '2026-11-01';
+
+    beforeEach(() => {
+      prisma.user.findFirst.mockResolvedValue({ id: managerId, branchId });
+      prisma.workSchedule.findFirst.mockResolvedValue({
+        id: scheduleId,
+        branchId,
+        startTime: '09:00',
+        endTime: '20:00',
+        isActive: true,
+      });
+      prisma.shiftAssignment.findMany.mockResolvedValue([]);
+      prisma.shiftAttendance.findMany.mockResolvedValue([]);
+      prisma.shiftAttendance.createMany.mockResolvedValue({ count: 0 });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('rejects closing shift before scheduled end time', async () => {
+      // 19:30 VN = 12:30 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T12:30:00Z'));
+
+      await expect(
+        service.closeDayShift(managerId, scheduleId, date),
+      ).rejects.toThrow(
+        new BadRequestException('Ca làm chưa kết thúc, không thể đóng ca sớm.'),
+      );
+    });
+
+    it('allows closing shift at or after scheduled end time', async () => {
+      // 20:00 VN = 13:00 UTC
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-11-01T13:00:00Z'));
+
+      const res = await service.closeDayShift(managerId, scheduleId, date);
+      expect(res).toEqual({ absent: 0 });
+    });
+  });
 });
