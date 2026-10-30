@@ -11,9 +11,11 @@ import {
   Users,
   Building2,
   Tags,
+  TicketPercent,
   Clock3,
   Film,
   ShieldCheck,
+  BarChart3,
   Menu,
   X,
   LogOut,
@@ -56,7 +58,13 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/price-multipliers",
     icon: Tags,
   },
+  {
+    label: "Quản lý Khuyến mãi",
+    href: "/admin/promotions",
+    icon: TicketPercent,
+  },
   { label: "Ca làm việc", href: "/admin/work-schedules", icon: Clock3 },
+  { label: "Báo cáo Thống kê", href: "/admin/statistics", icon: BarChart3 },
 ];
 
 export default function SystemAdminLayout({

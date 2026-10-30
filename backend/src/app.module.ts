@@ -23,6 +23,7 @@ import { PriceRuleModule } from './modules/pricerule/pricerule.module';
 import { WorkModule } from './modules/work/work.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { StatisticsModule } from './modules/statistics/statistics.module';
 
 // Module chỉ được import Module cấm import thứ khác
 // Module chỉ được import Module cấm import thứ khác
@@ -69,6 +70,7 @@ import { StaffModule } from './modules/staff/staff.module';
     PriceRuleModule,
     WorkModule,
     StaffModule,
+    StatisticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

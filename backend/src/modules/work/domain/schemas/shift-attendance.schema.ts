@@ -6,6 +6,7 @@ export type ShiftAttendanceDocument = HydratedDocument<ShiftAttendance>;
 export enum ShiftAttendanceStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
+  ABSENT = 'ABSENT',
 }
 
 @Schema({ collection: 'shift_attendances', timestamps: true })

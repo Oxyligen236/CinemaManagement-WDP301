@@ -47,7 +47,7 @@ export const PromotionDeactivateDialog: React.FC<PromotionDeactivateDialogProps>
         <div className="flex items-start gap-3">
           <div
             className={`p-2 rounded-full shrink-0 ${
-              isDeactivating ? 'bg-red-100 text-status-danger' : 'bg-emerald-100 text-status-success'
+              isDeactivating ? 'bg-primary-100 text-primary-700' : 'bg-emerald-50 text-status-success'
             }`}
           >
             {isDeactivating ? (

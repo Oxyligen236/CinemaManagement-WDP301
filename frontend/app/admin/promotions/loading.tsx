@@ -1,5 +1,5 @@
 import React from 'react';
-import { TableSkeleton } from '../../../components/ui/TableSkeleton';
+import { TableSkeleton } from '@/components/ui/TableSkeleton';
 
 export default function PromotionsLoading() {
   return (

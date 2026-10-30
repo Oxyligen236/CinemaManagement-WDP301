@@ -1,0 +1,128 @@
+@startuml code-packages
+!theme plain
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam defaultFontName "Segoe UI", Arial, sans-serif
+skinparam defaultFontSize 12
+skinparam dpi 150
+
+skinparam package {
+    BackgroundColor #F8FAFC
+    BorderColor #64748B
+    FontColor #0F172A
+    FontStyle bold
+}
+
+skinparam arrow {
+    Color #475569
+    FontColor #334155
+    FontSize 11
+}
+
+' ====================================================================
+' Package Definitions
+' ====================================================================
+
+package "Presentation & Orchestrator Modules" as Orchestrator_Layer {
+    package "AdminModule\n(Dashboard & User Admin)" as AdminMod
+    package "OrderModule\n(Booking & Order Orchestrator)" as OrderMod
+    package "ShowtimeManagementModule\n(Scheduling Matrix)" as ShowtimeMgmtMod
+}
+
+package "Business Feature Modules" as Feature_Layer {
+    package "Cinema Operations" as Operations {
+        package "BranchModule\n(Cinema Branches)" as BranchMod
+        package "RoomModule\n(Halls & Seat Maps)" as RoomMod
+        package "MovieModule\n(Films & Genres)" as MovieMod
+        package "ShowtimeModule\n(Showtimes & Seat Bookings)" as ShowtimeMod
+        package "PriceRuleModule\n(Pricing Rules)" as PriceRuleMod
+    }
+
+    package "Commerce & Fulfillment" as Commerce_Fulfillment {
+        package "ProductModule\n(Concessions & Combos)" as ProductMod
+        package "PromotionModule\n(Discounts & Vouchers)" as PromotionMod
+        package "TicketModule\n(Issuance & Check-in)" as TicketMod
+        package "PaymentModule\n(VNPay & Cash Engine)" as PaymentMod
+    }
+
+    package "People & Work Management" as People_Work {
+        package "UserModule\n(Customer Accounts)" as UserMod
+        package "StaffModule\n(Branch Staff)" as StaffMod
+        package "WorkModule\n(Shifts & Attendance)" as WorkMod
+    }
+}
+
+package "Core & Security Layer" as Core_Layer {
+    package "AuthModule\n(JWT, Guards, Passports)" as AuthMod
+    package "Common\n(Pagination, Base Events, Interfaces)" as CommonMod
+}
+
+package "Infrastructure & Integration Layer" as Infra_Layer {
+    package "DatabaseModule\n(Mongoose / MongoDB)" as DbMod
+    package "EventModule\n(Internal Event Bus)" as EventMod
+    package "QueueModule\n(BullMQ / Redis)" as QueueMod
+    package "StorageModule\n(S3 API / Cloudflare R2)" as StorageMod
+    package "MailModule\n(Mailer / Handlebars)" as MailMod
+    package "CacheModule\n(Redis Client)" as CacheMod
+    package "ConfigModule\n(Environment Config)" as ConfigMod
+}
+
+' ====================================================================
+' Relationships - Orchestrator to Features
+' ====================================================================
+OrderMod ..> TicketMod : <<use>>
+OrderMod ..> ProductMod : <<use>>
+OrderMod ..> PromotionMod : <<use>>
+OrderMod ..> ShowtimeMod : <<use>>
+OrderMod ..> PaymentMod : <<use>>
+OrderMod ..> BranchMod : <<use>>
+OrderMod ..> UserMod : <<use>>
+
+ShowtimeMgmtMod ..> ShowtimeMod : <<use>>
+ShowtimeMgmtMod ..> MovieMod : <<use>>
+ShowtimeMgmtMod ..> RoomMod : <<use>>
+ShowtimeMgmtMod ..> BranchMod : <<use>>
+ShowtimeMgmtMod ..> PriceRuleMod : <<use>>
+
+AdminMod ..> UserMod : <<use>>
+
+' ====================================================================
+' Relationships - Features to Features (Contracts & Domain)
+' ====================================================================
+TicketMod ..> ShowtimeMod : <<use>>
+TicketMod ..> UserMod : <<use>>
+ProductMod ..> BranchMod : <<use>>
+ProductMod ..> UserMod : <<use>>
+ShowtimeMod ..> RoomMod : <<use>>
+ShowtimeMod ..> MovieMod : <<use>>
+RoomMod ..> BranchMod : <<use>>
+StaffMod ..> BranchMod : <<use>>
+WorkMod ..> StaffMod : <<use>>
+
+' ====================================================================
+' Relationships - Features to Core
+' ====================================================================
+Orchestrator_Layer ..> AuthMod : <<guard>>
+Feature_Layer ..> AuthMod : <<guard>>
+Feature_Layer ..> CommonMod : <<inherit>>
+
+' ====================================================================
+' Relationships - Features to Infrastructure
+' ====================================================================
+MovieMod ..> StorageMod : <<upload>>
+ProductMod ..> StorageMod : <<upload>>
+UserMod ..> MailMod : <<send>>
+OrderMod ..> QueueMod : <<schedule>>
+OrderMod ..> EventMod : <<publish>>
+TicketMod ..> EventMod : <<publish>>
+PromotionMod ..> EventMod : <<listen>>
+
+' ====================================================================
+' Foundation Layer
+' ====================================================================
+Core_Layer ..> DbMod
+Feature_Layer ..> DbMod
+Infra_Layer ..> ConfigMod
+
+@enduml

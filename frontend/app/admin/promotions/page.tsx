@@ -7,14 +7,14 @@ import {
   UpdatePromotionDto,
   DiscountType,
   PromotionStats,
-} from '../../../lib/types/promotion.types';
-import { promotionAdminApi } from '../../../lib/api/promotion-admin.api';
-import { PromotionStatsCards } from '../../../components/admin/promotions/PromotionStatsCards';
-import { PromotionFilterBar } from '../../../components/admin/promotions/PromotionFilterBar';
-import { PromotionTable } from '../../../components/admin/promotions/PromotionTable';
-import { PromotionFormModal } from '../../../components/admin/promotions/PromotionFormModal';
-import { PromotionDeactivateDialog } from '../../../components/admin/promotions/PromotionDeactivateDialog';
-import { TableSkeleton } from '../../../components/ui/TableSkeleton';
+} from '@/lib/types/promotion.types';
+import { promotionAdminApi } from '@/lib/api/promotion-admin.api';
+import { PromotionStatsCards } from '@/components/admin/promotions/PromotionStatsCards';
+import { PromotionFilterBar } from '@/components/admin/promotions/PromotionFilterBar';
+import { PromotionTable } from '@/components/admin/promotions/PromotionTable';
+import { PromotionFormModal } from '@/components/admin/promotions/PromotionFormModal';
+import { PromotionDeactivateDialog } from '@/components/admin/promotions/PromotionDeactivateDialog';
+import { TableSkeleton } from '@/components/ui/TableSkeleton';
 
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -145,21 +145,10 @@ export default function PromotionsPage() {
       showNotification('success', `Đã tạo mã khuyến mãi ${data.promotionCode} thành công!`);
       setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
-      // Client optimistic addition if backend offline
-      const newPromo: Promotion = {
-        promotionId: `promo-${Date.now()}`,
-        promotionCode: data.promotionCode,
-        discountType: data.discountType,
-        discountValue: data.discountValue,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        isActive: data.isActive ?? true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setPromotions((prev) => [newPromo, ...prev]);
-      setTotal((prev) => prev + 1);
-      showNotification('success', `Đã lưu mã ${data.promotionCode} thành công!`);
+      showNotification(
+        'error',
+        err instanceof Error ? err.message : 'Không thể tạo mã khuyến mãi lúc này',
+      );
       throw err;
     }
   };
@@ -170,23 +159,10 @@ export default function PromotionsPage() {
       showNotification('success', 'Cập nhật khuyến mãi thành công!');
       setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
-      // Optimistic update
-      setPromotions((prev) =>
-        prev.map((p) =>
-          p.promotionId === id
-            ? {
-                ...p,
-                discountType: data.discountType || p.discountType,
-                discountValue: data.discountValue ?? p.discountValue,
-                startDate: data.startDate || p.startDate,
-                endDate: data.endDate || p.endDate,
-                isActive: data.isActive !== undefined ? data.isActive : p.isActive,
-                updatedAt: new Date().toISOString(),
-              }
-            : p,
-        ),
+      showNotification(
+        'error',
+        err instanceof Error ? err.message : 'Không thể cập nhật khuyến mãi',
       );
-      showNotification('success', 'Cập nhật khuyến mãi thành công!');
       throw err;
     }
   };
@@ -199,14 +175,12 @@ export default function PromotionsPage() {
         `${newStatus ? 'Kích hoạt' : 'Vô hiệu hóa'} mã khuyến mãi thành công!`,
       );
       setRefreshKey((k) => k + 1);
-    } catch {
-      // Optimistic status update
-      setPromotions((prev) =>
-        prev.map((p) => (p.promotionId === id ? { ...p, isActive: newStatus } : p)),
-      );
+    } catch (err: unknown) {
       showNotification(
-        'success',
-        `${newStatus ? 'Kích hoạt' : 'Vô hiệu hóa'} mã khuyến mãi thành công!`,
+        'error',
+        err instanceof Error
+          ? err.message
+          : `Không thể ${newStatus ? 'kích hoạt' : 'vô hiệu hóa'} mã khuyến mãi`,
       );
     }
   };
