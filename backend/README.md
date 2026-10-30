@@ -1,98 +1,94 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Cinema Management Backend (NestJS + Prisma + MongoDB)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Hệ thống Backend cho dự án Quản lý Rạp chiếu phim Cinema Management (WDP301).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## 1. Yêu cầu hệ thống
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Node.js**: >= 20.x (khuyến nghị Node 22 LTS)
+- **Database**: MongoDB Replica Set (để hỗ trợ Prisma transactions)
 
-## Project setup
+---
 
+## 2. Các bước cài đặt chi tiết
+
+### Bước 1: Cài đặt dependencies
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+### Bước 2: Thiết lập biến môi trường
+Tạo file `.env` tại thư mục `backend/` từ `.env.example` hoặc điền cấu hình:
+```env
+PORT=8010
+NODE_ENV=development
+MONGODB_URI="mongodb://root:<password>@<host>:27017/wdp_project?authSource=admin&replicaSet=rs0&directConnection=true"
+JWT_SECRET=your_jwt_secret_key
+JWT_EXPIRES_IN=7d
 ```
 
-## Run tests
+### Bước 3: Sinh Prisma Client (BẮT BUỘC)
+Sau khi clone repo hoặc chạy `npm install`, **bắt buộc** phải sinh mã Prisma Client:
+```bash
+npx prisma generate
+```
+> **Tại sao cần bước này?** Thư mục generated `node_modules/.prisma/client` nằm trong `.gitignore` không đẩy lên GitHub. Lệnh này đọc `prisma/schema.prisma` để biên dịch các Enums, Models và Native Query Engine.
+
+### Bước 4: Khởi tạo dữ liệu mẫu (Seed Data)
+Tạo dữ liệu rạp, phòng chiếu, phim, ghế và các tài khoản mẫu:
+```bash
+npx prisma db seed
+```
+- Mật khẩu mặc định của tất cả tài khoản test: `12345678`
+- Tài khoản Admin mẫu: `admin@cinema.com`
+
+---
+
+## 3. Khởi chạy dự án
 
 ```bash
-# unit tests
-$ npm run test
+# Chạy ở chế độ Development (tự reload khi đổi code)
+npm run start:dev
 
-# e2e tests
-$ npm run test:e2e
+# Build ứng dụng cho Production
+npm run build
 
-# test coverage
-$ npm run test:cov
+# Chạy ứng dụng Production sau khi build
+npm run start:prod
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## 4. Kiểm tra & Chạy Tests
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Chạy toàn bộ Unit Tests
+npm test
+
+# Chạy test với coverage
+npm run test:cov
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+---
 
-## Resources
+## 5. Xử lý các lỗi thường gặp (Troubleshooting)
 
-Check out a few resources that may come in handy when working with NestJS:
+### 1. Lỗi `error TS2305: Module '@prisma/client' has no exported member...`
+- **Nguyên nhân:** Chưa chạy `npx prisma generate`.
+- **Khắc phục:** Chạy lệnh `npx prisma generate` trong thư mục `backend/`.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### 2. Cảnh báo đỏ trong VS Code: `The datasource property 'url' is no longer supported in schema files...`
+- **Nguyên nhân:** Extension Prisma trên VS Code tự động cập nhật lên v7, trong khi dự án sử dụng Prisma 6.
+- **Khắc phục:** 
+  - Mở VS Code, nhấn `Ctrl + Shift + P` -> gõ chọn **`Prisma: Pin to Prisma 6`**.
+  - Hoặc tạo file `.vscode/settings.json` trong workspace với nội dung:
+    ```json
+    {
+      "prisma.pinToPrisma6": true
+    }
+    ```
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### 3. Lỗi `EPERM: operation not permitted, rename ... query_engine-windows.dll.node`
+- **Nguyên nhân:** Server dev (`npm run start:dev`) hoặc process Node.js đang chạy và chiếm quyền file engine.
+- **Khắc phục:** Tắt terminal đang chạy server dev (`Ctrl + C`), sau đó chạy lại `npx prisma generate`.
