@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../user/domain/schemas/user.schema';
 import { Role } from '../../user/domain/enums/role.enum';
@@ -30,6 +30,27 @@ export class AdminService {
     @InjectModel(Branch.name)
     private readonly branchModel: Model<BranchDocument>,
   ) {}
+
+  /**
+   * Tìm chi nhánh ACTIVE theo id mà frontend gửi lên.
+   *
+   * Dữ liệu `branches` tồn tại 2 thế hệ: bản cũ lưu `branchId` là UUID/hex
+   * dạng string, bản sau khi migrate sang ObjectId thì `branchId` lại được ghi
+   * đúng BSON ObjectId. Query `{ branchId: '<hex string>' }` không khớp được
+   * document thế hệ sau vì Mongoose giữ nguyên kiểu string khi so sánh, nên
+   * phải dò thêm theo `_id` (giá trị `branchId` luôn trùng `_id`).
+   */
+  private async findActiveBranch(branchId: string) {
+    const filter = isValidObjectId(branchId)
+      ? { $or: [{ _id: branchId }, { branchId }] }
+      : { branchId };
+
+    return this.branchModel
+      .findOne({ ...filter, branchStatus: BranchStatus.ACTIVE })
+      .select('branchId')
+      .lean()
+      .exec();
+  }
 
   async getDashboard(authUser: AuthUser) {
     // Kiểm tra lại trong DB: token cũ vẫn còn hạn nhưng tài khoản
@@ -143,7 +164,7 @@ export class AdminService {
   ) {
       if (userId === adminUserId) {
         throw new ForbiddenException(
-          'You cannot assign a branch to your own account',
+          'Không thể tự gán chi nhánh cho tài khoản của chính bạn.',
         );
       }
 
@@ -152,30 +173,23 @@ export class AdminService {
         .select('userId firstName lastName role isActive branchId')
         .exec();
 
-      if (!user) throw new NotFoundException('User not found');
+      if (!user) throw new NotFoundException('Không tìm thấy người dùng.');
       if (!user.isActive) {
         throw new BadRequestException(
-          'Cannot assign branch to an inactive account',
+          'Không thể gán chi nhánh cho tài khoản đã bị vô hiệu hóa.',
         );
       }
       if (user.role !== Role.BRANCHMANAGER && user.role !== Role.STAFF) {
         throw new BadRequestException(
-          'Only Branch Manager or Staff accounts can be assigned to a branch',
+          'Chỉ tài khoản Quản lý Chi nhánh hoặc Nhân viên mới được gán chi nhánh.',
         );
       }
 
-      const branch = await this.branchModel
-        .findOne({
-          branchId: input.branchId,
-          branchStatus: BranchStatus.ACTIVE,
-        })
-        .select('branchId')
-        .lean()
-        .exec();
+      const branch = await this.findActiveBranch(input.branchId);
 
       if (!branch) {
         throw new BadRequestException(
-          'Selected branch is inactive and cannot be assigned.',
+          'Chi nhánh được chọn không tồn tại hoặc đang không hoạt động.',
         );
       }
 
@@ -183,7 +197,7 @@ export class AdminService {
         .findOneAndUpdate(
           { userId },
           { $set: { branchId: input.branchId }, $inc: { tokenVersion: 1 } },
-          { new: true, runValidators: true },
+          { returnDocument: 'after', runValidators: true },
         )
         .select(
           'userId email firstName lastName role isActive branchId createdAt updatedAt',
@@ -191,9 +205,10 @@ export class AdminService {
         .lean()
         .exec();
 
-      if (!updatedUser) throw new NotFoundException('User not found');
+      if (!updatedUser)
+        throw new NotFoundException('Không tìm thấy người dùng.');
       return {
-        message: 'Update asset(s) successfully.',
+        message: 'Cập nhật chi nhánh thành công.',
         user: updatedUser,
       };
   }
@@ -206,20 +221,13 @@ export class AdminService {
         (input.role !== Role.BRANCHMANAGER && input.role !== Role.STAFF)
       ) {
         throw new BadRequestException(
-          'Only Branch Manager or Staff accounts can be assigned to a branch',
+          'Chỉ tài khoản Quản lý Chi nhánh hoặc Nhân viên mới được gán chi nhánh.',
         );
       }
-      const branch = await this.branchModel
-        .findOne({
-          branchId: input.branchId,
-          branchStatus: BranchStatus.ACTIVE,
-        })
-        .select('branchId')
-        .lean()
-        .exec();
+      const branch = await this.findActiveBranch(input.branchId);
       if (!branch) {
         throw new BadRequestException(
-          'Selected branch is inactive and cannot be assigned.',
+          'Chi nhánh được chọn không tồn tại hoặc đang không hoạt động.',
         );
       }
     }
@@ -254,7 +262,7 @@ export class AdminService {
           error.code === 11000
         ) {
           throw new ConflictException(
-            'Username must be unique across the entire system.',
+            REGISTRATION_MESSAGES.EMAIL_ALREADY_REGISTERED,
           );
         }
         throw error;
@@ -263,7 +271,9 @@ export class AdminService {
 
   async updateUser(userId: string, input: UpdateUserDto, adminUserId: string) {
     if (Object.keys(input).length === 0) {
-      throw new BadRequestException('At least one field is required');
+      throw new BadRequestException(
+        'Cần cung cấp ít nhất một thông tin để cập nhật.',
+      );
     }
 
     if (userId === adminUserId) {
@@ -274,15 +284,19 @@ export class AdminService {
         .exec();
 
       if (!self) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException('Không tìm thấy người dùng.');
       }
 
       if (input.role !== undefined && input.role !== self.role) {
-        throw new ForbiddenException('You cannot change your own role');
+        throw new ForbiddenException(
+          'Không thể tự thay đổi vai trò của chính bạn.',
+        );
       }
 
       if (input.isActive === false) {
-        throw new ForbiddenException('You cannot disable your own account');
+        throw new ForbiddenException(
+          'Không thể tự vô hiệu hóa tài khoản của chính bạn.',
+        );
       }
     }
 
@@ -310,7 +324,7 @@ export class AdminService {
               : {}),
           },
           {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
           },
         )
@@ -321,10 +335,10 @@ export class AdminService {
         .exec();
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException('Không tìm thấy người dùng.');
       }
 
-      return { message: 'User updated successfully', user };
+      return { message: 'Cập nhật người dùng thành công.', user };
     } catch (error: unknown) {
       if (
         typeof error === 'object' &&

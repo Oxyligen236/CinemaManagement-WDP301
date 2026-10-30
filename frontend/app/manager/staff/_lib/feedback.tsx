@@ -44,7 +44,6 @@ export function SuccessBanner({ message }: { message: string }) {
   );
 }
 
-/** Bước 3: trường chi nhánh được hệ thống tự gán và khóa. */
 export function LockedBranchField({
   id,
   branch,
@@ -68,9 +67,6 @@ export function LockedBranchField({
         />
         <Lock className="pointer-events-none absolute right-3 top-1/2 mt-[3px] h-4 w-4 -translate-y-1/2 text-[#9d9580]" />
       </div>
-      <p id={`${id}-hint`} className="mt-1 text-[11px] text-[#777]">
-        Nhân viên được tự động gán vào chi nhánh bạn đang quản lý.
-      </p>
     </div>
   );
 }

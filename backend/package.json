@@ -19,7 +19,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:users": "ts-node scripts/seed-users.ts",
-    "seed:movies": "ts-node scripts/seed-movies.ts"
+    "seed:movies": "ts-node scripts/seed-movies.ts",
+    "fix:branch-id-type": "ts-node scripts/fix-branch-id-type.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",
