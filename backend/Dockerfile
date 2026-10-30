@@ -13,7 +13,8 @@ ENV NODE_ENV=production
 COPY package*.json ./
 COPY prisma ./prisma/
 RUN npm ci --omit=dev
-RUN npx prisma generate
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder /app/dist ./dist
 EXPOSE 8010
 CMD ["npm", "run", "start:prod"]

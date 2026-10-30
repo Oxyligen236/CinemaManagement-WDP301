@@ -140,8 +140,13 @@ jobs:
             printf "%s\n" "$FE_ENV" > frontend/.env
 
             echo "$CR_PAT" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            echo "Pulling Docker images..."
-            docker compose pull -q backend frontend
+            echo "Pruning dangling images before pull..."
+            docker image prune -f
+            echo "Pulling backend image..."
+            docker compose pull -q backend
+            echo "Pulling frontend image..."
+            docker compose pull -q frontend
+            echo "Starting containers..."
             docker compose up -d --no-build backend frontend
             docker logout ghcr.io
 
