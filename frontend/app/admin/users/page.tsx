@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -13,6 +13,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+import { validateEmail } from "@/lib/utils/auth-validation";
+import { FieldErrors, useFormErrors } from "@/lib/utils/use-form-errors";
 
 const TOKEN_KEY = "cinema_access_token";
 const USER_KEY = "cinema_user";
@@ -58,6 +60,21 @@ function getErrorMessage(error: unknown) {
   return getFriendlyErrorMessage(error, "Không thể hoàn tất thao tác.");
 }
 
+/**
+ * Kiểm tra email trước khi gửi request, khớp với `@IsEmail()` của
+ * `CreateUserDto` / `UpdateUserDto` phía backend.
+ *
+ * Backend `@Transform(trim)` nên khoảng trắng thừa được chấp nhận; phần
+ * còn lại dùng chung `validateEmail` với các màn hình auth để thống nhất
+ * thông báo tiếng Việt.
+ */
+function validateUserForm(form: UserForm): FieldErrors<UserForm> {
+  const errors: FieldErrors<UserForm> = {};
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+  return errors;
+}
+
 export default function ManageUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -73,6 +90,15 @@ export default function ManageUsersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const {
+    fieldErrors,
+    setFieldErrors,
+    clearFieldError,
+    validateField,
+    validateAll,
+  } = useFormErrors<UserForm>(
+    useCallback((values: UserForm) => validateUserForm(values), []),
+  );
 
   function clearSession() {
     localStorage.removeItem(TOKEN_KEY);
@@ -200,6 +226,7 @@ export default function ManageUsersPage() {
     setCreating(false);
     setError("");
     setMessage("");
+    setFieldErrors({});
   }
 
   function startCreating() {
@@ -216,11 +243,13 @@ export default function ManageUsersPage() {
     });
     setError("");
     setMessage("");
+    setFieldErrors({});
   }
 
   async function saveUser(event: FormEvent) {
     event.preventDefault();
     if (!selectedUser || !form) return;
+    if (!validateAll(form)) return;
 
     setSaving(true);
     setError("");
@@ -231,6 +260,7 @@ export default function ManageUsersPage() {
         method: "PATCH",
         body: JSON.stringify({
           ...profile,
+          email: profile.email.trim(),
           role:
             editingSelf || !selectedUser.isActive
               ? selectedUser.role
@@ -290,6 +320,7 @@ export default function ManageUsersPage() {
   async function createUser(event: FormEvent) {
     event.preventDefault();
     if (!form) return;
+    if (!validateAll(form)) return;
 
     setSaving(true);
     setError("");
@@ -297,7 +328,7 @@ export default function ManageUsersPage() {
     try {
       const result = await request("/admin/users", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, email: form.email.trim() }),
       });
       setMessage(
         typeof result.message === "string"
@@ -568,17 +599,6 @@ export default function ManageUsersPage() {
                 </p>
               )}
 
-              {editingSelf && (
-                <p
-                  role="status"
-                  className="flex items-start gap-2 border border-[#f5d9a8] bg-[#fdf8ee] px-3 py-2.5 text-[12px] font-semibold text-[#b45309]"
-                >
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  Tài khoản quản trị viên không thể tự thay đổi vai trò, tự gán
-                  chi nhánh hoặc tự vô hiệu hóa tài khoản.
-                </p>
-              )}
-
               {creating && (
                 <div>
                   <label htmlFor="admin-form-password" className={LABEL_CLASS}>
@@ -615,11 +635,34 @@ export default function ManageUsersPage() {
                   type="email"
                   required
                   value={form.email}
-                  onChange={(event) =>
-                    setForm({ ...form, email: event.target.value })
+                  onChange={(event) => {
+                    setForm({ ...form, email: event.target.value });
+                    clearFieldError("email");
+                  }}
+                  onBlur={(event) =>
+                    validateField(
+                      { ...form, email: event.target.value },
+                      "email",
+                    )
                   }
-                  className={INPUT_CLASS}
+                  aria-invalid={!!fieldErrors.email}
+                  aria-describedby={
+                    fieldErrors.email ? "admin-form-email-error" : undefined
+                  }
+                  className={`${INPUT_CLASS} ${
+                    fieldErrors.email ? "border-[#b82116]" : ""
+                  }`}
                 />
+                {fieldErrors.email && (
+                  <p
+                    id="admin-form-email-error"
+                    role="alert"
+                    className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b82116]"
+                  >
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    {fieldErrors.email}
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
