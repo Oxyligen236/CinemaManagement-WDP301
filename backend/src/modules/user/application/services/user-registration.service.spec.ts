@@ -5,6 +5,7 @@ import { Model } from 'mongoose';
 import { UserRegistrationService } from './user-registration.service';
 import { PendingRegistrationService } from './pending-registration.service';
 import { User, UserDocument } from '../../domain/schemas/user.schema';
+import { REGISTRATION_MESSAGES } from '../../domain/constants/auth-message.constants';
 import { EventModule } from '../../../infra/event/event.module';
 import { MailListener } from '../../../infra/mail/infrastructure/listeners/mail.listener';
 import { SendVerificationEmailHandler } from '../../../infra/mail/application/handlers/send-verification-email.handler';
@@ -174,7 +175,7 @@ describe('UserRegistrationService (email verification flow)', () => {
       // Only the newest code may verify the account.
       await expect(
         harness.service.verifyEmail(REGISTER_INPUT.email, firstCode),
-      ).rejects.toThrow('Code is invalid or has expired');
+      ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
 
       await expect(
         harness.service.verifyEmail(REGISTER_INPUT.email, codeOfCall(1)),
@@ -190,7 +191,7 @@ describe('UserRegistrationService (email verification flow)', () => {
       for (let i = 0; i < 4; i += 1) {
         await expect(
           harness.service.verifyEmail(REGISTER_INPUT.email, '000000'),
-        ).rejects.toThrow('Code is invalid or has expired');
+        ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
       }
 
       skipCooldown(harness);
@@ -210,7 +211,7 @@ describe('UserRegistrationService (email verification flow)', () => {
 
       await expect(
         harness.service.resendVerificationCode(REGISTER_INPUT.email),
-      ).rejects.toThrow('Please wait before requesting another code');
+      ).rejects.toThrow(REGISTRATION_MESSAGES.RESEND_COOLDOWN);
 
       expect(sendMail).toHaveBeenCalledTimes(1);
     });
@@ -229,7 +230,7 @@ describe('UserRegistrationService (email verification flow)', () => {
       skipCooldown(harness);
       await expect(
         harness.service.resendVerificationCode(REGISTER_INPUT.email),
-      ).rejects.toThrow('Resend limit reached, please register again');
+      ).rejects.toThrow(REGISTRATION_MESSAGES.RESEND_LIMIT_REACHED);
 
       expect(sendMail).toHaveBeenCalledTimes(4);
     });
@@ -260,7 +261,7 @@ describe('UserRegistrationService (email verification flow)', () => {
 
       await expect(
         harness.service.resendVerificationCode('nobody@cinema.local'),
-      ).rejects.toThrow('No pending registration found, please register again');
+      ).rejects.toThrow(REGISTRATION_MESSAGES.NO_PENDING_REGISTRATION);
 
       expect(sendMail).not.toHaveBeenCalled();
     });
@@ -339,7 +340,7 @@ describe('UserRegistrationService (email verification flow)', () => {
 
       await expect(
         harness.service.verifyEmail(REGISTER_INPUT.email, '000000'),
-      ).rejects.toThrow('Code is invalid or has expired');
+      ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
 
       expect(harness.pending.get('new.user@cinema.local')?.attempts).toBe(1);
       expect(harness.created).toHaveLength(0);
@@ -355,13 +356,13 @@ describe('UserRegistrationService (email verification flow)', () => {
       for (let i = 0; i < 5; i += 1) {
         await expect(
           harness.service.verifyEmail(REGISTER_INPUT.email, '000000'),
-        ).rejects.toThrow('Code is invalid or has expired');
+        ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
       }
 
       // Even the correct code must now be refused.
       await expect(
         harness.service.verifyEmail(REGISTER_INPUT.email, code),
-      ).rejects.toThrow('Too many attempts, please register again');
+      ).rejects.toThrow(REGISTRATION_MESSAGES.TOO_MANY_ATTEMPTS);
 
       expect(harness.pending.get('new.user@cinema.local')).toBeUndefined();
     });
@@ -388,7 +389,7 @@ describe('UserRegistrationService (email verification flow)', () => {
 
       await expect(
         harness.service.verifyEmail('nobody@cinema.local', '123456'),
-      ).rejects.toThrow('Code is invalid or has expired');
+      ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
     });
   });
 });

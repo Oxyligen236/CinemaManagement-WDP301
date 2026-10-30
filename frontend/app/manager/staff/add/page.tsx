@@ -117,7 +117,7 @@ export default function AddBranchStaffPage() {
       <div className="border-b-2 border-[#231f20] pb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            LOTTE CINEMA • NHÂN SỰ CHI NHÁNH
+            LATTE CINEMA • NHÂN SỰ CHI NHÁNH
           </p>
           <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase">
             Thêm Nhân viên Chi nhánh

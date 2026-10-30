@@ -220,7 +220,7 @@ export default function ShowtimesPage() {
       id="wrap"
       className="w-full min-w-[980px] bg-bg-app relative font-sans text-text-main min-h-screen flex flex-col"
     >
-      {/* Header Lotte Cinema */}
+      {/* Header Latte Cinema */}
       <Header />
 
       {/* Main Content */}
@@ -241,7 +241,7 @@ export default function ShowtimesPage() {
               <div>
                 <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
                   <Film className="w-6 h-6 text-primary-600" />
-                  <span>LỊCH CHIẾU PHIM LOTTE CINEMA</span>
+                  <span>LỊCH CHIẾU PHIM LATTE CINEMA</span>
                 </h1>
                 <p className="text-xs text-text-sub mt-1">
                   Tra cứu suất chiếu nhanh chóng, chính xác theo từng cụm rạp và chọn ghế tiện lợi
@@ -315,7 +315,7 @@ export default function ShowtimesPage() {
         </div>
       </main>
 
-      {/* Footer Lotte Cinema */}
+      {/* Footer Latte Cinema */}
       <Footer />
     </div>
   );

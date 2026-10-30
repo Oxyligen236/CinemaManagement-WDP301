@@ -62,7 +62,7 @@ export function BranchDropdown({
               htmlFor="branch-select"
               className="block text-xs font-semibold text-text-sub uppercase tracking-wider"
             >
-              Chọn cụm rạp chiếu Lotte Cinema
+              Chọn cụm rạp chiếu Latte Cinema
             </label>
             <p className="text-xs text-text-muted mt-0.5">
               Xem lịch chiếu và đặt vé nhanh tại chi nhánh gần bạn nhất
@@ -81,7 +81,7 @@ export function BranchDropdown({
             disabled={loading || branches.length === 0}
             className="w-full h-11 pl-9 pr-10 text-sm font-medium text-text-main bg-white border border-border-main rounded-lg appearance-none cursor-pointer focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 transition-colors disabled:bg-surface-muted disabled:cursor-not-allowed"
           >
-            <option value="">--- Chọn rạp chiếu Lotte Cinema ---</option>
+            <option value="">--- Chọn rạp chiếu Latte Cinema ---</option>
             {branches.map((b) => (
               <option key={b.branchId} value={b.branchId}>
                 {b.branchName}

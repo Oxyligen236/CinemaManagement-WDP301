@@ -8,7 +8,7 @@ function createFallbackSvgDataUri(
   height: number,
   label: string
 ): string {
-  const safeLabel = (label || "LOTTE CINEMA")
+  const safeLabel = (label || "LATTE CINEMA")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -38,7 +38,7 @@ export function SafeImage(props: ImageProps) {
   const fallbackSrc = createFallbackSvgDataUri(
     numWidth,
     numHeight,
-    typeof alt === "string" ? alt : "LOTTE CINEMA"
+    typeof alt === "string" ? alt : "LATTE CINEMA"
   );
 
   const isExternalUrl = typeof src === "string" && src.startsWith("http");

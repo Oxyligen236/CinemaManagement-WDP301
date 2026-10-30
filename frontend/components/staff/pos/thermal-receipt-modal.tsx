@@ -181,7 +181,7 @@ export function ThermalReceiptModal({
         <div className="no-print flex items-center justify-between px-5 py-3.5 bg-[#231f20] text-white border-b-2 border-[#c1b687] shrink-0">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c1b687]">
-              LOTTE CINEMA • POS PRINTER
+              LATTE CINEMA • POS PRINTER
             </p>
             <h3 className="font-bold text-[14px] text-white mt-0.5">
               Hóa đơn & Vé xem phim {hasTickets ? `(1 HĐ + ${tickets.length} Vé)` : '(Hóa đơn F&B)'}
@@ -204,22 +204,20 @@ export function ThermalReceiptModal({
             <button
               type="button"
               onClick={() => setPrintMode('all')}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
-                printMode === 'all'
+              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${printMode === 'all'
                   ? 'bg-[#231f20] text-white'
                   : 'text-gray-700 hover:bg-gray-100'
-              }`}
+                }`}
             >
               Tất cả (1 HĐ + {tickets.length} vé)
             </button>
             <button
               type="button"
               onClick={() => setPrintMode('receipt_only')}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
-                printMode === 'receipt_only'
+              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${printMode === 'receipt_only'
                   ? 'bg-[#231f20] text-white'
                   : 'text-gray-700 hover:bg-gray-100'
-              }`}
+                }`}
             >
               <ReceiptText className="h-3 w-3" />
               Chỉ hóa đơn
@@ -228,11 +226,10 @@ export function ThermalReceiptModal({
               <button
                 type="button"
                 onClick={() => setPrintMode('tickets_only')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
-                  printMode === 'tickets_only'
+                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${printMode === 'tickets_only'
                     ? 'bg-[#231f20] text-white'
                     : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                  }`}
               >
                 <TicketIcon className="h-3 w-3" />
                 Chỉ vé ({tickets.length})
@@ -242,11 +239,10 @@ export function ThermalReceiptModal({
               <button
                 type="button"
                 onClick={() => setPrintMode('single_ticket')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${
-                  printMode === 'single_ticket'
+                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors cursor-pointer ${printMode === 'single_ticket'
                     ? 'bg-[#231f20] text-white'
                     : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                  }`}
               >
                 In lẻ 1 vé
               </button>
@@ -285,17 +281,17 @@ export function ThermalReceiptModal({
               <div className="thermal-page w-full bg-white text-black p-4 shadow-sm border border-slate-300 relative block">
                 {/* Header rạp */}
                 <div className="text-center pb-2 border-b border-dashed border-black">
-                  <h1 className="text-base font-extrabold tracking-wide uppercase">LOTTE CINEMA</h1>
-                  <p className="font-bold text-[11px] mt-0.5">{receipt.branchName || 'Lotte Cinema Nam Sài Gòn'}</p>
-                  <p className="text-[10px] text-gray-700 leading-tight mt-0.5">{receipt.branchAddress || 'Tầng 3, TTTM Lotte, Q.7, TP.HCM'}</p>
+                  <h1 className="text-base font-extrabold tracking-wide uppercase">LATTE CINEMA</h1>
+                  <p className="font-bold text-[11px] mt-0.5">{receipt.branchName || 'Latte Cinema Nam Sài Gòn'}</p>
+                  <p className="text-[10px] text-gray-700 leading-tight mt-0.5">{receipt.branchAddress || 'Tầng 3, TTTM Latte, Q.7, TP.HCM'}</p>
                   <p className="text-[10px] text-gray-700">Hotline: 1900 6778</p>
                   <div className="mt-1 pt-1 border-t border-dotted border-black">
                     <p className="text-xs font-black uppercase tracking-wider">
                       {hasSeats && hasConcessions
                         ? 'HÓA ĐƠN VÉ & BẮP NƯỚC'
                         : hasSeats
-                        ? 'HÓA ĐƠN BÁN HÀNG'
-                        : 'HÓA ĐƠN BÁN LẺ BẮP NƯỚC (F&B)'}
+                          ? 'HÓA ĐƠN BÁN HÀNG'
+                          : 'HÓA ĐƠN BÁN LẺ BẮP NƯỚC (F&B)'}
                     </p>
                     {hasTickets && printMode === 'all' && (
                       <p className="text-[9px] text-gray-600 mt-0.5">
@@ -428,7 +424,7 @@ export function ThermalReceiptModal({
                 {/* Chân trang Hóa đơn */}
                 <div className="text-center pt-2 text-[10px] space-y-0.5">
                   <p className="font-bold uppercase">CẢM ƠN QUÝ KHÁCH & HẸN GẶP LẠI!</p>
-                  <p className="italic">Chúc quý khách xem phim vui vẻ tại Lotte Cinema!</p>
+                  <p className="italic">Chúc quý khách xem phim vui vẻ tại Latte Cinema!</p>
                   <p className="text-[9px] text-gray-500 pt-0.5">
                     (Biên lai thanh toán hợp lệ)
                   </p>
@@ -470,8 +466,8 @@ export function ThermalReceiptModal({
 
                       {/* Header vé */}
                       <div className="text-center pb-2 border-b border-dashed border-black">
-                        <h2 className="text-base font-extrabold tracking-wider uppercase">LOTTE CINEMA</h2>
-                        <p className="text-[10px] font-bold text-gray-800">{receipt.branchName || 'Lotte Cinema Nam Sài Gòn'}</p>
+                        <h2 className="text-base font-extrabold tracking-wider uppercase">LATTE CINEMA</h2>
+                        <p className="text-[10px] font-bold text-gray-800">{receipt.branchName || 'Latte Cinema Nam Sài Gòn'}</p>
                         <div className="mt-1 pt-1 border-t border-dotted border-black inline-block px-3">
                           <p className="text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-1">
                             <TicketIcon className="h-3 w-3 inline no-print" />
@@ -547,11 +543,11 @@ export function ThermalReceiptModal({
                   </React.Fragment>
                 );
               })}
-          </div>
-        </div>
+          </div >
+        </div >
 
-        {/* Footer Actions (No print) */}
-        <div className="no-print p-3.5 bg-[#efebdb] flex items-center justify-between gap-3 shrink-0">
+    {/* Footer Actions (No print) */ }
+    < div className = "no-print p-3.5 bg-[#efebdb] flex items-center justify-between gap-3 shrink-0" >
           <button
             type="button"
             onClick={handleDone}
@@ -577,8 +573,8 @@ export function ThermalReceiptModal({
               </span>
             </button>
           </div>
-        </div>
-      </div>
-    </div>
+        </div >
+      </div >
+    </div >
   );
 }

@@ -97,7 +97,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-red-100 flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5" />
-                  <span>{order.branchName || 'LOTTE CINEMA'} • CHI TIẾT ĐƠN HÀNG</span>
+                  <span>{order.branchName || 'LATTE CINEMA'} • CHI TIẾT ĐƠN HÀNG</span>
                 </p>
                 <h3
                   id="order-detail-title"
@@ -459,7 +459,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
           <div className="bg-surface-muted px-5 sm:px-6 py-3.5 border-t border-border-main flex items-center justify-between shrink-0">
             <span className="text-[11px] text-text-muted flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-status-success" />
-              Hệ thống đặt vé bảo mật Lotte Cinema
+              Hệ thống đặt vé bảo mật Latte Cinema
             </span>
             <div className="flex items-center gap-2.5">
               {isPending && (

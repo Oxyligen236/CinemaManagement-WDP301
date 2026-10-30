@@ -287,7 +287,7 @@ export default function ManageShowtimePage() {
       <div className="border-b-2 border-[#231f20] pb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            {branch?.branchName ?? 'LOTTE CINEMA'} • VẬN HÀNH CHI NHÁNH
+            {branch?.branchName ?? 'LATTE CINEMA'} • VẬN HÀNH CHI NHÁNH
           </p>
           <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase">
             Quản lý Suất chiếu
@@ -415,7 +415,9 @@ export default function ManageShowtimePage() {
             <CalendarClock className="h-4 w-4 text-[#c1b687]" />
             <span className="text-[13px] font-bold uppercase tracking-wider">Danh sách Lịch chiếu tại Chi nhánh</span>
           </div>
-          <span className="text-[12px] text-[#c1b687] font-semibold">{branch?.branchName ?? 'Lotte Cinema Nam Sài Gòn'}</span>
+          <span className="text-[12px] text-[#c1b687] font-semibold">
+            {branch?.branchName ?? 'Latte Cinema Nam Sài Gòn'}
+          </span>
         </div>
 
         {loading || (listLoading && showtimes.length === 0 && !loadError) ? (

@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MyCast Admin",
-  description: "Hệ thống quản trị rạp chiếu phim MyCast",
+  title: "Latte Cinema - Hệ thống rạp chiếu phim Latte Cinema",
+  description: "Đặt vé xem phim trực tuyến tại Latte Cinema Vietnam",
 };
 
 export default function RootLayout({

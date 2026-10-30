@@ -463,7 +463,7 @@ export default function ManageRoomSeatPage() {
       <div className="border-b-2 border-[#231f20] pb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            {branch?.branchName ?? 'LOTTE CINEMA'} • CƠ SỞ VẬT CHẤT CHI NHÁNH
+            {branch?.branchName ?? 'LATTE CINEMA'} • CƠ SỞ VẬT CHẤT CHI NHÁNH
           </p>
           <h1 className="mt-1 text-[24px] font-bold text-[#231f20] uppercase">
             Quản lý Phòng chiếu &amp; Sơ đồ Ghế
@@ -954,7 +954,7 @@ export default function ManageRoomSeatPage() {
                   </div>
                 ) : (
                   <div className="space-y-8">
-                    {/* Lotte Cinema Screen Visual */}
+                    {/* Latte Cinema Screen Visual */}
                     <div className="mx-auto max-w-[560px] text-center">
                       <div className="h-2.5 w-full bg-gradient-to-r from-[#dad2b4] via-[#231f20] to-[#dad2b4] shadow-md" />
                       <div className="mt-1.5 inline-block border border-[#dad2b4] bg-[#efebdb] px-8 py-1 text-[11px] font-bold uppercase tracking-[0.35em] text-[#6f6247]">
@@ -1144,7 +1144,7 @@ export default function ManageRoomSeatPage() {
             <div className="bg-[#231f20] border-b-2 border-[#c1b687] px-6 py-4 flex items-center justify-between text-white">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c1b687]">
-                  {branch?.branchName ?? 'LOTTE CINEMA'}
+                  {branch?.branchName ?? 'LATTE CINEMA'}
                 </p>
                 <h2 className="text-[17px] font-bold uppercase">
                   Thêm Phòng chiếu mới

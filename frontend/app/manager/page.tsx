@@ -61,7 +61,7 @@ export default function BranchManagerDashboardPage() {
       <div className="border-b-2 border-[#231f20] pb-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            LOTTE CINEMA VIETNAM
+            LATTE CINEMA VIETNAM
           </p>
           <h1 className="text-[26px] font-bold text-[#231f20] tracking-tight">
             TỔNG QUAN VẬN HÀNH CHI NHÁNH
@@ -72,7 +72,7 @@ export default function BranchManagerDashboardPage() {
         </span>
       </div>
 
-      {/* 1. Branch Info Banner (Dark Lotte Cinema Mask + Gold Border) */}
+      {/* 1. Branch Info Banner (Dark Latte Cinema Mask + Gold Border) */}
       <section
         className="relative border border-[#231f20] bg-[#231f20] p-6 sm:p-8 text-white shadow-sm"
         style={{
@@ -84,7 +84,7 @@ export default function BranchManagerDashboardPage() {
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="inline-flex items-center gap-1.5 bg-[#da291c] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
                 <Building2 className="h-3.5 w-3.5" />
-                LOTTE CINEMA NAM SÀI GÒN
+                LATTE CINEMA NAM SÀI GÒN
               </span>
               <span className="inline-flex items-center gap-1 border border-[#c1b687] bg-black/40 px-3 py-1 text-[11px] font-bold text-[#c1b687]">
                 <CheckCircle2 className="h-3.5 w-3.5 text-[#c1b687]" />
@@ -98,7 +98,7 @@ export default function BranchManagerDashboardPage() {
 
             <p className="flex items-center gap-1.5 text-[13px] text-[#dad2b4]">
               <MapPin className="h-4 w-4 shrink-0 text-[#c1b687]" />
-              Tầng 3, TTTM Lotte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng,
+              Tầng 3, TTTM Latte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng,
               Quận 7, TP.HCM
             </p>
           </div>

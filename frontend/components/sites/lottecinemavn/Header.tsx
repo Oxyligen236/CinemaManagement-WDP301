@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { SafeImage as Image } from "@/components/ui/safe-image";
 import Link from "next/link";
+import { R2_PUBLIC_URL } from "@/lib/constants/r2";
 import { useRouter } from "next/navigation";
 
 type User = {
@@ -129,16 +130,16 @@ export function Header() {
       </div>
 
       {/* Centered Logo */}
-      <div className="overflow-hidden absolute left-1/2 top-[30px] w-[980px] -ml-[490px] text-center">
+      <div className="overflow-hidden absolute left-1/2 top-[30px] w-[980px] -ml-[490px] h-[78px] flex items-center justify-center text-center">
         <h1 className="text-[0px] leading-[0px]">
           <Link href="/" className="inline-block">
             <Image
-              src="/sites/lottecinemavn/ui/logo.png"
-              alt="LOTTE CINEMA"
-              width={640}
-              height={73}
+              src={`${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo.png`}
+              alt="LATTE CINEMA"
+              width={260}
+              height={65}
               priority
-              className="mx-auto block"
+              className="h-[52px] w-auto max-h-[52px] object-contain mx-auto block"
             />
           </Link>
         </h1>

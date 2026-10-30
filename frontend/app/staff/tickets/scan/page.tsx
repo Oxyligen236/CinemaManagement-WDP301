@@ -320,7 +320,7 @@ export default function TicketScanPage() {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-              LOTTE CINEMA • CỬA KIỂM SOÁT VÉ
+              LATTE CINEMA • CỬA KIỂM SOÁT VÉ
             </p>
             {staffBranchName ? (
               <span className="px-2 py-0.5 text-[11px] font-bold bg-[#15803d] text-white flex items-center gap-1 shadow-xs">

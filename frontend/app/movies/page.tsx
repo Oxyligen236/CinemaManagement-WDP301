@@ -165,7 +165,7 @@ function MovieListContent() {
         {/* Title */}
         <div className="text-center mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold uppercase tracking-wide text-[#111827]">
-            Danh Sách Phim Lotte Cinema
+            Danh Sách Phim Latte Cinema
           </h1>
           <p className="text-sm text-[#6b7280] mt-1">
             Khám phá những siêu phẩm điện ảnh đỉnh cao đang và sắp khởi chiếu

@@ -176,16 +176,16 @@ export default function BookingSeatPage({
         <span className="font-bold text-[#231f20]">Bước 1: Chọn ghế xem phim</span>
       </div>
 
-      {/* 2. Showtime Info Banner (Lotte Cinema Header Style) */}
+      {/* 2. Showtime Info Banner (Latte Cinema Header Style) */}
       <div className="bg-white border border-[#dad2b4] shadow-xs overflow-hidden">
         {/* Top Header Strip */}
         <div className="bg-[#231f20] text-white px-4 sm:px-6 py-3 border-b-2 border-[#da291c] flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="bg-[#da291c] text-white text-[11px] font-bold px-2 py-0.5 tracking-wider uppercase">
-              LOTTE CINEMA
+              LATTE CINEMA
             </span>
             <span className="text-[13px] text-[#c1b687] font-semibold">
-              Chi nhánh: Lotte Cinema Nam Sài Gòn
+              Chi nhánh: Latte Cinema Nam Sài Gòn
             </span>
           </div>
           <div className="text-[12px] text-[#dad2b4]">
@@ -273,7 +273,7 @@ export default function BookingSeatPage({
         {loading ? (
           <div className="py-20 text-center">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[#dad2b4] border-t-[#da291c]" />
-            <p className="mt-3 text-[13px] text-[#6f6247] font-semibold">Đang tải sơ đồ phòng chiếu Lotte Cinema...</p>
+            <p className="mt-3 text-[13px] text-[#6f6247] font-semibold">Đang tải sơ đồ phòng chiếu Latte Cinema...</p>
           </div>
         ) : (
           <div className="overflow-x-auto pb-6 pt-2">

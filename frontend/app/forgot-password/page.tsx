@@ -127,25 +127,21 @@ export default function ForgotPasswordPage() {
       const data = (await response.json().catch(() => ({}))) as ApiResponse;
 
       if (!response.ok) {
-        throw new Error(
+        setError(
           getFriendlyErrorMessage(
             { status: response.status, message: data.message },
             "Không thể yêu cầu mã đặt lại.",
           ),
         );
+        return;
       }
 
       setMessage(
         "Nếu email này đã được đăng ký, mã đặt lại đã được gửi. Vui lòng kiểm tra hộp thư của bạn.",
       );
       setStep("reset");
-    } catch (requestError) {
-      setError(
-        getFriendlyErrorMessage(
-          requestError,
-          "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.",
-        ),
-      );
+    } catch {
+      setError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
     } finally {
       setSubmitting(false);
     }
@@ -177,22 +173,18 @@ export default function ForgotPasswordPage() {
       const data = (await response.json().catch(() => ({}))) as ApiResponse;
 
       if (!response.ok) {
-        throw new Error(
+        setError(
           getFriendlyErrorMessage(
             { status: response.status, message: data.message },
             "Mã đặt lại không hợp lệ hoặc đã hết hạn.",
           ),
         );
+        return;
       }
 
       router.push(`/login?email=${encodeURIComponent(form.email.trim())}`);
-    } catch (resetError) {
-      setError(
-        getFriendlyErrorMessage(
-          resetError,
-          "Không thể đặt lại mật khẩu của bạn. Vui lòng thử lại sau.",
-        ),
-      );
+    } catch {
+      setError("Không thể đặt lại mật khẩu của bạn. Vui lòng thử lại sau.");
     } finally {
       setSubmitting(false);
     }

@@ -36,6 +36,7 @@ export class UserAuthenticationService {
       sub: user.userId,
       email: user.email,
       role: user.role,
+      branchId: user.branchId,
       tokenVersion: user.tokenVersion ?? 0,
     };
 
@@ -47,6 +48,7 @@ export class UserAuthenticationService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        branchId: user.branchId,
       },
     };
   }

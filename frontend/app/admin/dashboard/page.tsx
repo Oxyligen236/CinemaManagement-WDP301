@@ -204,7 +204,7 @@ export default function AdminDashboardPage() {
       <div className="border-b-2 border-[#231f20] pb-3 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
-            LOTTE CINEMA VIETNAM
+            LATTE CINEMA VIETNAM
           </p>
           <h1 className="text-[26px] font-bold text-[#231f20] tracking-tight">
             TỔNG QUAN QUẢN TRỊ HỆ THỐNG
@@ -215,7 +215,7 @@ export default function AdminDashboardPage() {
         </span>
       </div>
 
-      {/* 1. Admin Info Banner (Dark Lotte Cinema Mask + Gold Border) */}
+      {/* 1. Admin Info Banner (Dark Latte Cinema Mask + Gold Border) */}
       <section
         className="relative border border-[#231f20] bg-[#231f20] p-6 sm:p-8 text-white shadow-sm"
         style={{
