@@ -13,10 +13,7 @@ import {
   STORAGE_SERVICE,
   type StorageService,
 } from '../../../infra/storage/application/interface/storage.interface';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../../../showtime/domain/schemas/showtime.schema';
+import { ShowtimeQueryService } from '../../../showtime/application/services/showtime-query.service';
 import {
   MSG08,
   MSG09,
@@ -157,17 +154,13 @@ export class MovieService
   }
 
   async deactivateMovie(movieId: string): Promise<MovieResDto> {
-    const movie = await this.prisma.movie.findUnique({
-      where: { id: movieId },
-    });
+    const movie = await this.prisma.movie.findUnique({ where: { id: movieId } });
     if (!movie) {
       throw new NotFoundException('Movie not found.');
     }
 
-    const hasActive = await this.showtimeModel.exists({
-      movieId,
-      endTime: { $gte: new Date() },
-    });
+    const hasActive =
+      await this.showtimeQueryService.hasActiveShowtimes(movieId);
     if (hasActive) {
       throw new ConflictException(
         'Cannot deactivate film with scheduled or ongoing showtimes.',
@@ -182,9 +175,7 @@ export class MovieService
   }
 
   async getGenres(): Promise<GenreResDto[]> {
-    const genres = await this.prisma.genre.findMany({
-      orderBy: { genreName: 'asc' },
-    });
+    const genres = await this.prisma.genre.findMany({ orderBy: { genreName: 'asc' } });
     return genres.map((genre) => ({
       genreId: genre.id,
       genreName: genre.genreName,
