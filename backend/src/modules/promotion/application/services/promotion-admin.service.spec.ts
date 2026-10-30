@@ -1,29 +1,20 @@
-/* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import {
   BadRequestException,
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { PromotionAdminService } from './promotion-admin.service';
-import {
-  INTERNAL_EVENT_BUS,
-  InternalEventBus,
-} from '../../../infra/event/application/internal-event-bus.interface';
-import { DiscountType } from '../../domain/enums/discount-type.enum';
-import { Promotion } from '../../domain/schemas/promotion.schema';
+import { InternalEventBus } from '../../../infra/event/application/internal-event-bus.interface';
+import { DiscountType } from '@prisma/client';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 describe('PromotionAdminService', () => {
   let service: PromotionAdminService;
-  let mockPromotionModel: any;
+  let mockPrisma: any;
   let mockEventBus: jest.Mocked<InternalEventBus>;
 
   const samplePromotion = {
-    promotionId: 'test-uuid-1',
+    id: 'test-uuid-1',
     promotionCode: 'SUMMER2026',
     discountValue: 20,
     discountType: DiscountType.PERCENTAGE,
@@ -34,42 +25,34 @@ describe('PromotionAdminService', () => {
     updatedAt: new Date('2026-10-01T00:00:00.000Z'),
   };
 
-  beforeEach(async () => {
-    mockPromotionModel = {
-      create: jest.fn(),
-      findOne: jest.fn(),
-      find: jest.fn(),
-      countDocuments: jest.fn(),
-      findOneAndUpdate: jest.fn(),
-    };
+  beforeEach(() => {
+    jest.clearAllMocks();
 
     mockEventBus = {
       publish: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<InternalEventBus>;
+
+    mockPrisma = {
+      promotion: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+        update: jest.fn(),
+      },
     };
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PromotionAdminService,
-        {
-          provide: getModelToken(Promotion.name),
-          useValue: mockPromotionModel,
-        },
-        {
-          provide: INTERNAL_EVENT_BUS,
-          useValue: mockEventBus,
-        },
-      ],
-    }).compile();
-
-    service = module.get<PromotionAdminService>(PromotionAdminService);
+    service = new PromotionAdminService(
+      mockPrisma as unknown as PrismaService,
+      mockEventBus,
+    );
   });
 
   describe('createPromotion', () => {
-    it('should create promotion successfully and publish event', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
-      mockPromotionModel.create.mockResolvedValue(samplePromotion);
+    it('should create promotion and publish event', async () => {
+      mockPrisma.promotion.findFirst.mockResolvedValue(null);
+      mockPrisma.promotion.create.mockResolvedValue(samplePromotion);
 
       const dto = {
         promotionCode: 'summer2026',
@@ -82,16 +65,16 @@ describe('PromotionAdminService', () => {
 
       const result = await service.createPromotion(dto);
 
-      expect(mockPromotionModel.findOne).toHaveBeenCalledWith({
-        promotionCode: 'SUMMER2026',
+      expect(mockPrisma.promotion.findFirst).toHaveBeenCalledWith({
+        where: { promotionCode: 'SUMMER2026' },
       });
-      expect(mockPromotionModel.create).toHaveBeenCalledWith(
-        expect.objectContaining({
+      expect(mockPrisma.promotion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
           promotionCode: 'SUMMER2026',
           discountValue: 20,
           discountType: DiscountType.PERCENTAGE,
         }),
-      );
+      });
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(result.promotionCode).toBe('SUMMER2026');
     });
@@ -111,9 +94,7 @@ describe('PromotionAdminService', () => {
     });
 
     it('should throw ConflictException if promotionCode already exists', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(samplePromotion),
-      });
+      mockPrisma.promotion.findFirst.mockResolvedValue(samplePromotion);
 
       const dto = {
         promotionCode: 'SUMMER2026',
@@ -131,16 +112,8 @@ describe('PromotionAdminService', () => {
 
   describe('getPromotions', () => {
     it('should return paginated promotions', async () => {
-      const mockQueryChain = {
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([samplePromotion]),
-      };
-      mockPromotionModel.find.mockReturnValue(mockQueryChain);
-      mockPromotionModel.countDocuments.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(1),
-      });
+      mockPrisma.promotion.findMany.mockResolvedValue([samplePromotion]);
+      mockPrisma.promotion.count.mockResolvedValue(1);
 
       const result = await service.getPromotions({ page: 1, limit: 10 });
 
@@ -152,9 +125,7 @@ describe('PromotionAdminService', () => {
 
   describe('getPromotionById', () => {
     it('should return promotion by id', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(samplePromotion),
-      });
+      mockPrisma.promotion.findUnique.mockResolvedValue(samplePromotion);
 
       const result = await service.getPromotionById('test-uuid-1');
 
@@ -162,9 +133,7 @@ describe('PromotionAdminService', () => {
     });
 
     it('should throw NotFoundException if not found', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+      mockPrisma.promotion.findUnique.mockResolvedValue(null);
 
       await expect(service.getPromotionById('unknown-id')).rejects.toThrow(
         NotFoundException,
@@ -174,25 +143,20 @@ describe('PromotionAdminService', () => {
 
   describe('updatePromotion', () => {
     it('should update and publish event', async () => {
-      mockPromotionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(samplePromotion),
-      });
-      mockPromotionModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ...samplePromotion,
-          discountValue: 25,
-        }),
+      mockPrisma.promotion.findUnique.mockResolvedValue(samplePromotion);
+      mockPrisma.promotion.update.mockResolvedValue({
+        ...samplePromotion,
+        discountValue: 25,
       });
 
       const result = await service.updatePromotion('test-uuid-1', {
         discountValue: 25,
       });
 
-      expect(mockPromotionModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { promotionId: 'test-uuid-1' },
-        { $set: { discountValue: 25 } },
-        { new: true },
-      );
+      expect(mockPrisma.promotion.update).toHaveBeenCalledWith({
+        where: { id: 'test-uuid-1' },
+        data: { discountValue: 25 },
+      });
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(result.discountValue).toBe(25);
     });
@@ -200,20 +164,18 @@ describe('PromotionAdminService', () => {
 
   describe('changePromotionStatus', () => {
     it('should toggle status to false and publish event', async () => {
-      mockPromotionModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({
-          ...samplePromotion,
-          isActive: false,
-        }),
+      mockPrisma.promotion.findUnique.mockResolvedValue(samplePromotion);
+      mockPrisma.promotion.update.mockResolvedValue({
+        ...samplePromotion,
+        isActive: false,
       });
 
       const result = await service.changePromotionStatus('test-uuid-1', false);
 
-      expect(mockPromotionModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { promotionId: 'test-uuid-1' },
-        { $set: { isActive: false } },
-        { new: true },
-      );
+      expect(mockPrisma.promotion.update).toHaveBeenCalledWith({
+        where: { id: 'test-uuid-1' },
+        data: { isActive: false },
+      });
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(result.isActive).toBe(false);
     });

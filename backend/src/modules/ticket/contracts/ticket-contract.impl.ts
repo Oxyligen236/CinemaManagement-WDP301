@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ClientSession } from 'mongoose';
 import { TicketService } from '../application/services/ticket.service';
 import { TicketContract, TicketItemSummaryDto } from './ticket.contract';
 
@@ -16,10 +15,8 @@ export class TicketContractImpl implements TicketContract {
       orderId: string;
       seatShowtimeIds: string[];
     },
-    session?: ClientSession,
+    prismaTx?: any,
   ): Promise<TicketItemSummaryDto[]> {
-    return session
-      ? this.ticketService.createTicketsForOrder(params, session)
-      : this.ticketService.createTicketsForOrder(params);
+    return this.ticketService.createTicketsForOrder(params, prismaTx);
   }
 }

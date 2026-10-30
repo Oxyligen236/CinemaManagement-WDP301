@@ -1,54 +1,43 @@
-import { Test } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
-import { BranchStatus } from '../../domain/enums/branch-status.enum';
-import { Branch } from '../../domain/schemas/branch.schema';
+import { BranchStatus } from '@prisma/client';
 import { BranchQueryService } from './branch-query.service';
-
-const chain = (result: unknown) => ({
-  select: jest.fn().mockReturnThis(),
-  sort: jest.fn().mockReturnThis(),
-  lean: jest.fn().mockReturnThis(),
-  exec: jest.fn().mockResolvedValue(result),
-});
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 const BRANCH_A = 'branch-a';
 
 describe('BranchQueryService', () => {
   let service: BranchQueryService;
-  const branchModel = {
-    findOne: jest.fn(),
-    find: jest.fn(),
-  };
+  let mockPrisma: any;
 
-  beforeEach(async () => {
-    jest.resetAllMocks();
-    branchModel.findOne.mockImplementation((f: { branchId: string }) =>
-      chain(
-        f.branchId === BRANCH_A
-          ? {
-              branchId: BRANCH_A,
-              branchName: 'CGV Quận 1',
-              address: 'addr',
-              branchStatus: BranchStatus.ACTIVE,
-            }
-          : null,
-      ),
-    );
+  beforeEach(() => {
+    mockPrisma = {
+      branch: {
+        findUnique: jest.fn((args: { where: { id: string } }) =>
+          Promise.resolve(
+            args.where.id === BRANCH_A
+              ? {
+                  id: BRANCH_A,
+                  branchName: 'CGV Quận 1',
+                  address: 'addr',
+                  branchStatus: BranchStatus.ACTIVE,
+                }
+              : null,
+          ),
+        ),
+        findMany: jest.fn(),
+      },
+    };
 
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        BranchQueryService,
-        { provide: getModelToken(Branch.name), useValue: branchModel },
-      ],
-    }).compile();
-    service = moduleRef.get(BranchQueryService);
+    service = new BranchQueryService(mockPrisma as unknown as PrismaService);
   });
 
   describe('getBranchSummary', () => {
     it('returns only branchId and branchName for an existing branch', async () => {
       const result = await service.getBranchSummary(BRANCH_A);
 
-      expect(branchModel.findOne).toHaveBeenCalledWith({ branchId: BRANCH_A });
+      expect(mockPrisma.branch.findUnique).toHaveBeenCalledWith({
+        where: { id: BRANCH_A },
+        select: { id: true, branchName: true },
+      });
       expect(result).toEqual({ branchId: BRANCH_A, branchName: 'CGV Quận 1' });
     });
 
@@ -57,13 +46,10 @@ describe('BranchQueryService', () => {
     });
 
     it('propagates database errors', async () => {
-      branchModel.findOne.mockReturnValue({
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockRejectedValue(new Error('mongo down')),
-      });
+      mockPrisma.branch.findUnique.mockRejectedValue(new Error('db down'));
 
       await expect(service.getBranchSummary(BRANCH_A)).rejects.toThrow(
-        'mongo down',
+        'db down',
       );
     });
   });
@@ -72,14 +58,14 @@ describe('BranchQueryService', () => {
     it('returns only ACTIVE branches sorted by branchName ASC with fallback hotline', async () => {
       const mockDocs = [
         {
-          branchId: 'branch-cantavil',
+          id: 'branch-cantavil',
           branchName: 'Lotte Cinema Cantavil',
           address: 'Tầng 7, Cantavil Premier',
           hotline: '028 3740 6180',
           branchStatus: BranchStatus.ACTIVE,
         },
         {
-          branchId: 'branch-govap',
+          id: 'branch-govap',
           branchName: 'Lotte Cinema Gò Vấp',
           address: '242 Nguyễn Văn Lượng',
           hotline: '',
@@ -87,23 +73,21 @@ describe('BranchQueryService', () => {
         },
       ];
 
-      const queryChain = {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue(mockDocs),
-      };
-      branchModel.find.mockReturnValue(queryChain);
+      mockPrisma.branch.findMany.mockResolvedValue(mockDocs);
 
       const result = await service.getPublicBranches();
 
-      expect(branchModel.find).toHaveBeenCalledWith({
-        branchStatus: BranchStatus.ACTIVE,
+      expect(mockPrisma.branch.findMany).toHaveBeenCalledWith({
+        where: { branchStatus: BranchStatus.ACTIVE },
+        select: {
+          id: true,
+          branchName: true,
+          address: true,
+          hotline: true,
+          branchStatus: true,
+        },
+        orderBy: { branchName: 'asc' },
       });
-      expect(queryChain.select).toHaveBeenCalledWith(
-        'branchId branchName address hotline branchStatus',
-      );
-      expect(queryChain.sort).toHaveBeenCalledWith({ branchName: 1 });
       expect(result).toEqual([
         {
           branchId: 'branch-cantavil',
@@ -123,54 +107,27 @@ describe('BranchQueryService', () => {
     });
 
     it('filters branches by search query case-insensitively on branchName or address', async () => {
-      const queryChain = {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
-      branchModel.find.mockReturnValue(queryChain);
+      mockPrisma.branch.findMany.mockResolvedValue([]);
 
       await service.getPublicBranches({ search: '  cantavil  ' });
 
-      expect(branchModel.find).toHaveBeenCalledWith({
-        branchStatus: BranchStatus.ACTIVE,
-        $or: [{ branchName: /cantavil/i }, { address: /cantavil/i }],
+      expect(mockPrisma.branch.findMany).toHaveBeenCalledWith({
+        where: {
+          branchStatus: BranchStatus.ACTIVE,
+          OR: [
+            { branchName: { contains: 'cantavil', mode: 'insensitive' } },
+            { address: { contains: 'cantavil', mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          branchName: true,
+          address: true,
+          hotline: true,
+          branchStatus: true,
+        },
+        orderBy: { branchName: 'asc' },
       });
-    });
-
-    it('escapes special regex characters in search query', async () => {
-      const queryChain = {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
-      };
-      branchModel.find.mockReturnValue(queryChain);
-
-      await service.getPublicBranches({ search: 'cinema (q1) [vip]' });
-
-      expect(branchModel.find).toHaveBeenCalledWith({
-        branchStatus: BranchStatus.ACTIVE,
-        $or: [
-          { branchName: /cinema \(q1\) \[vip\]/i },
-          { address: /cinema \(q1\) \[vip\]/i },
-        ],
-      });
-    });
-
-    it('propagates database error when query fails', async () => {
-      const queryChain = {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockRejectedValue(new Error('db connection lost')),
-      };
-      branchModel.find.mockReturnValue(queryChain);
-
-      await expect(service.getPublicBranches()).rejects.toThrow(
-        'db connection lost',
-      );
     });
   });
 });

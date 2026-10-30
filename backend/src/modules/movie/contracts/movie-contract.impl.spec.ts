@@ -1,50 +1,43 @@
-import { Test } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { STORAGE_SERVICE } from '../../infra/storage/application/interface/storage.interface';
-import { Movie } from '../domain/schemas/movie.schema';
-import { MovieStatus } from '../domain/enums/movie-status.enum';
+import { MovieStatus } from '@prisma/client';
 import { MovieContractImpl } from './movie-contract.impl';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 
 const PUBLIC_BASE = 'https://cdn.cinema.local';
 
 describe('MovieContractImpl', () => {
   let contract: MovieContractImpl;
-  const movieModel = {
-    findOne: jest.fn(),
-    find: jest.fn(),
-  };
+  let mockPrisma: any;
   const mockStorageService = {
     getPublicUrl: jest.fn((key: string) => `${PUBLIC_BASE}/${key}`),
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
-    const moduleRef = await Test.createTestingModule({
-      providers: [
-        MovieContractImpl,
-        { provide: getModelToken(Movie.name), useValue: movieModel },
-        { provide: STORAGE_SERVICE, useValue: mockStorageService },
-      ],
-    }).compile();
+    mockPrisma = {
+      movie: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+      },
+    };
 
-    contract = moduleRef.get(MovieContractImpl);
+    contract = new MovieContractImpl(
+      mockPrisma as unknown as PrismaService,
+      mockStorageService as any,
+    );
   });
 
   describe('getMovieSummary', () => {
     it('returns movie summary when movie found', async () => {
       const mockDoc = {
-        movieId: 'm1',
+        id: 'm1',
         movieName: 'Film 1',
         duration: 120,
         posterKey: 'movies/posters/m1.png',
         status: MovieStatus.NOW_SHOWING,
         releaseDate: new Date('2026-05-01'),
       };
-      movieModel.findOne.mockReturnValue({
-        lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(mockDoc),
-        }),
-      });
+      mockPrisma.movie.findUnique.mockResolvedValue(mockDoc);
 
       const result = await contract.getMovieSummary('m1');
       expect(result).toEqual({
@@ -58,11 +51,7 @@ describe('MovieContractImpl', () => {
     });
 
     it('returns null when movie not found', async () => {
-      movieModel.findOne.mockReturnValue({
-        lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(null),
-        }),
-      });
+      mockPrisma.movie.findUnique.mockResolvedValue(null);
 
       const result = await contract.getMovieSummary('none');
       expect(result).toBeNull();
@@ -73,18 +62,14 @@ describe('MovieContractImpl', () => {
     it('returns list of movie summaries', async () => {
       const mockDocs = [
         {
-          movieId: 'm1',
+          id: 'm1',
           movieName: 'Film 1',
           duration: 120,
           posterKey: 'movies/posters/m1.png',
           status: MovieStatus.NOW_SHOWING,
         },
       ];
-      movieModel.find.mockReturnValue({
-        lean: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(mockDocs),
-        }),
-      });
+      mockPrisma.movie.findMany.mockResolvedValue(mockDocs);
 
       const result = await contract.getMoviesSummary(['m1']);
       expect(result).toHaveLength(1);
@@ -95,7 +80,7 @@ describe('MovieContractImpl', () => {
     it('returns empty array when input movieIds is empty', async () => {
       const result = await contract.getMoviesSummary([]);
       expect(result).toEqual([]);
-      expect(movieModel.find).not.toHaveBeenCalled();
+      expect(mockPrisma.movie.findMany).not.toHaveBeenCalled();
     });
   });
 });

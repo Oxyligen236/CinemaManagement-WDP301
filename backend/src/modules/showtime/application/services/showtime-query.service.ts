@@ -1,12 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter } from 'mongoose';
-import { Room, RoomDocument } from '../../../room/domain/schemas/room.schema';
 import { Page } from '../../../../common/dto/page.dto';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../../domain/schemas/showtime.schema';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { SearchShowtimeReqDto } from '../dto/req.dto';
 import { ShowtimeResDto } from '../dto/res.dto';
 import { toShowtimeResDto } from '../helpers/showtime-res.mapper';
@@ -17,23 +11,15 @@ import { SearchShowtimesUsecase } from '../usecase/search-showtimes.usecase';
 export class ShowtimeQueryService
   implements SearchShowtimesUsecase, GetShowtimeDetailUsecase
 {
-  constructor(
-    @InjectModel(Showtime.name)
-    private readonly showtimeModel: Model<ShowtimeDocument>,
-    @InjectModel(Room.name)
-    private readonly roomModel: Model<RoomDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Kiểm tra xem phim có suất chiếu đang lên lịch hoặc đang diễn ra không.
-   *
-   * @param movieId - Mã định danh phim (string, khớp schema Showtime.movieId)
-   * @returns true nếu có ít nhất 1 suất chiếu có endTime >= now
-   */
   async hasActiveShowtimes(movieId: string): Promise<boolean> {
-    const found = await this.showtimeModel.exists({
-      movieId,
-      endTime: { $gte: new Date() },
+    const found = await this.prisma.showtime.findFirst({
+      where: {
+        movieId,
+        endTime: { gte: new Date() },
+      },
+      select: { id: true },
     });
     return found !== null;
   }
@@ -43,112 +29,99 @@ export class ShowtimeQueryService
   ): Promise<Page<ShowtimeResDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const filter: QueryFilter<ShowtimeDocument> = {};
+    const where: any = {};
 
     if (query.movieId) {
-      filter.movieId = query.movieId;
+      where.movieId = query.movieId;
     }
     if (query.branchId) {
-      const rooms = await this.roomModel
-        .find({ branchId: query.branchId })
-        .select('roomId')
-        .lean()
-        .exec();
-      let roomIds = rooms.map((room) => room.roomId);
+      const rooms = await this.prisma.room.findMany({
+        where: { branchId: query.branchId },
+        select: { id: true },
+      });
+      let roomIds = rooms.map((room) => room.id);
       if (query.roomId) {
         roomIds = roomIds.filter((id) => id === query.roomId);
       }
-      filter.roomId = { $in: roomIds };
+      where.roomId = { in: roomIds };
     } else if (query.roomId) {
-      filter.roomId = query.roomId;
+      where.roomId = query.roomId;
     }
 
-    const startTime: { $gte?: Date; $lt?: Date; $lte?: Date } = {};
     if (query.date) {
       const start = new Date(query.date);
       start.setUTCHours(0, 0, 0, 0);
       const end = new Date(start);
       end.setUTCDate(end.getUTCDate() + 1);
-      startTime.$gte = start;
-      startTime.$lt = end;
-    }
-    if (query.from) {
-      const from = new Date(query.from);
-      if (!startTime.$gte || from > startTime.$gte) startTime.$gte = from;
-    }
-    if (query.to) {
-      const to = new Date(query.to);
-      delete startTime.$lt;
-      startTime.$lte = to;
-    }
-    if (Object.keys(startTime).length > 0) {
-      filter.startTime = startTime;
+      where.startTime = { gte: start, lt: end };
+    } else {
+      const startTimeCondition: any = {};
+      if (query.from) {
+        startTimeCondition.gte = new Date(query.from);
+      }
+      if (query.to) {
+        startTimeCondition.lte = new Date(query.to);
+      }
+      if (Object.keys(startTimeCondition).length > 0) {
+        where.startTime = startTimeCondition;
+      }
     }
 
     const [docs, total] = await Promise.all([
-      this.showtimeModel
-        .find(filter)
-        .sort({ startTime: 1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .exec(),
-      this.showtimeModel.countDocuments(filter).exec(),
+      this.prisma.showtime.findMany({
+        where,
+        orderBy: { startTime: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.showtime.count({ where }),
     ]);
 
     return Page.from(
-      docs.map((doc) => this.toShowtimeResDto(doc)),
+      docs.map((doc) => toShowtimeResDto(doc)),
       total,
       page,
       limit,
     );
   }
 
-  /**
-   * Danh sách suất chiếu thuộc nhiều phòng, có lọc và phân trang (sắp xếp startTime tăng dần).
-   *
-   * @param roomIds - Các phòng được phép xem (rỗng -> trả Page rỗng, không truy vấn)
-   * @param filter - Bộ lọc phim, phòng, khoảng startTime [from, to)
-   * @param page - Trang hiện tại
-   * @param limit - Số bản ghi mỗi trang
-   * @returns Page<ShowtimeResDto>
-   */
   async searchShowtimesByRooms(
     roomIds: string[],
     filter: { movieId?: string; roomId?: string; from?: Date; to?: Date },
-    page: number,
-    limit: number,
+    page: number = 1,
+    limit: number = 10,
   ): Promise<Page<ShowtimeResDto>> {
-    const scopedRoomIds = filter.roomId
+    const targetRoomIds = filter.roomId
       ? roomIds.filter((id) => id === filter.roomId)
       : roomIds;
-    if (scopedRoomIds.length === 0) {
-      return Page.from([], 0, page, limit);
+
+    const where: any = {
+      roomId: { in: targetRoomIds },
+    };
+
+    if (filter.movieId) {
+      where.movieId = filter.movieId;
     }
 
-    const query: QueryFilter<ShowtimeDocument> = {
-      roomId: { $in: scopedRoomIds },
-    };
-    if (filter.movieId) {
-      query.movieId = filter.movieId;
-    }
-    const startTime: { $gte?: Date; $lt?: Date } = {};
-    if (filter.from) startTime.$gte = filter.from;
-    if (filter.to) startTime.$lt = filter.to;
-    if (Object.keys(startTime).length > 0) {
-      query.startTime = startTime;
+    if (filter.from || filter.to) {
+      const timeFilter: any = {};
+      if (filter.from) timeFilter.gte = filter.from;
+      if (filter.to) timeFilter.lte = filter.to;
+      where.startTime = timeFilter;
     }
 
     const [docs, total] = await Promise.all([
-      this.showtimeModel
-        .find(query)
-        .sort({ startTime: 1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .exec(),
-      this.showtimeModel.countDocuments(query).exec(),
+      this.prisma.showtime.findMany({
+        where,
+        orderBy: { startTime: 'asc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.showtime.count({ where }),
     ]);
+
     return Page.from(
-      docs.map((doc) => this.toShowtimeResDto(doc)),
+      docs.map((doc) => toShowtimeResDto(doc)),
       total,
       page,
       limit,
@@ -156,14 +129,12 @@ export class ShowtimeQueryService
   }
 
   async getShowtimeDetail(showtimeId: string): Promise<ShowtimeResDto> {
-    const doc = await this.showtimeModel.findOne({ showtimeId }).exec();
+    const doc = await this.prisma.showtime.findUnique({
+      where: { id: showtimeId },
+    });
     if (!doc) {
       throw new NotFoundException('Showtime not found');
     }
-    return this.toShowtimeResDto(doc);
-  }
-
-  private toShowtimeResDto(doc: ShowtimeDocument): ShowtimeResDto {
     return toShowtimeResDto(doc);
   }
 }

@@ -3,13 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { VNPay, ignoreLogger } from 'vnpay';
-import { Payment, PaymentDocument } from '../domain/schemas/payment.schema';
-import { PaymentMethod } from '../domain/enums/payment-method.enum';
-import { PaymentStatus } from '../domain/enums/payment-status.enum';
+import { PaymentMethod, PaymentStatus } from '@prisma/client';
 import {
   CashPaymentSummaryDto,
   PaymentContract,
@@ -20,10 +17,7 @@ import {
 
 @Injectable()
 export class PaymentContractImpl implements PaymentContract {
-  constructor(
-    @InjectModel(Payment.name)
-    private readonly paymentModel: Model<PaymentDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async createVnpayPayment(params: {
     orderId: string;
@@ -40,20 +34,22 @@ export class PaymentContractImpl implements PaymentContract {
       throw new BadRequestException('Số tiền thanh toán không hợp lệ');
     }
 
-    let payment = await this.paymentModel
-      .findOne({
+    let payment = await this.prisma.payment.findFirst({
+      where: {
         orderId: params.orderId,
         method: PaymentMethod.VNPAY,
         status: PaymentStatus.PENDING,
-      })
-      .exec();
+      },
+    });
+
     if (!payment) {
-      payment = await this.paymentModel.create({
-        paymentId: randomUUID(),
-        orderId: params.orderId,
-        amount: params.amount,
-        method: PaymentMethod.VNPAY,
-        status: PaymentStatus.PENDING,
+      payment = await this.prisma.payment.create({
+        data: {
+          orderId: params.orderId,
+          amount: params.amount,
+          method: PaymentMethod.VNPAY,
+          status: PaymentStatus.PENDING,
+        },
       });
     } else if (payment.amount !== params.amount) {
       throw new BadRequestException('Số tiền đơn hàng đã thay đổi');
@@ -71,14 +67,14 @@ export class PaymentContractImpl implements PaymentContract {
       vnp_Amount: params.amount,
       vnp_IpAddr: params.ipAddr,
       vnp_ReturnUrl: params.returnUrl,
-      vnp_TxnRef: payment.paymentId,
+      vnp_TxnRef: payment.id,
       vnp_OrderInfo: `Thanh toan don ${params.orderId}`,
     });
     return {
-      paymentId: payment.paymentId,
+      paymentId: payment.id,
       orderId: params.orderId,
       paymentUrl,
-      status: payment.status,
+      status: payment.status as any,
     };
   }
 
@@ -96,9 +92,9 @@ export class PaymentContractImpl implements PaymentContract {
     }).verifyReturnUrl(query as Parameters<VNPay['verifyReturnUrl']>[0]);
     const paymentId =
       typeof query.vnp_TxnRef === 'string' ? query.vnp_TxnRef : '';
-    const payment = await this.paymentModel
-      .findOne({ paymentId, method: PaymentMethod.VNPAY })
-      .exec();
+    const payment = await this.prisma.payment.findFirst({
+      where: { id: paymentId, method: PaymentMethod.VNPAY },
+    });
     if (!payment) throw new NotFoundException('Không tìm thấy giao dịch VNPay');
     if (!result.isVerified || Number(result.vnp_Amount) !== payment.amount)
       throw new BadRequestException('Thông tin giao dịch VNPay không hợp lệ');
@@ -124,11 +120,10 @@ export class PaymentContractImpl implements PaymentContract {
     }).verifyIpnCall(query as Parameters<VNPay['verifyIpnCall']>[0]);
     if (!result.isVerified)
       return { RspCode: '97', Message: 'Invalid checksum' };
-    const payment = await this.paymentModel
-      .findOne({ paymentId: result.vnp_TxnRef, method: PaymentMethod.VNPAY })
-      .exec();
+    const payment = await this.prisma.payment.findFirst({
+      where: { id: result.vnp_TxnRef, method: PaymentMethod.VNPAY },
+    });
     if (!payment) return { RspCode: '01', Message: 'Order not found' };
-    // vnpay SDK normalizes vnp_Amount back to VND after verification.
     if (Number(result.vnp_Amount) !== payment.amount)
       return { RspCode: '04', Message: 'Invalid amount' };
     if (payment.status !== PaymentStatus.PENDING) {
@@ -146,11 +141,18 @@ export class PaymentContractImpl implements PaymentContract {
             isSuccess: false,
           };
     }
-    payment.status = result.isSuccess
+
+    const nextStatus = result.isSuccess
       ? PaymentStatus.SUCCESS
       : PaymentStatus.FAILED;
-    payment.transactionId = String(result.vnp_TransactionNo || '');
-    await payment.save();
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: nextStatus,
+        transactionId: String(result.vnp_TransactionNo || ''),
+      },
+    });
+
     return {
       RspCode: '00',
       Message: 'Confirm Success',
@@ -160,11 +162,10 @@ export class PaymentContractImpl implements PaymentContract {
   }
 
   async getVnpayPaymentStatus(orderId: string) {
-    const payment = await this.paymentModel
-      .findOne({ orderId, method: PaymentMethod.VNPAY })
-      .sort({ createdAt: -1 })
-      .lean()
-      .exec();
+    const payment = await this.prisma.payment.findFirst({
+      where: { orderId, method: PaymentMethod.VNPAY },
+      orderBy: { createdAt: 'desc' },
+    });
     return { isSuccess: payment?.status === PaymentStatus.SUCCESS };
   }
 
@@ -182,25 +183,24 @@ export class PaymentContractImpl implements PaymentContract {
     const changeAmount = params.cashReceived - params.totalAmount;
     const now = new Date();
 
-    const payment = new this.paymentModel({
-      paymentId: randomUUID(),
-      orderId: params.orderId,
-      amount: params.totalAmount,
-      method: PaymentMethod.CASH,
-      status: PaymentStatus.SUCCESS,
-      transactionId: `CASH-${Date.now()}-${randomUUID().slice(0, 8)}`,
+    const created = await this.prisma.payment.create({
+      data: {
+        orderId: params.orderId,
+        amount: params.totalAmount,
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.SUCCESS,
+        transactionId: `CASH-${Date.now()}-${randomUUID().slice(0, 8)}`,
+      },
     });
 
-    const saved = await payment.save();
-
     return {
-      paymentId: saved.paymentId,
-      orderId: saved.orderId,
-      amount: saved.amount,
+      paymentId: created.id,
+      orderId: created.orderId,
+      amount: created.amount,
       cashReceived: params.cashReceived,
       changeAmount,
-      method: saved.method,
-      status: saved.status,
+      method: created.method as any,
+      status: created.status as any,
       paidAt: now,
     };
   }
@@ -219,23 +219,23 @@ export class PaymentContractImpl implements PaymentContract {
     const description =
       params.description || `MYCAST ${params.orderId.slice(0, 8)}`;
 
-    let payment = await this.paymentModel
-      .findOne({
+    let payment = await this.prisma.payment.findFirst({
+      where: {
         orderId: params.orderId,
         status: PaymentStatus.PENDING,
-      })
-      .exec();
+      },
+    });
 
     if (!payment) {
-      payment = new this.paymentModel({
-        paymentId: randomUUID(),
-        orderId: params.orderId,
-        amount: params.amount,
-        method,
-        status: PaymentStatus.PENDING,
-        transactionId: `QR-${Date.now()}-${randomUUID().slice(0, 8)}`,
+      payment = await this.prisma.payment.create({
+        data: {
+          orderId: params.orderId,
+          amount: params.amount,
+          method,
+          status: PaymentStatus.PENDING,
+          transactionId: `QR-${Date.now()}-${randomUUID().slice(0, 8)}`,
+        },
       });
-      await payment.save();
     }
 
     const bankId = process.env.VIETQR_BANK_ID || 'MB';
@@ -248,11 +248,11 @@ export class PaymentContractImpl implements PaymentContract {
     const qrPayload = `00020101021238540010A00000072701240006${bankId}0110${accountNo}0208QRIBFTTA5303704540${params.amount}5802VN62${description.length}${description}6304`;
 
     return {
-      paymentId: payment.paymentId,
+      paymentId: payment.id,
       orderId: payment.orderId,
       amount: payment.amount,
-      method: payment.method,
-      status: payment.status,
+      method: payment.method as any,
+      status: payment.status as any,
       qrCodeUrl,
       qrPayload,
     };
@@ -261,13 +261,12 @@ export class PaymentContractImpl implements PaymentContract {
   async checkPaymentStatus(
     identifier: string,
   ): Promise<PaymentStatusSummaryDto> {
-    const payment = await this.paymentModel
-      .findOne({
-        $or: [{ paymentId: identifier }, { orderId: identifier }],
-      })
-      .sort({ createdAt: -1 })
-      .lean()
-      .exec();
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        OR: [{ id: identifier }, { orderId: identifier }],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
     if (!payment) {
       throw new NotFoundException(
@@ -276,12 +275,12 @@ export class PaymentContractImpl implements PaymentContract {
     }
 
     return {
-      paymentId: payment.paymentId,
+      paymentId: payment.id,
       orderId: payment.orderId,
       amount: payment.amount,
-      method: payment.method,
-      status: payment.status,
-      transactionId: payment.transactionId,
+      method: payment.method as any,
+      status: payment.status as any,
+      transactionId: payment.transactionId ?? undefined,
     };
   }
 }

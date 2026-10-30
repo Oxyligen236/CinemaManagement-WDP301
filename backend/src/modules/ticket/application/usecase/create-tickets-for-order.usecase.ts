@@ -24,7 +24,6 @@ export interface CreateTicketsForOrderUsecase {
       orderId: string;
       seatShowtimeIds: string[];
     },
-    session?: ClientSession,
+    prismaTx?: any,
   ): Promise<TicketItemSummaryRes[]>;
 }
-import { ClientSession } from 'mongoose';

@@ -6,14 +6,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { User, UserDocument } from '../../user/domain/schemas/user.schema';
-import { Role } from '../../user/domain/enums/role.enum';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { Role, BranchStatus } from '@prisma/client';
 import { AuthUser } from '../../auth/domain/auth-user';
-import { Branch, BranchDocument } from '../../branch/domain/schemas/branch.schema';
-import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
 import {
   CreateUserDto,
   AssignBranchDto,
@@ -24,12 +20,7 @@ import { REGISTRATION_MESSAGES } from '../../user/domain/constants/auth-message.
 
 @Injectable()
 export class AdminService {
-  constructor(
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Tìm chi nhánh ACTIVE theo id mà frontend gửi lên.
@@ -53,9 +44,9 @@ export class AdminService {
   }
 
   async getDashboard(authUser: AuthUser) {
-    // Kiểm tra lại trong DB: token cũ vẫn còn hạn nhưng tài khoản
-    // đã bị khóa / bị hạ quyền thì không được vào nữa.
-    const admin = await this.userModel.findOne({ userId: authUser.sub }).exec();
+    const admin = await this.prisma.user.findUnique({
+      where: { id: authUser.sub },
+    });
 
     if (!admin || !admin.isActive || admin.role !== Role.ADMIN) {
       throw new ForbiddenException(
@@ -63,27 +54,26 @@ export class AdminService {
       );
     }
 
-    const [totalUsers, activeUsers, roleCounts] = await Promise.all([
-      this.userModel.countDocuments().exec(),
-      this.userModel.countDocuments({ isActive: true }).exec(),
-      this.userModel
-        .aggregate<{ _id: Role; count: number }>([
-          { $group: { _id: '$role', count: { $sum: 1 } } },
-        ])
-        .exec(),
+    const [totalUsers, activeUsers, roleGroups] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { isActive: true } }),
+      this.prisma.user.groupBy({
+        by: ['role'],
+        _count: { id: true },
+      }),
     ]);
 
     const usersByRole = Object.fromEntries(
       Object.values(Role).map((role) => [role, 0]),
     ) as Record<Role, number>;
-    for (const { _id, count } of roleCounts) {
-      usersByRole[_id] = count;
+    for (const g of roleGroups) {
+      usersByRole[g.role as Role] = g._count.id;
     }
 
     return {
       message: `Welcome back, ${admin.firstName} ${admin.lastName}`,
       admin: {
-        userId: admin.userId,
+        userId: admin.id,
         email: admin.email,
         firstName: admin.firstName,
         lastName: admin.lastName,
@@ -98,119 +88,162 @@ export class AdminService {
   }
 
   async getUsers(query: ManageUsersQueryDto) {
-    const filter: Record<string, unknown> = {};
+    const where: any = {};
 
     if (query.search) {
-      const escapedSearch = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const searchRegex = new RegExp(escapedSearch, 'i');
-      filter.$or = [
-        { userId: searchRegex },
-        { email: searchRegex },
-        { firstName: searchRegex },
-        { lastName: searchRegex },
+      where.OR = [
+        { email: { contains: query.search, mode: 'insensitive' } },
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
     if (query.role) {
-      filter.role = query.role;
+      where.role = query.role;
     }
     if (query.isActive !== undefined) {
-      filter.isActive = query.isActive;
+      where.isActive = query.isActive;
     }
 
-    const users = await this.userModel
-      .find(filter)
-      .select(
-        'userId email firstName lastName role isActive branchId createdAt updatedAt',
-      )
-      .sort({ createdAt: -1 })
-      .lean()
-      .exec();
+    const docs = await this.prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        branchId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const users = docs.map((u: any) => ({
+      ...u,
+      userId: u.id,
+    }));
 
     return { users, total: users.length };
   }
 
   async getUser(userId: string) {
-    const user = await this.userModel
-      .findOne({ userId })
-      .select(
-        'userId email firstName lastName role isActive branchId createdAt updatedAt',
-      )
-      .lean()
-      .exec();
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        branchId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    return { user };
+    return { user: { ...user, userId: user.id } };
   }
 
   async getActiveBranches() {
-      const branches = await this.branchModel
-        .find({ branchStatus: BranchStatus.ACTIVE })
-        .select('branchId branchName address branchStatus')
-        .sort({ branchName: 1 })
-        .lean()
-        .exec();
+    const branches = await this.prisma.branch.findMany({
+      where: { branchStatus: BranchStatus.ACTIVE },
+      select: {
+        id: true,
+        branchName: true,
+        address: true,
+        branchStatus: true,
+      },
+      orderBy: { branchName: 'asc' },
+    });
 
-      return { branches };
-    }
+    return {
+      branches: branches.map((b: any) => ({
+        ...b,
+        branchId: b.id,
+      })),
+    };
+  }
 
   async assignBranch(
     userId: string,
     input: AssignBranchDto,
     adminUserId: string,
   ) {
-      if (userId === adminUserId) {
-        throw new ForbiddenException(
-          'Không thể tự gán chi nhánh cho tài khoản của chính bạn.',
-        );
-      }
+    if (userId === adminUserId) {
+      throw new ForbiddenException(
+        'You cannot assign a branch to your own account',
+      );
+    }
 
-      const user = await this.userModel
-        .findOne({ userId })
-        .select('userId firstName lastName role isActive branchId')
-        .exec();
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        branchId: true,
+      },
+    });
 
-      if (!user) throw new NotFoundException('Không tìm thấy người dùng.');
-      if (!user.isActive) {
-        throw new BadRequestException(
-          'Không thể gán chi nhánh cho tài khoản đã bị vô hiệu hóa.',
-        );
-      }
-      if (user.role !== Role.BRANCHMANAGER && user.role !== Role.STAFF) {
-        throw new BadRequestException(
-          'Chỉ tài khoản Quản lý Chi nhánh hoặc Nhân viên mới được gán chi nhánh.',
-        );
-      }
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.isActive) {
+      throw new BadRequestException(
+        'Cannot assign branch to an inactive account',
+      );
+    }
+    if (user.role !== Role.MANAGER && user.role !== Role.STAFF) {
+      throw new BadRequestException(
+        'Only Branch Manager or Staff accounts can be assigned to a branch',
+      );
+    }
 
-      const branch = await this.findActiveBranch(input.branchId);
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: input.branchId,
+        branchStatus: BranchStatus.ACTIVE,
+      },
+      select: { id: true },
+    });
 
-      if (!branch) {
-        throw new BadRequestException(
-          'Chi nhánh được chọn không tồn tại hoặc đang không hoạt động.',
-        );
-      }
+    if (!branch) {
+      throw new BadRequestException(
+        'Selected branch is inactive and cannot be assigned.',
+      );
+    }
 
-      const updatedUser = await this.userModel
-        .findOneAndUpdate(
-          { userId },
-          { $set: { branchId: input.branchId }, $inc: { tokenVersion: 1 } },
-          { returnDocument: 'after', runValidators: true },
-        )
-        .select(
-          'userId email firstName lastName role isActive branchId createdAt updatedAt',
-        )
-        .lean()
-        .exec();
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        branchId: input.branchId,
+        tokenVersion: { increment: 1 },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        branchId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
-      if (!updatedUser)
-        throw new NotFoundException('Không tìm thấy người dùng.');
-      return {
-        message: 'Cập nhật chi nhánh thành công.',
-        user: updatedUser,
-      };
+    return {
+      message: 'Update asset(s) successfully.',
+      user: { ...updatedUser, userId: updatedUser.id },
+    };
   }
 
   async createUser(input: CreateUserDto) {
@@ -218,13 +251,19 @@ export class AdminService {
     if (input.branchId) {
       if (
         input.isActive === false ||
-        (input.role !== Role.BRANCHMANAGER && input.role !== Role.STAFF)
+        (input.role !== (Role.MANAGER as any) && input.role !== Role.STAFF)
       ) {
         throw new BadRequestException(
           'Chỉ tài khoản Quản lý Chi nhánh hoặc Nhân viên mới được gán chi nhánh.',
         );
       }
-      const branch = await this.findActiveBranch(input.branchId);
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          id: input.branchId,
+          branchStatus: BranchStatus.ACTIVE,
+        },
+        select: { id: true },
+      });
       if (!branch) {
         throw new BadRequestException(
           'Chi nhánh được chọn không tồn tại hoặc đang không hoạt động.',
@@ -232,41 +271,38 @@ export class AdminService {
       }
     }
     try {
-        const user = await this.userModel.create({
+      const user = await this.prisma.user.create({
+        data: {
           email,
           password: await bcrypt.hash(input.password, 10),
           firstName: input.firstName,
           lastName: input.lastName,
-          role: input.role ?? Role.USER,
+          role: (input.role as Role) ?? Role.USER,
           isActive: input.isActive ?? true,
           branchId: input.branchId || undefined,
-        });
+        },
+      });
 
-        return {
-          message: 'User created successfully',
-          user: {
-            userId: user.userId,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: user.role,
-            isActive: user.isActive,
-            branchId: user.branchId,
-          },
-        };
-      } catch (error: unknown) {
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'code' in error &&
-          error.code === 11000
-        ) {
-          throw new ConflictException(
-            REGISTRATION_MESSAGES.EMAIL_ALREADY_REGISTERED,
-          );
-        }
-        throw error;
+      return {
+        message: 'User created successfully',
+        user: {
+          userId: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          isActive: user.isActive,
+          branchId: user.branchId,
+        },
+      };
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        throw new ConflictException(
+          'Username must be unique across the entire system.',
+        );
       }
+      throw error;
+    }
   }
 
   async updateUser(userId: string, input: UpdateUserDto, adminUserId: string) {
@@ -277,20 +313,17 @@ export class AdminService {
     }
 
     if (userId === adminUserId) {
-      const self = await this.userModel
-        .findOne({ userId })
-        .select('role')
-        .lean()
-        .exec();
+      const self = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
       if (!self) {
         throw new NotFoundException('Không tìm thấy người dùng.');
       }
 
-      if (input.role !== undefined && input.role !== self.role) {
-        throw new ForbiddenException(
-          'Không thể tự thay đổi vai trò của chính bạn.',
-        );
+      if (input.role !== undefined && input.role !== (self.role as any)) {
+        throw new ForbiddenException('You cannot change your own role');
       }
 
       if (input.isActive === false) {
@@ -304,51 +337,48 @@ export class AdminService {
       input.email = input.email.toLowerCase();
     }
 
-    // Chỉ Branch Manager và Staff được gán chi nhánh, nên khi hạ vai trò
-    // xuống USER (hoặc nâng lên ADMIN) thì branchId cũ phải được xoá, tránh
-    // để lại liên kết chi nhánh trên tài khoản không còn làm việc ở đó.
     const clearBranch =
       input.role !== undefined &&
-      input.role !== Role.BRANCHMANAGER &&
+      input.role !== (Role.MANAGER as any) &&
       input.role !== Role.STAFF;
 
+    const data: any = { ...input };
+    if (clearBranch) {
+      data.branchId = null;
+    }
+    if (input.isActive === false) {
+      data.tokenVersion = { increment: 1 };
+    }
+
     try {
-      const user = await this.userModel
-        .findOneAndUpdate(
-          { userId },
-          {
-            $set: input,
-            ...(clearBranch ? { $unset: { branchId: '' } } : {}),
-            ...(input.isActive === false
-              ? { $inc: { tokenVersion: 1 } }
-              : {}),
-          },
-          {
-            returnDocument: 'after',
-            runValidators: true,
-          },
-        )
-        .select(
-          'userId email firstName lastName role isActive branchId createdAt updatedAt',
-        )
-        .lean()
-        .exec();
+      const user = await this.prisma.user.update({
+        where: { id: userId },
+        data,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          isActive: true,
+          branchId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-      if (!user) {
-        throw new NotFoundException('Không tìm thấy người dùng.');
-      }
-
-      return { message: 'Cập nhật người dùng thành công.', user };
-    } catch (error: unknown) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 11000
-      ) {
+      return {
+        message: 'User updated successfully',
+        user: { ...user, userId: user.id },
+      };
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
         throw new ConflictException(
           REGISTRATION_MESSAGES.EMAIL_ALREADY_REGISTERED,
         );
+      }
+      if (error?.code === 'P2025') {
+        throw new NotFoundException('User not found');
       }
       throw error;
     }

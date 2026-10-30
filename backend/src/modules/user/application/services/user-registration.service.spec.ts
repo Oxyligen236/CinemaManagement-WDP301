@@ -1,10 +1,7 @@
 import { ConflictException, HttpException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { UserRegistrationService } from './user-registration.service';
 import { PendingRegistrationService } from './pending-registration.service';
-import { User, UserDocument } from '../../domain/schemas/user.schema';
 import { REGISTRATION_MESSAGES } from '../../domain/constants/auth-message.constants';
 import { EventModule } from '../../../infra/event/event.module';
 import { MailListener } from '../../../infra/mail/infrastructure/listeners/mail.listener';
@@ -14,6 +11,7 @@ import {
   MAIL_SERVICE,
   SendMailOptions,
 } from '../../../infra/mail/application/interface/mail-service.interface';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 const REGISTER_INPUT = {
   email: 'New.User@Cinema.local',
@@ -35,13 +33,18 @@ const createSendMailMock = (): SendMailMock =>
  */
 const buildHarness = async (sendMail: SendMailMock) => {
   const created: Record<string, unknown>[] = [];
-  const userModel = {
-    exists: jest.fn().mockResolvedValue(null),
-    create: jest.fn((doc: Record<string, unknown>) => {
-      created.push(doc);
-      return Promise.resolve(doc);
-    }),
-  } as unknown as Model<UserDocument>;
+  const mockPrisma = {
+    user: {
+      findUnique: jest.fn().mockResolvedValue(null),
+      create: jest.fn((args: { data: Record<string, unknown> }) => {
+        created.push(args.data);
+        return Promise.resolve({
+          id: 'u-created',
+          ...args.data,
+        });
+      }),
+    },
+  };
 
   const moduleRef: TestingModule = await Test.createTestingModule({
     imports: [EventModule],
@@ -52,7 +55,7 @@ const buildHarness = async (sendMail: SendMailMock) => {
       SendVerificationEmailHandler,
       SendWelcomeEmailHandler,
       { provide: MAIL_SERVICE, useValue: { sendMail } },
-      { provide: getModelToken(User.name), useValue: userModel },
+      { provide: PrismaService, useValue: mockPrisma },
     ],
   }).compile();
 
@@ -60,7 +63,7 @@ const buildHarness = async (sendMail: SendMailMock) => {
 
   return {
     app,
-    userModel,
+    mockPrisma,
     created,
     service: moduleRef.get(UserRegistrationService),
     pending: moduleRef.get(PendingRegistrationService),
@@ -93,7 +96,6 @@ describe('UserRegistrationService (email verification flow)', () => {
 
       expect(options.template).toBe('verification');
       expect(options.to).toBe('new.user@cinema.local');
-      // Regression: the email used to render "1 phút" for a 5 minute code.
       expect(context.expiresInMinutes).toBe(5);
       expect(context.code).toMatch(/^\d{6}$/);
     });
@@ -103,8 +105,6 @@ describe('UserRegistrationService (email verification flow)', () => {
       sendMail.mockRejectedValue(new Error('SMTP down'));
       harness = await buildHarness(sendMail);
 
-      // Regression: the mail error used to be swallowed, so register()
-      // reported success and left a pending entry that blocked retries.
       await expect(harness.service.register(REGISTER_INPUT)).rejects.toThrow(
         'SMTP down',
       );
@@ -121,7 +121,6 @@ describe('UserRegistrationService (email verification flow)', () => {
         'SMTP down',
       );
 
-      // The resend cooldown must not punish the user for a server-side failure.
       await expect(
         harness.service.register(REGISTER_INPUT),
       ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
@@ -140,7 +139,6 @@ describe('UserRegistrationService (email verification flow)', () => {
   });
 
   describe('resendVerificationCode', () => {
-    /** Move past the 60s resend cooldown without slowing the suite down. */
     const skipCooldown = (harness: {
       pending: PendingRegistrationService;
     }): void => {
@@ -172,7 +170,6 @@ describe('UserRegistrationService (email verification flow)', () => {
       expect(sendMail).toHaveBeenCalledTimes(2);
       expect(sendMail.mock.calls[1][0].template).toBe('verification');
 
-      // Only the newest code may verify the account.
       await expect(
         harness.service.verifyEmail(REGISTER_INPUT.email, firstCode),
       ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
@@ -248,8 +245,6 @@ describe('UserRegistrationService (email verification flow)', () => {
         harness.service.resendVerificationCode(REGISTER_INPUT.email),
       ).rejects.toThrow('SMTP down');
 
-      // The rollback must restore the previous entry, not drop the
-      // registration, otherwise a failed resend would lock the user out.
       await expect(
         harness.service.verifyEmail(REGISTER_INPUT.email, firstCode),
       ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
@@ -272,8 +267,8 @@ describe('UserRegistrationService (email verification flow)', () => {
 
       await harness.service.register(REGISTER_INPUT);
       skipCooldown(harness);
-      (harness.userModel.exists as unknown as jest.Mock).mockResolvedValue({
-        _id: 'existing',
+      harness.mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'existing',
       });
 
       await expect(
@@ -303,8 +298,6 @@ describe('UserRegistrationService (email verification flow)', () => {
       expect(result.email).toBe('new.user@cinema.local');
       expect(harness.created).toHaveLength(1);
 
-      // Regression: UserCreatedEvent was never published, so the welcome
-      // email handler and template were dead code.
       expect(sendMail).toHaveBeenCalledTimes(2);
 
       const welcome = sendMail.mock.calls[1][0];
@@ -359,7 +352,6 @@ describe('UserRegistrationService (email verification flow)', () => {
         ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
       }
 
-      // Even the correct code must now be refused.
       await expect(
         harness.service.verifyEmail(REGISTER_INPUT.email, code),
       ).rejects.toThrow(REGISTRATION_MESSAGES.TOO_MANY_ATTEMPTS);
@@ -374,8 +366,8 @@ describe('UserRegistrationService (email verification flow)', () => {
       await harness.service.register(REGISTER_INPUT);
       const code = extractCode();
 
-      (harness.userModel.create as unknown as jest.Mock).mockRejectedValue(
-        Object.assign(new Error('duplicate'), { code: 11000 }),
+      harness.mockPrisma.user.create.mockRejectedValue(
+        Object.assign(new Error('duplicate'), { code: 'P2002' }),
       );
 
       await expect(

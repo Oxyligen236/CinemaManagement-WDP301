@@ -1,177 +1,135 @@
 import { ConflictException } from '@nestjs/common';
-import { Model } from 'mongoose';
-import type { MovieDocument } from '../../../movie/domain/schemas/movie.schema';
-import type { RoomDocument } from '../../../room/domain/schemas/room.schema';
-import type { SeatDocument } from '../../../room/domain/schemas/seat.schema';
-import { SeatShowtimeStatus } from '../../domain/enums/seat-showtime-status.enum';
-import type { SeatShowtimeDocument } from '../../domain/schemas/seat-showtime.schema';
-import type { ShowtimeDocument } from '../../domain/schemas/showtime.schema';
+import { SeatShowtimeStatus } from '@prisma/client';
 import { ShowtimeBookingService } from './showtime-booking.service';
-
-const query = <T>(value: T) => ({
-  lean: () => ({ exec: jest.fn().mockResolvedValue(value) }),
-});
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 describe('ShowtimeBookingService', () => {
   let service: ShowtimeBookingService;
-  let mockSeatShowtimeModel: {
-    find: jest.Mock;
-    updateOne: jest.Mock;
-    updateMany: jest.Mock;
-  };
-  let mockShowtimeModel: {
-    find: jest.Mock;
-  };
-  let mockSeatModel: {
-    find: jest.Mock;
-  };
-  let mockRoomModel: {
-    find: jest.Mock;
-  };
-  let mockMovieModel: {
-    find: jest.Mock;
-  };
+  let mockPrisma: any;
 
   beforeEach(() => {
-    mockSeatShowtimeModel = {
-      find: jest.fn(),
-      updateOne: jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
-      }),
-      updateMany: jest.fn().mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
-      }),
+    mockPrisma = {
+      seatShowtime: {
+        findMany: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
     };
-    mockShowtimeModel = { find: jest.fn() };
-    mockSeatModel = { find: jest.fn() };
-    mockRoomModel = { find: jest.fn() };
-    mockMovieModel = { find: jest.fn() };
 
-    service = new ShowtimeBookingService(
-      mockSeatShowtimeModel as unknown as Model<SeatShowtimeDocument>,
-      mockShowtimeModel as unknown as Model<ShowtimeDocument>,
-      mockSeatModel as unknown as Model<SeatDocument>,
-      mockRoomModel as unknown as Model<RoomDocument>,
-      mockMovieModel as unknown as Model<MovieDocument>,
-    );
+    service = new ShowtimeBookingService(mockPrisma as unknown as PrismaService);
   });
 
   it('reserves all EMPTY seats and returns details', async () => {
-    mockSeatShowtimeModel.find.mockReturnValue(
-      query([
-        {
-          seatShowtimeId: 'ss1',
-          showtimeId: 'st1',
-          seatId: 's1',
-          seatStatus: SeatShowtimeStatus.EMPTY,
-        },
-      ]),
-    );
-    jest.spyOn(service, 'getSeatBookingDetails').mockResolvedValue([]);
-    await expect(service.reserveSeats(['ss1'])).resolves.toEqual([]);
-    expect(mockSeatShowtimeModel.updateOne).toHaveBeenCalledWith(
+    mockPrisma.seatShowtime.findMany.mockResolvedValue([
       {
-        seatShowtimeId: 'ss1',
+        id: 'ss1',
+        showtimeId: 'st1',
+        seatId: 's1',
+        seatStatus: SeatShowtimeStatus.EMPTY,
+      },
+    ]);
+    jest.spyOn(service, 'getSeatBookingDetails').mockResolvedValue([]);
+
+    await expect(service.reserveSeats(['ss1'])).resolves.toEqual([]);
+    expect(mockPrisma.seatShowtime.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'ss1',
         showtimeId: 'st1',
         seatStatus: SeatShowtimeStatus.EMPTY,
       },
-      { $set: { seatStatus: SeatShowtimeStatus.RESERVED } },
-    );
+      data: { seatStatus: SeatShowtimeStatus.RESERVED },
+    });
   });
 
   it.each([SeatShowtimeStatus.RESERVED, SeatShowtimeStatus.BOOKED])(
     'conflicts for %s without partial updates',
     async (status) => {
-      mockSeatShowtimeModel.find.mockReturnValue(
-        query([
-          {
-            seatShowtimeId: 'ss1',
-            showtimeId: 'st1',
-            seatStatus: SeatShowtimeStatus.EMPTY,
-          },
-          { seatShowtimeId: 'ss2', showtimeId: 'st1', seatStatus: status },
-        ]),
-      );
+      mockPrisma.seatShowtime.findMany.mockResolvedValue([
+        {
+          id: 'ss1',
+          showtimeId: 'st1',
+          seatId: 's1',
+          seatStatus: SeatShowtimeStatus.EMPTY,
+        },
+        { id: 'ss2', showtimeId: 'st1', seatId: 's2', seatStatus: status },
+      ]);
+
       await expect(service.reserveSeats(['ss1', 'ss2'])).rejects.toBeInstanceOf(
         ConflictException,
       );
-      expect(mockSeatShowtimeModel.updateOne).not.toHaveBeenCalled();
+      expect(mockPrisma.seatShowtime.updateMany).not.toHaveBeenCalled();
     },
   );
 
-  it('rolls back earlier reservation when a competing update wins', async () => {
-    mockSeatShowtimeModel.find.mockReturnValue(
-      query([
-        {
-          seatShowtimeId: 'ss1',
-          showtimeId: 'st1',
-          seatStatus: SeatShowtimeStatus.EMPTY,
-        },
-        {
-          seatShowtimeId: 'ss2',
-          showtimeId: 'st1',
-          seatStatus: SeatShowtimeStatus.EMPTY,
-        },
-      ]),
+  it('conflicts on duplicate requested seatShowtimeIds', async () => {
+    await expect(service.reserveSeats(['ss1', 'ss1'])).rejects.toBeInstanceOf(
+      ConflictException,
     );
-    mockSeatShowtimeModel.updateOne
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
-      })
-      .mockReturnValueOnce({
-        exec: jest.fn().mockResolvedValue({ modifiedCount: 0 }),
-      });
+  });
+
+  it('rolls back earlier reservation when a competing update wins', async () => {
+    mockPrisma.seatShowtime.findMany.mockResolvedValue([
+      {
+        id: 'ss1',
+        showtimeId: 'st1',
+        seatId: 's1',
+        seatStatus: SeatShowtimeStatus.EMPTY,
+      },
+      {
+        id: 'ss2',
+        showtimeId: 'st1',
+        seatId: 's2',
+        seatStatus: SeatShowtimeStatus.EMPTY,
+      },
+    ]);
+
+    mockPrisma.seatShowtime.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
+
     await expect(service.reserveSeats(['ss1', 'ss2'])).rejects.toBeInstanceOf(
       ConflictException,
     );
-    expect(mockSeatShowtimeModel.updateMany).toHaveBeenCalledWith(
-      {
-        seatShowtimeId: { $in: ['ss1'] },
+    expect(mockPrisma.seatShowtime.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['ss1'] },
         showtimeId: 'st1',
         seatStatus: SeatShowtimeStatus.RESERVED,
       },
-      { $set: { seatStatus: SeatShowtimeStatus.EMPTY } },
-    );
+      data: { seatStatus: SeatShowtimeStatus.EMPTY },
+    });
   });
 
   it('releases RESERVED seats only', async () => {
-    mockSeatShowtimeModel.updateMany.mockReturnValue({
-      exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
-    });
+    mockPrisma.seatShowtime.updateMany.mockResolvedValue({ count: 1 });
+
     await expect(service.releaseSeats(['reserved', 'booked'])).resolves.toBe(1);
-    expect(mockSeatShowtimeModel.updateMany).toHaveBeenCalledWith(
-      {
-        seatShowtimeId: { $in: ['reserved', 'booked'] },
+    expect(mockPrisma.seatShowtime.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['reserved', 'booked'] },
         seatStatus: SeatShowtimeStatus.RESERVED,
       },
-      { $set: { seatStatus: SeatShowtimeStatus.EMPTY } },
-    );
+      data: { seatStatus: SeatShowtimeStatus.EMPTY },
+    });
   });
 
   describe('confirmSeats', () => {
-    it('returns 0 when given empty seat list', async () => {
-      await expect(service.confirmSeats([])).resolves.toBe(0);
-      expect(mockSeatShowtimeModel.updateMany).not.toHaveBeenCalled();
-    });
-
     it('confirms seats by updating RESERVED to BOOKED', async () => {
-      mockSeatShowtimeModel.updateMany.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ modifiedCount: 2 }),
-      });
+      mockPrisma.seatShowtime.updateMany.mockResolvedValue({ count: 2 });
+
       await expect(service.confirmSeats(['ss1', 'ss2'])).resolves.toBe(2);
-      expect(mockSeatShowtimeModel.updateMany).toHaveBeenCalledWith(
-        {
-          seatShowtimeId: { $in: ['ss1', 'ss2'] },
+      expect(mockPrisma.seatShowtime.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['ss1', 'ss2'] },
           seatStatus: SeatShowtimeStatus.RESERVED,
         },
-        { $set: { seatStatus: SeatShowtimeStatus.BOOKED } },
-      );
+        data: { seatStatus: SeatShowtimeStatus.BOOKED },
+      });
     });
 
     it('throws ConflictException when modifiedCount does not match', async () => {
-      mockSeatShowtimeModel.updateMany.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
-      });
+      mockPrisma.seatShowtime.updateMany.mockResolvedValue({ count: 1 });
+
       await expect(service.confirmSeats(['ss1', 'ss2'])).rejects.toBeInstanceOf(
         ConflictException,
       );
@@ -179,60 +137,57 @@ describe('ShowtimeBookingService', () => {
   });
 
   it('joins seat, showtime, room, and movie details', async () => {
-    mockSeatShowtimeModel.find.mockReturnValue(
-      query([
-        {
-          seatShowtimeId: 'ss1',
-          showtimeId: 'st1',
-          seatId: 's1',
-          seatStatus: SeatShowtimeStatus.EMPTY,
-        },
-      ]),
-    );
-    mockShowtimeModel.find.mockReturnValue(
-      query([
-        {
-          showtimeId: 'st1',
-          roomId: 'r1',
-          movieId: 'm1',
-          startTime: new Date('2026-01-01'),
-          endTime: new Date('2026-01-01T02:00:00Z'),
-          basePrice: 100,
-        },
-      ]),
-    );
-    mockSeatModel.find.mockReturnValue(
-      query([
-        {
-          seatId: 's1',
-          rowPosition: 'A',
-          columnPosition: 2,
+    const startTime = new Date();
+    const endTime = new Date(startTime.getTime() + 7200000);
+
+    mockPrisma.seatShowtime.findMany.mockResolvedValue([
+      {
+        id: 'ss1',
+        showtimeId: 'st1',
+        seatId: 's1',
+        seatStatus: SeatShowtimeStatus.BOOKED,
+        seat: {
+          id: 's1',
           seatType: 'STANDARD',
+          rowPosition: 'A',
+          columnPosition: 1,
         },
-      ]),
-    );
-    mockRoomModel.find.mockReturnValue(
-      query([{ roomId: 'r1', roomName: 'Room 1' }]),
-    );
-    mockMovieModel.find.mockReturnValue(
-      query([{ movieId: 'm1', movieName: 'Film' }]),
-    );
+        showtime: {
+          id: 'st1',
+          startTime,
+          endTime,
+          basePrice: 50000,
+          room: {
+            id: 'r1',
+            roomName: 'Room 1',
+            branchId: 'b1',
+          },
+          movie: {
+            id: 'm1',
+            movieName: 'Film',
+          },
+        },
+      },
+    ]);
+
     await expect(service.getSeatBookingDetails(['ss1'])).resolves.toEqual([
       {
         seatShowtimeId: 'ss1',
         showtimeId: 'st1',
         seatId: 's1',
-        rowPosition: 'A',
-        columnPosition: 2,
+        seatStatus: 'BOOKED',
         seatType: 'STANDARD',
-        seatStatus: SeatShowtimeStatus.EMPTY,
-        basePrice: 100,
-        startTime: new Date('2026-01-01'),
-        endTime: new Date('2026-01-01T02:00:00Z'),
+        rowPosition: 'A',
+        columnPosition: 1,
+        branchId: 'b1',
         roomId: 'r1',
         roomName: 'Room 1',
         movieId: 'm1',
         movieName: 'Film',
+        movieTitle: 'Film',
+        startTime,
+        endTime,
+        basePrice: 50000,
       },
     ]);
   });

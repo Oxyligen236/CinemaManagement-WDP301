@@ -1,42 +1,26 @@
-import { Showtime } from '../../domain/schemas/showtime.schema';
 import { ShowtimeResDto } from '../dto/res.dto';
 
-type ShowtimeSource = Pick<
-  Showtime,
-  'showtimeId' | 'movieId' | 'roomId' | 'startTime' | 'endTime' | 'basePrice'
-> &
-  Partial<
-    Pick<
-      Showtime,
-      | 'dayPriceRuleId'
-      | 'seatPriceRuleId'
-      | 'seatPriceSelections'
-      | 'dayPriceSelections'
-    >
-  >;
-
-export function toShowtimeResDto(doc: ShowtimeSource): ShowtimeResDto {
-  const timestamps = doc as unknown as { createdAt: Date; updatedAt: Date };
+export function toShowtimeResDto(doc: any): ShowtimeResDto {
   const dto = new ShowtimeResDto();
-  dto.showtimeId = doc.showtimeId;
+  dto.showtimeId = doc.id;
   dto.movieId = doc.movieId;
   dto.roomId = doc.roomId;
   dto.startTime = doc.startTime;
   dto.endTime = doc.endTime;
   dto.basePrice = doc.basePrice;
-  dto.dayPriceRuleId = doc.dayPriceRuleId;
-  dto.seatPriceRuleId = doc.seatPriceRuleId;
-  dto.seatPriceSelections = (doc.seatPriceSelections ?? []).map((s) => ({
+  dto.dayPriceRuleId = doc.dayPriceRuleId ?? undefined;
+  dto.seatPriceRuleId = doc.seatPriceRuleId ?? undefined;
+  dto.seatPriceSelections = (doc.seatPriceSelections ?? []).map((s: any) => ({
     seatType: s.seatType,
     ruleId: s.ruleId ?? null,
     multiplier: s.multiplier,
   }));
-  dto.dayPriceSelections = (doc.dayPriceSelections ?? []).map((s) => ({
+  dto.dayPriceSelections = (doc.dayPriceSelections ?? []).map((s: any) => ({
     dayType: s.dayType,
     ruleId: s.ruleId ?? null,
     multiplier: s.multiplier,
   }));
-  dto.createdAt = timestamps.createdAt;
-  dto.updatedAt = timestamps.updatedAt;
+  dto.createdAt = doc.createdAt;
+  dto.updatedAt = doc.updatedAt;
   return dto;
 }

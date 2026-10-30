@@ -1,45 +1,33 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PaymentContractImpl } from './payment-contract.impl';
-import { Payment } from '../domain/schemas/payment.schema';
-import { PaymentMethod } from '../domain/enums/payment-method.enum';
-import { PaymentStatus } from '../domain/enums/payment-status.enum';
+import { PaymentMethod, PaymentStatus } from '@prisma/client';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 
 describe('PaymentContractImpl', () => {
   let contract: PaymentContractImpl;
+  let mockPrisma: any;
 
-  function MockPaymentConstructor(dto: Partial<Payment>): {
-    save: () => Promise<Partial<Payment>>;
-  } & Partial<Payment> {
-    return {
-      ...dto,
-      save: jest.fn().mockResolvedValue({
-        ...dto,
-        paymentId: dto.paymentId || 'pay-001',
-      }),
+  beforeEach(() => {
+    mockPrisma = {
+      payment: {
+        findFirst: jest.fn(),
+        create: jest.fn(),
+      },
     };
-  }
-  MockPaymentConstructor.findOne = jest.fn();
 
-  beforeEach(async () => {
-    jest.clearAllMocks();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PaymentContractImpl,
-        {
-          provide: getModelToken(Payment.name),
-          useValue: MockPaymentConstructor,
-        },
-      ],
-    }).compile();
-
-    contract = module.get<PaymentContractImpl>(PaymentContractImpl);
+    contract = new PaymentContractImpl(mockPrisma as unknown as PrismaService);
   });
 
   describe('processCashPayment', () => {
     it('thanh toán tiền mặt thành công khi khách đưa đủ tiền', async () => {
+      mockPrisma.payment.create.mockResolvedValue({
+        id: 'pay-001',
+        orderId: 'ord-001',
+        amount: 100000,
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.SUCCESS,
+      });
+
       const res = await contract.processCashPayment({
         orderId: 'ord-001',
         totalAmount: 100000,
@@ -67,8 +55,13 @@ describe('PaymentContractImpl', () => {
 
   describe('generateQrPayment', () => {
     it('sinh mã QR thanh toán thành công', async () => {
-      MockPaymentConstructor.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
+      mockPrisma.payment.findFirst.mockResolvedValue(null);
+      mockPrisma.payment.create.mockResolvedValue({
+        id: 'pay-002',
+        orderId: 'ord-002',
+        amount: 150000,
+        method: PaymentMethod.BANK_TRANSFER,
+        status: PaymentStatus.PENDING,
       });
 
       const res = await contract.generateQrPayment({
@@ -94,19 +87,13 @@ describe('PaymentContractImpl', () => {
 
   describe('checkPaymentStatus', () => {
     it('trả về thông tin giao dịch nếu tìm thấy', async () => {
-      MockPaymentConstructor.findOne.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          lean: jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue({
-              paymentId: 'pay-003',
-              orderId: 'ord-003',
-              amount: 80000,
-              method: PaymentMethod.CASH,
-              status: PaymentStatus.SUCCESS,
-              transactionId: 'TXN-123',
-            }),
-          }),
-        }),
+      mockPrisma.payment.findFirst.mockResolvedValue({
+        id: 'pay-003',
+        orderId: 'ord-003',
+        amount: 80000,
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.SUCCESS,
+        transactionId: 'TXN-123',
       });
 
       const res = await contract.checkPaymentStatus('ord-003');
@@ -115,13 +102,7 @@ describe('PaymentContractImpl', () => {
     });
 
     it('ném lỗi NotFoundException khi không tìm thấy thanh toán', async () => {
-      MockPaymentConstructor.findOne.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          lean: jest.fn().mockReturnValue({
-            exec: jest.fn().mockResolvedValue(null),
-          }),
-        }),
-      });
+      mockPrisma.payment.findFirst.mockResolvedValue(null);
 
       await expect(contract.checkPaymentStatus('not-found')).rejects.toThrow(
         NotFoundException,

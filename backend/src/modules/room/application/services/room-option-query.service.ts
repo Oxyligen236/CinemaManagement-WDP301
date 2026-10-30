@@ -1,37 +1,29 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Room, RoomDocument } from '../../domain/schemas/room.schema';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RoomOptionResDto } from '../dto/res.dto';
 import { GetRoomSchedulingInfoUsecase } from '../usecase/get-room-scheduling-info.usecase';
 import { ListBranchRoomsUsecase } from '../usecase/list-branch-rooms.usecase';
-
-type RoomLean = Pick<Room, 'roomId' | 'roomName' | 'roomStatus' | 'branchId'>;
 
 @Injectable()
 export class RoomOptionQueryService
   implements ListBranchRoomsUsecase, GetRoomSchedulingInfoUsecase
 {
-  constructor(
-    @InjectModel(Room.name) private readonly roomModel: Model<RoomDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async listRoomsByBranch(branchId: string): Promise<RoomOptionResDto[]> {
-    const docs = (await this.roomModel
-      .find({ branchId })
-      .sort({ roomName: 1 })
-      .lean()
-      .exec()) as unknown as RoomLean[];
+    const docs = await this.prisma.room.findMany({
+      where: { branchId },
+      orderBy: { roomName: 'asc' },
+    });
     return docs.map((doc) => this.toDto(doc));
   }
 
   async getRoomSchedulingInfo(
     roomId: string,
   ): Promise<RoomOptionResDto | null> {
-    const doc = (await this.roomModel
-      .findOne({ roomId })
-      .lean()
-      .exec()) as unknown as RoomLean | null;
+    const doc = await this.prisma.room.findUnique({
+      where: { id: roomId },
+    });
     return doc ? this.toDto(doc) : null;
   }
 
@@ -39,16 +31,15 @@ export class RoomOptionQueryService
     if (roomIds.length === 0) {
       return [];
     }
-    const docs = (await this.roomModel
-      .find({ roomId: { $in: roomIds } })
-      .lean()
-      .exec()) as unknown as RoomLean[];
+    const docs = await this.prisma.room.findMany({
+      where: { id: { in: roomIds } },
+    });
     return docs.map((doc) => this.toDto(doc));
   }
 
-  private toDto(doc: RoomLean): RoomOptionResDto {
+  private toDto(doc: any): RoomOptionResDto {
     return {
-      roomId: doc.roomId,
+      roomId: doc.id,
       roomName: doc.roomName,
       roomStatus: doc.roomStatus,
       branchId: doc.branchId,
