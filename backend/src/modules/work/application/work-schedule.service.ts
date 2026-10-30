@@ -57,8 +57,13 @@ export class WorkScheduleService {
     const branchFilter = isValidObjectId(input.branchId)
       ? { $or: [{ _id: input.branchId }, { branchId: input.branchId }] }
       : { branchId: input.branchId };
-    if (!(await this.branchModel.exists(branchFilter)))
+    const branch = await this.branchModel
+      .findOne(branchFilter)
+      .select('_id branchId')
+      .lean();
+    if (!branch)
       throw new NotFoundException('Không tìm thấy chi nhánh');
+    const branchId = String(branch._id);
     const toMinutes = (value: string) =>
       Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
     const start = toMinutes(input.startTime);
@@ -70,7 +75,7 @@ export class WorkScheduleService {
       );
     if (
       await this.scheduleModel.exists({
-        branchId: input.branchId,
+        branchId,
         shiftName: input.shiftName,
         startTime: input.startTime,
         endTime: input.endTime,
@@ -79,15 +84,17 @@ export class WorkScheduleService {
       throw new ConflictException('Ca làm đã tồn tại');
     return this.scheduleModel.create({
       ...input,
+      branchId,
       durationInMinutes,
       isOvernight: end <= start,
       userIds: [],
     });
   }
 
-  list(branchId?: string) {
+  async list(branchId?: string) {
+    const branchIds = branchId ? await this.branchIds(branchId) : [];
     return this.scheduleModel
-      .find(branchId ? { branchId } : {})
+      .find(branchId ? { branchId: { $in: branchIds } } : {})
       .sort({ startTime: 1 })
       .lean()
       .exec();
@@ -108,7 +115,7 @@ export class WorkScheduleService {
       throw new NotFoundException('Manager chưa được gán chi nhánh');
     const schedule = await this.scheduleModel.findOne({
       scheduleId,
-      branchId: manager.branchId,
+      branchId: { $in: await this.branchIds(manager.branchId) },
     });
     if (!schedule) throw new NotFoundException('Không tìm thấy ca làm');
     const staff = await this.userModel
@@ -138,13 +145,40 @@ export class WorkScheduleService {
       .sort({ firstName: 1 })
       .lean();
   }
+  async canDelete(scheduleId: string) {
+    const schedule = await this.scheduleModel.findOne({ scheduleId }).lean();
+    if (!schedule) throw new NotFoundException('Không tìm thấy ca làm');
+    if (schedule.userIds?.length) return { canDelete: false, reason: 'Ca làm đã được gán nhân viên.' };
+    if (await this.assignmentModel.exists({ scheduleId })) return { canDelete: false, reason: 'Ca làm đã được phân công cho nhân viên theo ngày.' };
+    if (await this.attendanceModel.exists({ scheduleId })) return { canDelete: false, reason: 'Ca làm đã có dữ liệu chấm công.' };
+    return { canDelete: true };
+  }
+  async remove(scheduleId: string) {
+    const check = await this.canDelete(scheduleId);
+    if (!check.canDelete) throw new BadRequestException(check.reason);
+    await this.scheduleModel.deleteOne({ scheduleId });
+    return { deleted: true };
+  }
+  async update(scheduleId: string, input: CreateWorkScheduleDto) {
+    const current = await this.scheduleModel.findOne({ scheduleId });
+    if (!current) throw new NotFoundException('Không tìm thấy ca làm');
+    const branchFilter = isValidObjectId(input.branchId) ? { $or: [{ _id: input.branchId }, { branchId: input.branchId }] } : { branchId: input.branchId };
+    const branch = await this.branchModel.findOne(branchFilter).select('_id').lean();
+    if (!branch) throw new NotFoundException('Không tìm thấy chi nhánh');
+    const minutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+    const start = minutes(input.startTime), end = minutes(input.endTime), durationInMinutes = end > start ? end - start : 1440 - start + end;
+    if (durationInMinutes <= 0 || durationInMinutes > 600) throw new BadRequestException('Ca làm phải dài hơn 0 và không quá 10 giờ');
+    Object.assign(current, { ...input, branchId: String(branch._id), durationInMinutes, isOvernight: end <= start });
+    return current.save();
+  }
   async dailyAssignments(managerId: string, date: string) {
     await this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
+    const branchIds = await this.branchIds(branchId);
     const [schedules, assignments, attendance] = await Promise.all([
-      this.scheduleModel.find({ branchId, isActive: true }).sort({ startTime: 1 }).lean(),
-      this.assignmentModel.find({ branchId, date }).lean(),
-      this.attendanceModel.find({ branchId, date }).lean(),
+      this.scheduleModel.find({ branchId: { $in: branchIds }, isActive: true }).sort({ startTime: 1 }).lean(),
+      this.assignmentModel.find({ branchId: { $in: branchIds }, date }).lean(),
+      this.attendanceModel.find({ branchId: { $in: branchIds }, date }).lean(),
     ]);
     const userIds = [...new Set(assignments.map((x) => x.userId))];
     const users = await this.userModel.find({ userId: { $in: userIds } }).select('userId firstName lastName email jobPosition').lean();
@@ -155,33 +189,41 @@ export class WorkScheduleService {
   async assignDay(managerId: string, scheduleId: string, date: string, userId: string) {
     await this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
-    const [schedule, staff] = await Promise.all([this.scheduleModel.findOne({ scheduleId, branchId, isActive: true }).lean(), this.userModel.findOne({ userId, branchId, role: Role.STAFF, isActive: true }).lean()]);
+    const branchIds = await this.branchIds(branchId);
+    const [schedule, staff] = await Promise.all([this.scheduleModel.findOne({ scheduleId, branchId: { $in: branchIds }, isActive: true }).lean(), this.userModel.findOne({ userId, branchId: { $in: branchIds }, role: Role.STAFF, isActive: true }).lean()]);
     if (!schedule) throw new NotFoundException('Không tìm thấy ca làm');
     if (!staff) throw new BadRequestException('Nhân viên không hợp lệ');
-    const existing = await this.assignmentModel.find({ userId, date, branchId }).lean();
+    const existing = await this.assignmentModel.find({ userId, date, branchId: { $in: branchIds } }).lean();
     if (existing.some((assignment) => assignment.scheduleId === scheduleId)) throw new ConflictException('Nhân viên đã được phân vào ca này');
     const schedules = await this.scheduleModel.find({ scheduleId: { $in: existing.map((x) => x.scheduleId) } }).lean();
     if (schedules.some((other) => this.overlaps(schedule, other))) throw new ConflictException('Nhân viên đã có ca trùng giờ trong ngày này');
-    return this.assignmentModel.create({ scheduleId, userId, date, branchId });
+    return this.assignmentModel.create({ scheduleId, userId, date, branchId: String(schedule.branchId) });
   }
   async unassignDay(managerId: string, scheduleId: string, date: string, userId: string) {
     const branchId = await this.managerBranch(managerId);
-    const result = await this.assignmentModel.deleteOne({ scheduleId, userId, date, branchId });
+    const result = await this.assignmentModel.deleteOne({ scheduleId, userId, date, branchId: { $in: await this.branchIds(branchId) } });
     if (!result.deletedCount) throw new NotFoundException('Không tìm thấy phân công');
     return { removed: true };
   }
   async closeDayShift(managerId: string, scheduleId: string, date: string) {
-    await this.assertDate(date); const branchId = await this.managerBranch(managerId);
-    const assignments = await this.assignmentModel.find({ scheduleId, date, branchId }).lean();
+    await this.assertDate(date); const branchId = await this.managerBranch(managerId); const branchIds = await this.branchIds(branchId);
+    const assignments = await this.assignmentModel.find({ scheduleId, date, branchId: { $in: branchIds } }).lean();
     const existing = await this.attendanceModel.find({ scheduleId, date }).select('userId').lean();
     const attended = new Set(existing.map((x) => x.userId));
-    const absent = assignments.filter((x) => !attended.has(x.userId)).map((x) => ({ scheduleId, userId: x.userId, branchId, date, status: ShiftAttendanceStatus.ABSENT }));
+    const absent = assignments.filter((x) => !attended.has(x.userId)).map((x) => ({ scheduleId, userId: x.userId, branchId: x.branchId, date, status: ShiftAttendanceStatus.ABSENT }));
     if (absent.length) await this.attendanceModel.insertMany(absent, { ordered: false });
     return { absent: absent.length };
   }
   private async managerBranch(managerId: string) {
     const manager = await this.userModel.findOne({ userId: managerId, role: Role.BRANCHMANAGER }).select('branchId').lean();
     if (!manager?.branchId) throw new NotFoundException('Manager chưa được gán chi nhánh'); return manager.branchId;
+  }
+  private async branchIds(branchId: string) {
+    const filter = isValidObjectId(branchId)
+      ? { $or: [{ _id: branchId }, { branchId }] }
+      : { branchId };
+    const branch = await this.branchModel.findOne(filter).select('_id branchId').lean();
+    return branch ? [...new Set([String(branch._id), branch.branchId].filter(Boolean))] : [branchId];
   }
   private async assertDate(date: string) { if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())) throw new BadRequestException('Ngày không hợp lệ'); }
   private overlaps(a: WorkSchedule, b: WorkSchedule) { const minutes = (x: string) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3)); const ranges = (x: WorkSchedule) => { const start = minutes(x.startTime), end = minutes(x.endTime); return end > start ? [[start, end]] : [[start, 1440], [0, end]]; }; return ranges(a).some(([as, ae]) => ranges(b).some(([bs, be]) => as < be && bs < ae)); }

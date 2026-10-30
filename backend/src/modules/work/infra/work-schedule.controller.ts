@@ -36,6 +36,9 @@ export class WorkScheduleController {
   @Post() create(@Body() input: CreateWorkScheduleDto) {
     return this.service.create(input);
   }
+  @Get(':scheduleId/can-delete') canDelete(@Param('scheduleId') scheduleId: string) { return this.service.canDelete(scheduleId); }
+  @Put(':scheduleId') update(@Param('scheduleId') scheduleId: string, @Body() input: CreateWorkScheduleDto) { return this.service.update(scheduleId, input); }
+  @Delete(':scheduleId') remove(@Param('scheduleId') scheduleId: string) { return this.service.remove(scheduleId); }
   @Put(':scheduleId/assign') assign(
     @Param('scheduleId') scheduleId: string,
     @Body() input: AssignWorkScheduleDto,
