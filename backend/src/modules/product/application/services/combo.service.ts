@@ -234,7 +234,7 @@ export class ComboService
 
     const saved = await this.prisma.combo.update({
       where: { id: comboId },
-      data: { status: req.status as ComboStatus },
+      data: { status: req.status },
     });
 
     const itemIds = (saved.items as any[])?.map((i) => i.itemId) ?? [];
@@ -279,8 +279,7 @@ export class ComboService
       throw new ForbiddenException('Không tìm thấy thông tin quản lý');
     }
 
-    const isManager =
-      manager.role === Role.MANAGER || (manager.role as any) === 'BRANCHMANAGER';
+    const isManager = manager.role === Role.MANAGER;
     if (!manager.isActive || !isManager) {
       throw new ForbiddenException(
         'Bạn không có quyền thực hiện chức năng quản lý bắp nước',
@@ -383,8 +382,8 @@ export class ComboService
       return {
         itemId: sub.itemId,
         name: item?.name ?? 'Món đã bị xoá',
-        category: (item?.category as any) ?? 'OTHER',
-        size: (item?.size as any) ?? null,
+        category: item?.category ?? 'OTHER',
+        size: item?.size ?? null,
         quantity: sub.quantity,
         unitPrice,
         currentStock,
@@ -406,12 +405,12 @@ export class ComboService
       price: combo.price,
       originalTotalPrice,
       savingsAmount,
-      status: combo.status as any,
+      status: combo.status,
       availableStock: minStock,
       isAvailable,
       description: combo.description ?? null,
       imageKey: combo.imageKey ?? null,
-      items: resolvedItems as any,
+      items: resolvedItems,
       createdAt: combo.createdAt
         ? new Date(combo.createdAt).toISOString()
         : undefined,

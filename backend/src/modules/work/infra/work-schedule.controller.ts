@@ -23,7 +23,7 @@ import { Role } from '../../user/domain/enums/role.enum';
 import { WorkScheduleService } from '../application/work-schedule.service';
 import { CreateWorkScheduleDto } from '../application/dto/create-work-schedule.dto';
 import { AssignWorkScheduleDto } from '../application/dto/assign-work-schedule.dto';
-import { AuthUser, AuthenticatedRequest } from '../../auth/domain/auth-user';
+import { AuthenticatedRequest } from '../../auth/domain/auth-user';
 
 @Controller('admin/work-schedules')
 @UseGuards(JwtGuard, RoleGuard)
@@ -36,9 +36,20 @@ export class WorkScheduleController {
   @Post() create(@Body() input: CreateWorkScheduleDto) {
     return this.service.create(input);
   }
-  @Get(':scheduleId/can-delete') canDelete(@Param('scheduleId') scheduleId: string) { return this.service.canDelete(scheduleId); }
-  @Put(':scheduleId') update(@Param('scheduleId') scheduleId: string, @Body() input: CreateWorkScheduleDto) { return this.service.update(scheduleId, input); }
-  @Delete(':scheduleId') remove(@Param('scheduleId') scheduleId: string) { return this.service.remove(scheduleId); }
+  @Get(':scheduleId/can-delete') canDelete(
+    @Param('scheduleId') scheduleId: string,
+  ) {
+    return this.service.canDelete(scheduleId);
+  }
+  @Put(':scheduleId') update(
+    @Param('scheduleId') scheduleId: string,
+    @Body() input: CreateWorkScheduleDto,
+  ) {
+    return this.service.update(scheduleId, input);
+  }
+  @Delete(':scheduleId') remove(@Param('scheduleId') scheduleId: string) {
+    return this.service.remove(scheduleId);
+  }
   @Put(':scheduleId/assign') assign(
     @Param('scheduleId') scheduleId: string,
     @Body() input: AssignWorkScheduleDto,

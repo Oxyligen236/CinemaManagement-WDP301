@@ -37,7 +37,7 @@ describe('PriceRuleOptionQueryService', () => {
         findFirst: jest.fn(),
       },
     };
-    service = new PriceRuleOptionQueryService(mockPrisma as unknown as PrismaService);
+    service = new PriceRuleOptionQueryService(mockPrisma);
   });
 
   describe('listPriceValues', () => {

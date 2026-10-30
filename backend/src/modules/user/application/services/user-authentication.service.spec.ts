@@ -78,7 +78,9 @@ describe('UserAuthenticationService.login', () => {
 
     await expect(
       service.login('manager@cinema.local', PASSWORD),
-    ).rejects.toThrow(new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED));
+    ).rejects.toThrow(
+      new UnauthorizedException(AUTH_MESSAGES.ACCOUNT_DISABLED),
+    );
   });
 
   it('puts the stored role into the token and the response', async () => {

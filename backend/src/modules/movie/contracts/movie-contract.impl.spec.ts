@@ -21,10 +21,7 @@ describe('MovieContractImpl', () => {
       },
     };
 
-    contract = new MovieContractImpl(
-      mockPrisma as unknown as PrismaService,
-      mockStorageService as any,
-    );
+    contract = new MovieContractImpl(mockPrisma, mockStorageService as any);
   });
 
   describe('getMovieSummary', () => {

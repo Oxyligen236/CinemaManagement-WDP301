@@ -281,7 +281,9 @@ export class PosOrderService
     orderId: string,
     request: ApplyPromotionReq,
   ): Promise<PosBookingSummaryRes> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -324,7 +326,9 @@ export class PosOrderService
     orderId: string,
     request?: CancelPosOrderReq,
   ): Promise<{ success: boolean; message: string }> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -337,7 +341,9 @@ export class PosOrderService
       );
     }
 
-    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
+    const seatOrders = await this.prisma.seatOrder.findMany({
+      where: { orderId },
+    });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
     await this.prisma.order.update({
@@ -376,7 +382,9 @@ export class PosOrderService
     orderId: string,
     request: ProcessPosCashPaymentReq,
   ): Promise<PosCashPaymentResultRes> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -400,7 +408,9 @@ export class PosOrderService
       cashReceived: request.cashReceived,
     });
 
-    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
+    const seatOrders = await this.prisma.seatOrder.findMany({
+      where: { orderId },
+    });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
     let tickets: TicketItemSummaryDto[] = [];
@@ -412,7 +422,9 @@ export class PosOrderService
       });
     }
 
-    const productOrders = await this.prisma.productOrder.findMany({ where: { orderId } });
+    const productOrders = await this.prisma.productOrder.findMany({
+      where: { orderId },
+    });
     if (productOrders.length) {
       await this.productContract.deductConcessionStock(
         productOrders.map((po) => ({
@@ -464,7 +476,9 @@ export class PosOrderService
     orderId: string,
     request: InitiatePosQrPaymentReq,
   ): Promise<PosQrPaymentRes> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -500,7 +514,9 @@ export class PosOrderService
     staffContext: { staffId: string; branchId: string },
     orderId: string,
   ): Promise<PosCashPaymentResultRes | PosQrPaymentRes> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -531,7 +547,9 @@ export class PosOrderService
       statusSummary.status === PaymentStatus.SUCCESS ||
       (statusSummary.status as string) === 'SUCCESS'
     ) {
-      const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
+      const seatOrders = await this.prisma.seatOrder.findMany({
+        where: { orderId },
+      });
       const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
       let tickets: TicketItemSummaryDto[] = [];
@@ -613,7 +631,9 @@ export class PosOrderService
     },
     orderId: string,
   ): Promise<PosReceiptRes> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException('Không tìm thấy đơn hàng');
     }
@@ -640,7 +660,9 @@ export class PosOrderService
     }
 
     let tickets = await this.ticketContract.getTicketsByOrderId(orderId);
-    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
+    const seatOrders = await this.prisma.seatOrder.findMany({
+      where: { orderId },
+    });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
 
     if (!tickets.length && seatShowtimeIds.length) {
@@ -678,7 +700,9 @@ export class PosOrderService
       ? new Date(firstTicket.startTime).toLocaleDateString('vi-VN')
       : undefined;
 
-    const productOrders = await this.prisma.productOrder.findMany({ where: { orderId } });
+    const productOrders = await this.prisma.productOrder.findMany({
+      where: { orderId },
+    });
     const productIds = productOrders.map((po) => po.productId);
     const productsMap: Map<string, ProductSummaryDto> = productIds.length
       ? await this.productContract.getProductsByIds(productIds)
@@ -747,14 +771,18 @@ export class PosOrderService
     orderId: string,
     branchId: string,
   ): Promise<void> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (order?.branchId && order.branchId !== branchId) {
       throw new ForbiddenException(
         'Đơn hàng không thuộc chi nhánh của nhân viên',
       );
     }
 
-    const seatOrders = await this.prisma.seatOrder.findMany({ where: { orderId } });
+    const seatOrders = await this.prisma.seatOrder.findMany({
+      where: { orderId },
+    });
     const seatShowtimeIds = seatOrders.map((so) => so.seatShowtimeId);
     if (seatShowtimeIds.length) {
       const seats =
@@ -798,7 +826,7 @@ export class PosOrderService
     return {
       orderId: order.id,
       userId: order.userId,
-      status: order.status as any,
+      status: order.status,
       totalAmount: order.totalAmount,
       createdAt,
       expiresAt,

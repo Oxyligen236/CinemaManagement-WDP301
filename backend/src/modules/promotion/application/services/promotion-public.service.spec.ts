@@ -33,7 +33,7 @@ describe('PromotionPublicService', () => {
       },
     };
 
-    service = new PromotionPublicService(mockPrisma as unknown as PrismaService);
+    service = new PromotionPublicService(mockPrisma);
   });
 
   describe('validatePromotionCode', () => {
@@ -165,7 +165,9 @@ describe('PromotionPublicService', () => {
     });
 
     it('idempotent: bỏ qua lỗi khi bản ghi đã tồn tại', async () => {
-      mockPrisma.promotionUsage.create.mockRejectedValue(new Error('Duplicate key'));
+      mockPrisma.promotionUsage.create.mockRejectedValue(
+        new Error('Duplicate key'),
+      );
 
       await expect(
         service.recordPromotionUsage({

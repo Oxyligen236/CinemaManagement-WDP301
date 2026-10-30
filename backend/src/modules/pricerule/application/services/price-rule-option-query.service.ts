@@ -160,7 +160,9 @@ export class PriceRuleOptionQueryService
       group: field.group,
       fieldKey: field.fieldKey,
       label: field.label,
-      values: docs.map((d) => toPriceValueDto({ ruleId: d.id, adjustmentValue: d.adjustmentValue })),
+      values: docs.map((d) =>
+        toPriceValueDto({ ruleId: d.id, adjustmentValue: d.adjustmentValue }),
+      ),
     };
   }
 }

@@ -32,7 +32,7 @@ describe('ShowtimeQueryService', () => {
       },
     };
 
-    service = new ShowtimeQueryService(mockPrisma as unknown as PrismaService);
+    service = new ShowtimeQueryService(mockPrisma);
   });
 
   it('trả về true khi có suất chiếu chưa kết thúc', async () => {

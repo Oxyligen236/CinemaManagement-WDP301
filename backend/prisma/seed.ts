@@ -64,13 +64,15 @@ async function main() {
     },
     {
       branchName: 'Latte Cinema Landmark',
-      address: 'Tầng B1, Vincom Landmark 81, 720A Điện Biên Phủ, Bình Thạnh, TP.HCM',
+      address:
+        'Tầng B1, Vincom Landmark 81, 720A Điện Biên Phủ, Bình Thạnh, TP.HCM',
       hotline: '028 3821 7890',
       branchStatus: BranchStatus.ACTIVE,
     },
     {
       branchName: 'Latte Cinema Nam Sài Gòn',
-      address: 'Tầng 3, Lotte Mart Nam Sài Gòn, 469 Nguyễn Hữu Thọ, Quận 7, TP.HCM',
+      address:
+        'Tầng 3, Lotte Mart Nam Sài Gòn, 469 Nguyễn Hữu Thọ, Quận 7, TP.HCM',
       hotline: '028 3775 2524',
       branchStatus: BranchStatus.ACTIVE,
     },
@@ -249,7 +251,14 @@ async function main() {
 
   // 5. SEED GENRES & MOVIES
   console.log('[5/12] Seeding genres and movies...');
-  const genreNames = ['Hành Động', 'Khoa Học Viễn Tưởng', 'Kinh Dị', 'Hoạt Hình', 'Tình Cảm', 'Hài Hước'];
+  const genreNames = [
+    'Hành Động',
+    'Khoa Học Viễn Tưởng',
+    'Kinh Dị',
+    'Hoạt Hình',
+    'Tình Cảm',
+    'Hài Hước',
+  ];
   const genres = [];
   for (const g of genreNames) {
     const genre = await prisma.genre.create({
@@ -266,7 +275,8 @@ async function main() {
       movieName: 'Dune: Hành Tinh Cát - Phần 2',
       duration: 166,
       status: MovieStatus.NOW_SHOWING,
-      description: 'Paul Atreides liên minh với Chani và người Fremen trên con đường báo thù.',
+      description:
+        'Paul Atreides liên minh với Chani và người Fremen trên con đường báo thù.',
       posterKey: 'posters/dune2.jpg',
       trailerUrl: 'https://youtube.com/watch?v=Way9Dexny3w',
       releaseDate: new Date('2026-03-01'),
@@ -276,7 +286,8 @@ async function main() {
       movieName: 'Kung Fu Panda 4',
       duration: 94,
       status: MovieStatus.NOW_SHOWING,
-      description: 'Po chuẩn bị trở thành Thủ lĩnh Tinh thần của Thung lũng Bình Yên.',
+      description:
+        'Po chuẩn bị trở thành Thủ lĩnh Tinh thần của Thung lũng Bình Yên.',
       posterKey: 'posters/kungfupanda4.jpg',
       trailerUrl: 'https://youtube.com/watch?v=_inKs4eeHiI',
       releaseDate: new Date('2026-03-08'),
@@ -286,7 +297,8 @@ async function main() {
       movieName: 'Godzilla x Kong: Đế Chế Mới',
       duration: 115,
       status: MovieStatus.NOW_SHOWING,
-      description: 'Một mối đe dọa khổng lồ chưa từng thấy xuất hiện từ lòng Trái Đất.',
+      description:
+        'Một mối đe dọa khổng lồ chưa từng thấy xuất hiện từ lòng Trái Đất.',
       posterKey: 'posters/godzillaxkong.jpg',
       trailerUrl: 'https://youtube.com/watch?v=lV1OOlGwExg',
       releaseDate: new Date('2026-03-29'),
@@ -345,10 +357,13 @@ async function main() {
   const now = new Date();
 
   // Create showtimes across rooms for active movies
-  const activeMovies = movies.filter(m => m.status === MovieStatus.NOW_SHOWING);
+  const activeMovies = movies.filter(
+    (m) => m.status === MovieStatus.NOW_SHOWING,
+  );
   for (const room of rooms) {
     for (let s = 0; s < 2; s++) {
-      const movie = activeMovies[(s + rooms.indexOf(room)) % activeMovies.length];
+      const movie =
+        activeMovies[(s + rooms.indexOf(room)) % activeMovies.length];
       const startTime = new Date(now.getTime() + (s * 4 + 1) * 3600000);
       const endTime = new Date(startTime.getTime() + movie.duration * 60000);
 
@@ -373,8 +388,8 @@ async function main() {
       showtimes.push(showtime);
 
       // Create seat_showtimes for this room & showtime
-      const roomSeats = allSeats.filter(st => st.roomId === room.id);
-      const seatShowtimesData = roomSeats.map(st => ({
+      const roomSeats = allSeats.filter((st) => st.roomId === room.id);
+      const seatShowtimesData = roomSeats.map((st) => ({
         showtimeId: showtime.id,
         seatId: st.id,
         seatStatus: SeatShowtimeStatus.EMPTY,
@@ -383,7 +398,9 @@ async function main() {
     }
   }
   const totalSeatShowtimes = await prisma.seatShowtime.count();
-  console.log(`Seeded ${showtimes.length} showtimes and ${totalSeatShowtimes} seat_showtimes.`);
+  console.log(
+    `Seeded ${showtimes.length} showtimes and ${totalSeatShowtimes} seat_showtimes.`,
+  );
 
   // 8. SEED CONCESSIONS (ITEMS, COMBOS, PRODUCTS)
   console.log('[8/12] Seeding concession items, combos, products...');
@@ -456,7 +473,9 @@ async function main() {
 
   // 10. SEED SAMPLE ORDERS, TICKETS, PAYMENTS
   console.log('[10/12] Seeding sample orders, tickets, payments...');
-  const sampleCustomer = users.find(u => u.email === 'customer1@cinema.local')!;
+  const sampleCustomer = users.find(
+    (u) => u.email === 'customer1@cinema.local',
+  )!;
   const sampleShowtime = showtimes[0];
   const sampleSeatShowtimes = await prisma.seatShowtime.findMany({
     where: { showtimeId: sampleShowtime.id },
@@ -526,7 +545,9 @@ async function main() {
 
   // 11. SEED WORK SCHEDULES, SHIFT ASSIGNMENTS & ATTENDANCE
   console.log('[11/12] Seeding work schedules and shifts...');
-  const staffCantavil = users.find(u => u.email === 'staff.cantavil@cinema.local')!;
+  const staffCantavil = users.find(
+    (u) => u.email === 'staff.cantavil@cinema.local',
+  )!;
   const workSchedule = await prisma.workSchedule.create({
     data: {
       shiftName: 'Ca Sáng (08:00 - 16:00)',

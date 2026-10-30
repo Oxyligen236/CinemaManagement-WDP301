@@ -70,7 +70,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: userId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -81,7 +81,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -116,7 +116,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -206,7 +206,7 @@ export class WorkScheduleService {
   }
 
   async dailyAssignments(managerId: string, date: string) {
-    await this.assertDate(date);
+    this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
     const [schedules, assignments, attendance] = await Promise.all([
       this.prisma.workSchedule.findMany({
@@ -254,7 +254,7 @@ export class WorkScheduleService {
     date: string,
     userId: string,
   ) {
-    await this.assertDate(date);
+    this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
     const [schedule, staff] = await Promise.all([
       this.prisma.workSchedule.findFirst({
@@ -303,7 +303,7 @@ export class WorkScheduleService {
   }
 
   async closeDayShift(managerId: string, scheduleId: string, date: string) {
-    await this.assertDate(date);
+    this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
     const assignments = await this.prisma.shiftAssignment.findMany({
       where: { scheduleId, date, branchId },
@@ -333,7 +333,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -342,7 +342,7 @@ export class WorkScheduleService {
     return manager.branchId;
   }
 
-  private async assertDate(date: string) {
+  private assertDate(date: string) {
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
       Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())
@@ -350,10 +350,13 @@ export class WorkScheduleService {
       throw new BadRequestException('Ngày không hợp lệ');
   }
 
-  private overlaps(a: any, b: any) {
+  private overlaps(
+    a: { startTime: string; endTime: string },
+    b: { startTime: string; endTime: string },
+  ) {
     const minutes = (x: string) =>
       Number(x.slice(0, 2)) * 60 + Number(x.slice(3));
-    const ranges = (x: any) => {
+    const ranges = (x: { startTime: string; endTime: string }) => {
       const start = minutes(x.startTime),
         end = minutes(x.endTime);
       return end > start
@@ -391,7 +394,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -405,7 +408,11 @@ export class WorkScheduleService {
     const header = sheet.getRow(1);
     const col = (name: string) => {
       for (let i = 1; i <= header.cellCount; i++)
-        if (String(header.getCell(i).value).trim().toLowerCase() === name)
+        if (
+          String(header.getCell(i).text || '')
+            .trim()
+            .toLowerCase() === name
+        )
           return i;
       return -1;
     };
@@ -534,7 +541,7 @@ export class WorkScheduleService {
 
   async myShifts(userId: string, requestedDate?: string) {
     const date = requestedDate ?? this.vnDate();
-    await this.assertDate(date);
+    this.assertDate(date);
     const assignments = await this.prisma.shiftAssignment.findMany({
       where: { userId, date },
     });

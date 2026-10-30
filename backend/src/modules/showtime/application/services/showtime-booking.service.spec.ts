@@ -15,7 +15,7 @@ describe('ShowtimeBookingService', () => {
       },
     };
 
-    service = new ShowtimeBookingService(mockPrisma as unknown as PrismaService);
+    service = new ShowtimeBookingService(mockPrisma);
   });
 
   it('reserves all EMPTY seats and returns details', async () => {

@@ -89,7 +89,7 @@ describe('MovieService', () => {
     };
 
     service = new MovieService(
-      mockPrisma as unknown as PrismaService,
+      mockPrisma,
       mockShowtimeQueryService as unknown as ShowtimeQueryService,
       mockStorageService as any,
     );

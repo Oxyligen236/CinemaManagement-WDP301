@@ -20,7 +20,7 @@ describe('UserBranchQueryService', () => {
         ),
       },
     };
-    service = new UserBranchQueryService(mockPrisma as unknown as PrismaService);
+    service = new UserBranchQueryService(mockPrisma);
   });
 
   it('returns branchId of an active user with a branch', async () => {
