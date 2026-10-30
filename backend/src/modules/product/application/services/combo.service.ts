@@ -5,34 +5,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'crypto';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { Page } from '../../../../common/dto/page.dto';
-import { User, UserDocument } from '../../../user/domain/schemas/user.schema';
-import { Role } from '../../../user/domain/enums/role.enum';
-import {
-  Branch,
-  BranchDocument,
-} from '../../../branch/domain/schemas/branch.schema';
-import { BranchStatus } from '../../../branch/domain/enums/branch-status.enum';
-import { Combo, ComboDocument } from '../../domain/schemas/combo.schema';
-import { Item, ItemDocument } from '../../domain/schemas/item.schema';
-import { ComboStatus } from '../../domain/enums/combo-status.enum';
-import { ItemStatus } from '../../domain/enums/item-status.enum';
-import { ItemCategory } from '../../domain/enums/item-category.enum';
+import { Role, BranchStatus, ComboStatus, ItemStatus } from '@prisma/client';
 import {
   ChangeComboStatusReq,
   CreateComboReq,
   QueryBranchCombosReq,
   UpdateComboReq,
 } from '../dto/req.dto';
-import {
-  ComboItemDetailRes,
-  ComboMutationRes,
-  ComboRes,
-  DeleteMutationRes,
-} from '../dto/res.dto';
+import { ComboMutationRes, ComboRes, DeleteMutationRes } from '../dto/res.dto';
 import { CreateComboUsecase } from '../usecase/create-combo.usecase';
 import { UpdateComboUsecase } from '../usecase/update-combo.usecase';
 import { QueryBranchCombosUsecase } from '../usecase/query-branch-combos.usecase';
@@ -50,16 +32,7 @@ export class ComboService
     ChangeComboStatusUsecase,
     DeleteComboUsecase
 {
-  constructor(
-    @InjectModel(Combo.name)
-    private readonly comboModel: Model<ComboDocument>,
-    @InjectModel(Item.name)
-    private readonly itemModel: Model<ItemDocument>,
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async createCombo(
     managerUserId: string,
@@ -69,36 +42,40 @@ export class ComboService
     const branchId = await this.resolveManagerBranchId(managerUserId);
 
     const trimmedName = req.name.trim();
-    const existing = await this.comboModel
-      .findOne({ branchId, name: trimmedName })
-      .lean()
-      .exec();
+    const existing = await this.prisma.combo.findFirst({
+      where: {
+        branchId,
+        name: { equals: trimmedName, mode: 'insensitive' },
+      },
+    });
     if (existing) {
       throw new ConflictException(
         `Tên combo "${trimmedName}" đã tồn tại trong chi nhánh`,
       );
     }
 
-    this.validateUniqueItemIds(req.items.map((i) => i.itemId));
-    const itemsMap = await this.fetchAndValidateBranchItems(
-      branchId,
-      req.items.map((i) => i.itemId),
-    );
+    const itemIds = req.items.map((i) => i.itemId);
+    this.validateUniqueItemIds(itemIds);
+    const itemsMap = await this.fetchAndValidateBranchItems(branchId, itemIds);
 
-    const finalImageKey = imageKey ?? req.imageKey ?? null;
-    const newCombo = new this.comboModel({
-      comboId: randomUUID(),
-      branchId,
-      name: trimmedName,
-      price: req.price,
-      status: req.status ?? ComboStatus.AVAILABLE,
-      imageKey: finalImageKey,
-      description: req.description?.trim() ?? null,
-      items: req.items.map((i) => ({ itemId: i.itemId, quantity: i.quantity })),
+    const initialStatus = (req.status as ComboStatus) || ComboStatus.AVAILABLE;
+
+    const saved = await this.prisma.combo.create({
+      data: {
+        branchId,
+        name: trimmedName,
+        price: req.price,
+        description: req.description?.trim() || null,
+        imageKey: imageKey || req.imageKey || null,
+        status: initialStatus,
+        items: req.items.map((i) => ({
+          itemId: i.itemId,
+          quantity: i.quantity,
+        })),
+      },
     });
 
-    const saved = await newCombo.save();
-    const comboRes = this.mapToComboRes(saved.toObject(), itemsMap);
+    const comboRes = this.mapToComboRes(saved, itemsMap);
 
     return {
       message: 'Tạo gói combo thành công',
@@ -114,62 +91,63 @@ export class ComboService
   ): Promise<ComboMutationRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
 
-    const combo = await this.comboModel.findOne({ comboId, branchId }).exec();
+    const combo = await this.prisma.combo.findFirst({
+      where: { id: comboId, branchId },
+    });
     if (!combo) {
       throw new NotFoundException(
         'Không tìm thấy gói combo trong chi nhánh này',
       );
     }
 
+    const data: any = {};
+
     if (req.name !== undefined) {
       const trimmedName = req.name.trim();
-      const duplicate = await this.comboModel
-        .findOne({ branchId, name: trimmedName, comboId: { $ne: comboId } })
-        .lean()
-        .exec();
+      const duplicate = await this.prisma.combo.findFirst({
+        where: {
+          branchId,
+          id: { not: comboId },
+          name: { equals: trimmedName, mode: 'insensitive' },
+        },
+      });
       if (duplicate) {
         throw new ConflictException(
           `Tên combo "${trimmedName}" đã tồn tại trong chi nhánh`,
         );
       }
-      combo.name = trimmedName;
+      data.name = trimmedName;
     }
 
-    if (req.price !== undefined) {
-      combo.price = req.price;
-    }
-
-    if (req.status !== undefined) {
-      combo.status = req.status;
-    }
-
+    if (req.price !== undefined) data.price = req.price;
     if (req.description !== undefined) {
-      combo.description = req.description ? req.description.trim() : null;
+      data.description = req.description ? req.description.trim() : null;
     }
-
     if (imageKey) {
-      combo.imageKey = imageKey;
+      data.imageKey = imageKey;
     } else if (req.imageKey !== undefined) {
-      combo.imageKey = req.imageKey || null;
+      data.imageKey = req.imageKey || null;
     }
+    if (req.status !== undefined) data.status = req.status as ComboStatus;
 
-    if (req.items && req.items.length > 0) {
-      this.validateUniqueItemIds(req.items.map((i) => i.itemId));
-      await this.fetchAndValidateBranchItems(
-        branchId,
-        req.items.map((i) => i.itemId),
-      );
-      combo.items = req.items.map((i) => ({
+    if (req.items !== undefined) {
+      const itemIds = req.items.map((i) => i.itemId);
+      this.validateUniqueItemIds(itemIds);
+      await this.fetchAndValidateBranchItems(branchId, itemIds);
+      data.items = req.items.map((i) => ({
         itemId: i.itemId,
         quantity: i.quantity,
       }));
     }
 
-    const updated = await combo.save();
+    const saved = await this.prisma.combo.update({
+      where: { id: comboId },
+      data,
+    });
 
-    const allItemIds = updated.items.map((i) => i.itemId);
-    const itemsMap = await this.fetchItemsMap(allItemIds);
-    const comboRes = this.mapToComboRes(updated.toObject(), itemsMap);
+    const currentItemIds = (saved.items as any[])?.map((i) => i.itemId) ?? [];
+    const itemsMap = await this.fetchItemsMap(currentItemIds);
+    const comboRes = this.mapToComboRes(saved, itemsMap);
 
     return {
       message: 'Cập nhật gói combo thành công',
@@ -179,38 +157,36 @@ export class ComboService
 
   async queryBranchCombos(
     managerUserId: string,
-    req: QueryBranchCombosReq,
+    query: QueryBranchCombosReq,
   ): Promise<Page<ComboRes>> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
 
-    const filter: Record<string, unknown> = { branchId };
-
-    if (req.status) {
-      filter.status = req.status;
+    const where: any = { branchId };
+    if (query.status) {
+      where.status = query.status;
+    }
+    if (query.search && query.search.trim()) {
+      where.name = { contains: query.search.trim(), mode: 'insensitive' };
     }
 
-    if (req.search) {
-      const escaped = req.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      filter.name = { $regex: escaped, $options: 'i' };
-    }
-
-    const page = Math.max(1, Number(req.page) || 1);
-    const limit = Math.max(1, Number(req.limit) || 10);
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.max(1, query.limit || 10);
     const skip = (page - 1) * limit;
 
     const [total, combos] = await Promise.all([
-      this.comboModel.countDocuments(filter).exec(),
-      this.comboModel
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .exec(),
+      this.prisma.combo.count({ where }),
+      this.prisma.combo.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
     ]);
 
     const itemIds = Array.from(
-      new Set(combos.flatMap((c) => c.items?.map((i) => i.itemId) ?? [])),
+      new Set(
+        combos.flatMap((c) => (c.items as any[])?.map((i) => i.itemId) ?? []),
+      ),
     );
     const itemsMap = await this.fetchItemsMap(itemIds);
 
@@ -225,17 +201,16 @@ export class ComboService
   ): Promise<ComboRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
 
-    const combo = await this.comboModel
-      .findOne({ comboId, branchId })
-      .lean()
-      .exec();
+    const combo = await this.prisma.combo.findFirst({
+      where: { id: comboId, branchId },
+    });
     if (!combo) {
       throw new NotFoundException(
         'Không tìm thấy gói combo trong chi nhánh này',
       );
     }
 
-    const itemIds = combo.items?.map((i) => i.itemId) ?? [];
+    const itemIds = (combo.items as any[])?.map((i) => i.itemId) ?? [];
     const itemsMap = await this.fetchItemsMap(itemIds);
 
     return this.mapToComboRes(combo, itemsMap);
@@ -248,22 +223,26 @@ export class ComboService
   ): Promise<ComboMutationRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
 
-    const combo = await this.comboModel.findOne({ comboId, branchId }).exec();
+    const combo = await this.prisma.combo.findFirst({
+      where: { id: comboId, branchId },
+    });
     if (!combo) {
       throw new NotFoundException(
         'Không tìm thấy gói combo trong chi nhánh này',
       );
     }
 
-    combo.status = req.status;
-    const updated = await combo.save();
+    const saved = await this.prisma.combo.update({
+      where: { id: comboId },
+      data: { status: req.status as ComboStatus },
+    });
 
-    const itemIds = updated.items?.map((i) => i.itemId) ?? [];
+    const itemIds = (saved.items as any[])?.map((i) => i.itemId) ?? [];
     const itemsMap = await this.fetchItemsMap(itemIds);
 
     return {
-      message: 'Thay đổi trạng thái combo thành công',
-      combo: this.mapToComboRes(updated.toObject(), itemsMap),
+      message: 'Cập nhật trạng thái combo thành công',
+      combo: this.mapToComboRes(saved, itemsMap),
     };
   }
 
@@ -273,14 +252,16 @@ export class ComboService
   ): Promise<DeleteMutationRes> {
     const branchId = await this.resolveManagerBranchId(managerUserId);
 
-    const result = await this.comboModel
-      .deleteOne({ comboId, branchId })
-      .exec();
-    if (result.deletedCount === 0) {
+    const combo = await this.prisma.combo.findFirst({
+      where: { id: comboId, branchId },
+    });
+    if (!combo) {
       throw new NotFoundException(
-        'Không tìm thấy gói combo cần xóa trong chi nhánh này',
+        'Không tìm thấy gói combo trong chi nhánh này',
       );
     }
+
+    await this.prisma.combo.delete({ where: { id: comboId } });
 
     return {
       message: 'Xóa gói combo thành công',
@@ -289,14 +270,21 @@ export class ComboService
   }
 
   private async resolveManagerBranchId(managerUserId: string): Promise<string> {
-    const manager = await this.userModel
-      .findOne({ userId: managerUserId, role: Role.BRANCHMANAGER })
-      .select('branchId isActive')
-      .lean()
-      .exec();
+    const manager = await this.prisma.user.findUnique({
+      where: { id: managerUserId },
+      select: { role: true, isActive: true, branchId: true },
+    });
 
     if (!manager) {
-      throw new ForbiddenException('Bạn không có quyền quản lý chi nhánh');
+      throw new ForbiddenException('Không tìm thấy thông tin quản lý');
+    }
+
+    const isManager =
+      manager.role === Role.MANAGER || (manager.role as any) === 'BRANCHMANAGER';
+    if (!manager.isActive || !isManager) {
+      throw new ForbiddenException(
+        'Bạn không có quyền thực hiện chức năng quản lý bắp nước',
+      );
     }
 
     if (!manager.branchId) {
@@ -305,14 +293,13 @@ export class ComboService
       );
     }
 
-    const branch = await this.branchModel
-      .findOne({
-        branchId: manager.branchId,
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: manager.branchId,
         branchStatus: BranchStatus.ACTIVE,
-      })
-      .select('branchId')
-      .lean()
-      .exec();
+      },
+      select: { id: true },
+    });
 
     if (!branch) {
       throw new ForbiddenException(
@@ -320,7 +307,7 @@ export class ComboService
       );
     }
 
-    return branch.branchId;
+    return branch.id;
   }
 
   private validateUniqueItemIds(itemIds: string[]): void {
@@ -338,108 +325,99 @@ export class ComboService
   private async fetchAndValidateBranchItems(
     branchId: string,
     itemIds: string[],
-  ): Promise<Map<string, ItemDocument>> {
-    const items = await this.itemModel
-      .find({ itemId: { $in: itemIds }, branchId })
-      .exec();
+  ): Promise<Map<string, any>> {
+    const items = await this.prisma.item.findMany({
+      where: {
+        id: { in: itemIds },
+        branchId,
+      },
+    });
 
-    if (items.length !== itemIds.length) {
-      throw new BadRequestException(
-        'Một hoặc nhiều món con không tồn tại hoặc không thuộc chi nhánh này',
-      );
+    const itemsMap = new Map(items.map((i) => [i.id, i]));
+
+    for (const id of itemIds) {
+      const item = itemsMap.get(id);
+      if (!item) {
+        throw new BadRequestException(
+          `Món với mã "${id}" không tồn tại hoặc không thuộc chi nhánh hiện tại`,
+        );
+      }
+      if (item.status === ItemStatus.INACTIVE) {
+        throw new BadRequestException(
+          `Món "${item.name}" đang ở trạng thái ngừng bán, không thể đưa vào combo`,
+        );
+      }
     }
 
-    const map = new Map<string, ItemDocument>();
-    for (const item of items) {
-      map.set(item.itemId, item);
-    }
-    return map;
+    return itemsMap;
   }
 
-  private async fetchItemsMap(itemIds: string[]): Promise<Map<string, Item>> {
-    if (!itemIds || itemIds.length === 0) {
-      return new Map();
-    }
-    const items = await this.itemModel
-      .find({ itemId: { $in: itemIds } })
-      .lean()
-      .exec();
-
-    const map = new Map<string, Item>();
-    for (const item of items) {
-      map.set(item.itemId, item);
-    }
-    return map;
+  private async fetchItemsMap(itemIds: string[]): Promise<Map<string, any>> {
+    if (itemIds.length === 0) return new Map();
+    const items = await this.prisma.item.findMany({
+      where: { id: { in: itemIds } },
+    });
+    return new Map(items.map((i) => [i.id, i]));
   }
 
-  private mapToComboRes(
-    combo: Combo,
-    itemsMap: Map<string, Item | ItemDocument>,
-  ): ComboRes {
-    const itemDetails: ComboItemDetailRes[] = [];
+  private mapToComboRes(combo: any, itemsMap: Map<string, any>): ComboRes {
+    const rawItems: Array<{ itemId: string; quantity: number }> =
+      combo.items ?? [];
     let originalTotalPrice = 0;
-    const stockLimits: number[] = [];
-    let allItemsAvailable = true;
+    let minStock = Number.MAX_SAFE_INTEGER;
 
-    for (const ref of combo.items || []) {
-      const item = itemsMap.get(ref.itemId);
+    const resolvedItems = rawItems.map((sub) => {
+      const item = itemsMap.get(sub.itemId);
+      const unitPrice = item?.price ?? 0;
+      const currentStock = item?.stockQuantity ?? 0;
       const isItemAvailable =
-        Boolean(item) &&
-        item!.status === ItemStatus.AVAILABLE &&
-        item!.stockQuantity >= ref.quantity;
+        item?.status === ItemStatus.AVAILABLE && currentStock >= sub.quantity;
+      originalTotalPrice += unitPrice * sub.quantity;
 
-      if (!isItemAvailable) {
-        allItemsAvailable = false;
+      const possible =
+        sub.quantity > 0 ? Math.floor(currentStock / sub.quantity) : 0;
+      if (possible < minStock) {
+        minStock = possible;
       }
 
-      const currentStock = item ? item.stockQuantity : 0;
-      const unitPrice = item ? item.price : 0;
-
-      originalTotalPrice += unitPrice * ref.quantity;
-
-      if (item && item.status === ItemStatus.AVAILABLE) {
-        stockLimits.push(Math.floor(currentStock / ref.quantity));
-      } else {
-        stockLimits.push(0);
-      }
-
-      itemDetails.push({
-        itemId: ref.itemId,
-        name: item ? item.name : 'Món không tồn tại',
-        category: item ? item.category : ItemCategory.OTHER,
-        size: item?.size ?? null,
-        quantity: ref.quantity,
+      return {
+        itemId: sub.itemId,
+        name: item?.name ?? 'Món đã bị xoá',
+        category: (item?.category as any) ?? 'OTHER',
+        size: (item?.size as any) ?? null,
+        quantity: sub.quantity,
         unitPrice,
         currentStock,
         isItemAvailable,
-      });
+      };
+    });
+
+    if (rawItems.length === 0 || minStock === Number.MAX_SAFE_INTEGER) {
+      minStock = 0;
     }
 
-    const availableStock =
-      stockLimits.length > 0 ? Math.min(...stockLimits) : 0;
-
-    const isAvailable =
-      combo.status === ComboStatus.AVAILABLE &&
-      availableStock > 0 &&
-      allItemsAvailable;
-
     const savingsAmount = Math.max(0, originalTotalPrice - combo.price);
+    const isAvailable = combo.status === ComboStatus.AVAILABLE && minStock > 0;
 
     return {
-      comboId: combo.comboId,
+      comboId: combo.id,
       branchId: combo.branchId,
       name: combo.name,
       price: combo.price,
       originalTotalPrice,
       savingsAmount,
-      status: combo.status,
-      availableStock,
+      status: combo.status as any,
+      availableStock: minStock,
       isAvailable,
-      imageKey: combo.imageKey ?? null,
       description: combo.description ?? null,
-      items: itemDetails,
-      createdAt: combo.createdAt ? combo.createdAt.toISOString() : undefined,
-      updatedAt: combo.updatedAt ? combo.updatedAt.toISOString() : undefined,
+      imageKey: combo.imageKey ?? null,
+      items: resolvedItems as any,
+      createdAt: combo.createdAt
+        ? new Date(combo.createdAt).toISOString()
+        : undefined,
+      updatedAt: combo.updatedAt
+        ? new Date(combo.updatedAt).toISOString()
+        : undefined,
     };
   }
 }

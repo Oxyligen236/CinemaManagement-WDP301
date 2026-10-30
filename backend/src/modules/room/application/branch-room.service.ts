@@ -7,35 +7,16 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { User, UserDocument } from '../../user/domain/schemas/user.schema';
-import { Role } from '../../user/domain/enums/role.enum';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 import {
-  Branch,
-  BranchDocument,
-} from '../../branch/domain/schemas/branch.schema';
-import { BranchStatus } from '../../branch/domain/enums/branch-status.enum';
-import { Movie, MovieDocument } from '../../movie/domain/schemas/movie.schema';
-import {
-  Showtime,
-  ShowtimeDocument,
-} from '../../showtime/domain/schemas/showtime.schema';
-import {
-  SeatShowtime,
-  SeatShowtimeDocument,
-} from '../../showtime/domain/schemas/seat-showtime.schema';
-import { SeatShowtimeStatus } from '../../showtime/domain/enums/seat-showtime-status.enum';
-import { Room, RoomDocument } from '../domain/schemas/room.schema';
-import { RoomStatus } from '../domain/enums/room-status.enum';
-import { Seat, SeatDocument } from '../domain/schemas/seat.schema';
-import { SeatStatus } from '../domain/enums/seat-status.enum';
-import { SeatType } from '../domain/enums/seat-type.enum';
-import {
-  LOCKED_UPCOMING_SEAT_STATUSES,
-  ROOM_MESSAGES,
-  isSeatBrokenStatus,
-} from '../domain/room.rules';
+  Role,
+  BranchStatus,
+  SeatShowtimeStatus,
+  RoomStatus,
+  SeatStatus,
+  SeatType,
+} from '@prisma/client';
+import { ROOM_MESSAGES } from '../domain/room.rules';
 import {
   BranchRoomQueryDto,
   CreateBranchRoomDto,
@@ -55,22 +36,7 @@ import {
 
 @Injectable()
 export class BranchRoomService {
-  constructor(
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @InjectModel(Branch.name)
-    private readonly branchModel: Model<BranchDocument>,
-    @InjectModel(Room.name)
-    private readonly roomModel: Model<RoomDocument>,
-    @InjectModel(Seat.name)
-    private readonly seatModel: Model<SeatDocument>,
-    @InjectModel(Showtime.name)
-    private readonly showtimeModel: Model<ShowtimeDocument>,
-    @InjectModel(SeatShowtime.name)
-    private readonly seatShowtimeModel: Model<SeatShowtimeDocument>,
-    @InjectModel(Movie.name)
-    private readonly movieModel: Model<MovieDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Main flow bước 1: Danh sách các phòng chiếu thuộc chi nhánh của Branch Manager
@@ -82,22 +48,20 @@ export class BranchRoomService {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
 
-      const filter: Record<string, unknown> = {
+      const where: any = {
         branchId: branch.branchId,
       };
       if (query.roomStatus) {
-        filter.roomStatus = query.roomStatus;
+        where.roomStatus = query.roomStatus;
       }
       if (query.search) {
-        const escaped = query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        filter.roomName = new RegExp(escaped, 'i');
+        where.roomName = { contains: query.search.trim(), mode: 'insensitive' };
       }
 
-      const rooms = await this.roomModel
-        .find(filter)
-        .sort({ roomName: 1 })
-        .lean<Room[]>()
-        .exec();
+      const rooms = await this.prisma.room.findMany({
+        where,
+        orderBy: { roomName: 'asc' },
+      });
 
       const summaries = await this.buildRoomSummaries(rooms);
 
@@ -110,7 +74,7 @@ export class BranchRoomService {
   }
 
   /**
-   * Main flow bước 2: Xem thông tin phòng chiếu kèm toàn bộ sơ đồ ghế và suất chiếu sắp tới
+   * Main flow bước 2: Xem chi tiết 1 phòng chiếu (danh sách ghế, sơ đồ ghế, suất chiếu sắp tới)
    */
   async getRoomDetail(
     managerUserId: string | undefined,
@@ -118,28 +82,20 @@ export class BranchRoomService {
   ): Promise<BranchRoomDetailResponseDto> {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
-      const room = await this.roomModel
-        .findOne({ roomId, branchId: branch.branchId })
-        .lean<Room>()
-        .exec();
+
+      const room = await this.prisma.room.findFirst({
+        where: { id: roomId, branchId: branch.branchId },
+      });
 
       if (!room) {
         throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
       }
 
-      // Nếu phòng chiếu chưa có bản ghi ghế nào, tự động khởi tạo lưới 6x10 mặc định
-      const existingSeatCount = await this.seatModel
-        .countDocuments({ roomId: room.roomId })
-        .exec();
-      if (existingSeatCount === 0) {
-        await this.generateDefaultSeatsForRoom(room.roomId, 6, 10);
-      }
-
       const [summaries, seatsWithLockInfo, upcomingShowtimes] =
         await Promise.all([
           this.buildRoomSummaries([room]),
-          this.getRoomSeatsWithUpcomingBookingFlag(room.roomId),
-          this.getUpcomingShowtimesForRoom(room.roomId),
+          this.getRoomSeatsWithUpcomingBookingFlag(room.id),
+          this.getUpcomingShowtimesForRoom(room.id),
         ]);
 
       return {
@@ -152,7 +108,7 @@ export class BranchRoomService {
   }
 
   /**
-   * Tạo phòng chiếu mới trong chi nhánh và tự động sinh sơ đồ ghế
+   * Main flow bước 3-5: Tạo phòng chiếu mới và sinh lưới ghế mặc định (MSG04)
    */
   async createRoom(
     managerUserId: string | undefined,
@@ -160,35 +116,31 @@ export class BranchRoomService {
   ): Promise<BranchRoomMutationResponseDto> {
     return this.guard(async () => {
       const branch = await this.resolveManagerBranch(managerUserId);
-      if (branch.branchStatus !== BranchStatus.ACTIVE) {
-        throw new BadRequestException(ROOM_MESSAGES.BRANCH_NOT_ACTIVE);
-      }
 
-      const duplicate = await this.roomModel
-        .exists({
+      const duplicate = await this.prisma.room.findFirst({
+        where: {
           branchId: branch.branchId,
-          roomName: new RegExp(
-            `^${input.roomName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-            'i',
-          ),
-        })
-        .exec();
+          roomName: { equals: input.roomName.trim(), mode: 'insensitive' },
+        },
+      });
 
       if (duplicate) {
         throw new ConflictException(ROOM_MESSAGES.ROOM_NAME_EXISTS);
       }
 
-      const created = await this.roomModel.create({
-        roomName: input.roomName,
-        roomStatus: RoomStatus.AVAILABLE,
-        branchId: branch.branchId,
+      const created = await this.prisma.room.create({
+        data: {
+          roomName: input.roomName.trim(),
+          roomStatus: RoomStatus.AVAILABLE,
+          branchId: branch.branchId,
+        },
       });
 
       const rows = input.rowCount ?? 6;
       const cols = input.columnsPerRow ?? 10;
-      await this.generateDefaultSeatsForRoom(created.roomId, rows, cols);
+      await this.generateDefaultSeatsForRoom(created.id, rows, cols);
 
-      const [summary] = await this.buildRoomSummaries([created.toObject()]);
+      const [summary] = await this.buildRoomSummaries([created]);
 
       return {
         message: ROOM_MESSAGES.MSG04_ROOM_CREATED,
@@ -207,73 +159,65 @@ export class BranchRoomService {
     input: UpdateBranchRoomDto,
   ): Promise<BranchRoomMutationResponseDto> {
     return this.guard(async () => {
-      if (Object.keys(input).length === 0) {
+      if (input.roomName === undefined && input.roomStatus === undefined) {
         throw new BadRequestException(ROOM_MESSAGES.MSG01_INVALID_INPUT);
       }
 
       const branch = await this.resolveManagerBranch(managerUserId);
-      const room = await this.roomModel
-        .findOne({ roomId, branchId: branch.branchId })
-        .lean<Room>()
-        .exec();
+      const room = await this.prisma.room.findFirst({
+        where: { id: roomId, branchId: branch.branchId },
+      });
 
       if (!room) {
         throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
       }
 
-      // BR-BRM-06 / AF-1: Nếu chuyển trạng thái phòng sang MAINTENANCE (hoặc CLOSED),
-      // phải kiểm tra xem phòng có suất chiếu sắp tới hoặc đang diễn ra không.
       if (
-        input.roomStatus &&
-        input.roomStatus !== RoomStatus.AVAILABLE &&
-        room.roomStatus === RoomStatus.AVAILABLE
+        input.roomName &&
+        input.roomName.toLowerCase() !== room.roomName.toLowerCase()
       ) {
-        const upcomingShowtimes = await this.getUpcomingShowtimesForRoom(
-          room.roomId,
-        );
-        if (upcomingShowtimes.length > 0) {
-          throw new ConflictException({
-            statusCode: 409,
-            error: 'Conflict',
-            message: ROOM_MESSAGES.MSG05_ROOM_HAS_UPCOMING_SHOWTIMES,
-            upcomingShowtimes,
-          });
-        }
-      }
-
-      if (input.roomName && input.roomName !== room.roomName) {
-        const duplicate = await this.roomModel
-          .exists({
+        const duplicate = await this.prisma.room.findFirst({
+          where: {
             branchId: branch.branchId,
-            roomId: { $ne: roomId },
-            roomName: new RegExp(
-              `^${input.roomName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
-              'i',
-            ),
-          })
-          .exec();
+            id: { not: roomId },
+            roomName: { equals: input.roomName.trim(), mode: 'insensitive' },
+          },
+        });
+
         if (duplicate) {
           throw new ConflictException(ROOM_MESSAGES.ROOM_NAME_EXISTS);
         }
       }
 
-      const setFields: Record<string, unknown> = {};
-      if (input.roomName !== undefined) setFields.roomName = input.roomName;
-      if (input.roomStatus !== undefined)
-        setFields.roomStatus = input.roomStatus;
+      if (
+        input.roomStatus === (RoomStatus.MAINTENANCE as any) &&
+        room.roomStatus !== RoomStatus.MAINTENANCE
+      ) {
+        const upcomingShowtimesCount = await this.prisma.showtime.count({
+          where: {
+            roomId,
+            endTime: { gt: new Date() },
+          },
+        });
 
-      const updated = await this.roomModel
-        .findOneAndUpdate(
-          { roomId, branchId: branch.branchId },
-          { $set: setFields },
-          { new: true, runValidators: true },
-        )
-        .lean<Room>()
-        .exec();
-
-      if (!updated) {
-        throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
+        if (upcomingShowtimesCount > 0) {
+          throw new ConflictException({
+            statusCode: 409,
+            error: 'Conflict',
+            message: ROOM_MESSAGES.MSG05_ROOM_HAS_UPCOMING_SHOWTIMES,
+            details: { upcomingShowtimesCount },
+          });
+        }
       }
+
+      const data: any = {};
+      if (input.roomName !== undefined) data.roomName = input.roomName.trim();
+      if (input.roomStatus !== undefined) data.roomStatus = input.roomStatus;
+
+      const updated = await this.prisma.room.update({
+        where: { id: roomId },
+        data,
+      });
 
       const [summary] = await this.buildRoomSummaries([updated]);
 
@@ -286,9 +230,6 @@ export class BranchRoomService {
 
   /**
    * Main flow bước 3-5: Cập nhật trạng thái ghế (AVAILABLE <-> MAINTENANCE/BLOCKED) hoặc loại ghế.
-   * BR-BRM-07 / AF-2: Không cho phép đánh dấu ghế là Hỏng (MAINTENANCE/BLOCKED) nếu ghế đã được bán
-   * trong một suất chiếu sắp tới.
-   * AF-3: Khi chuyển ghế từ Hỏng về Khả dụng (AVAILABLE), cập nhật lại trạng thái ghế.
    */
   async updateSeats(
     managerUserId: string | undefined,
@@ -301,227 +242,190 @@ export class BranchRoomService {
       }
 
       const branch = await this.resolveManagerBranch(managerUserId);
-      const room = await this.roomModel
-        .findOne({ roomId, branchId: branch.branchId })
-        .lean<Room>()
-        .exec();
+      const room = await this.prisma.room.findFirst({
+        where: { id: roomId, branchId: branch.branchId },
+      });
 
       if (!room) {
         throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
       }
 
-      const targetSeats = await this.seatModel
-        .find({
-          roomId: room.roomId,
-          seatId: { $in: input.seatIds },
-        })
-        .lean<Seat[]>()
-        .exec();
+      const targetSeats = await this.prisma.seat.findMany({
+        where: { id: { in: input.seatIds }, roomId },
+      });
 
       if (targetSeats.length === 0) {
-        throw new BadRequestException(ROOM_MESSAGES.SEAT_NOT_FOUND);
+        throw new NotFoundException(ROOM_MESSAGES.SEAT_NOT_FOUND);
       }
 
-      const validSeatIds = targetSeats.map((s) => s.seatId);
+      const validSeatIds = targetSeats.map((s: any) => s.id);
+      const validSeatIdSet = new Set(validSeatIds);
 
-      // BR-BRM-07 / AF-2: Nếu chuyển sang trạng thái Hỏng (MAINTENANCE hoặc BLOCKED),
-      // kiểm tra xem có ghế nào đã bán vé trong suất chiếu sắp tới không
-      if (input.status && isSeatBrokenStatus(input.status)) {
-        const upcomingShowtimes = await this.showtimeModel
-          .find({
-            roomId: room.roomId,
-            endTime: { $gt: new Date() },
-          })
-          .select('showtimeId')
-          .lean<{ showtimeId: string }[]>()
-          .exec();
+      const isMarkingBroken =
+        input.status === (SeatStatus.MAINTENANCE as any) ||
+        input.status === (SeatStatus.BLOCKED as any);
 
-        const upcomingShowtimeIds = upcomingShowtimes.map((s) => s.showtimeId);
+      if (isMarkingBroken) {
+        const upcomingShowtimes = await this.prisma.showtime.findMany({
+          where: {
+            roomId,
+            endTime: { gt: new Date() },
+          },
+          select: { id: true },
+        });
+
+        const upcomingShowtimeIds = upcomingShowtimes.map((s: any) => s.id);
 
         if (upcomingShowtimeIds.length > 0) {
-          const soldSeatShowtimes = await this.seatShowtimeModel
-            .find({
-              showtimeId: { $in: upcomingShowtimeIds },
-              seatId: { $in: validSeatIds },
-              seatStatus: { $in: LOCKED_UPCOMING_SEAT_STATUSES },
-            })
-            .select('seatId showtimeId')
-            .lean<{ seatId: string; showtimeId: string }[]>()
-            .exec();
+          const bookedSeatEntries = await this.prisma.seatShowtime.findMany({
+            where: {
+              showtimeId: { in: upcomingShowtimeIds },
+              seatId: { in: validSeatIds },
+              seatStatus: {
+                in: [SeatShowtimeStatus.BOOKED, SeatShowtimeStatus.RESERVED],
+              },
+            },
+            select: { seatId: true },
+          });
 
-          if (soldSeatShowtimes.length > 0) {
-            const lockedSeatIdSet = new Set(
-              soldSeatShowtimes.map((s) => s.seatId),
+          if (bookedSeatEntries.length > 0) {
+            const bookedSeatIds = Array.from(
+              new Set(bookedSeatEntries.map((e: any) => e.seatId)),
             );
-            const lockedLabels = targetSeats
-              .filter((s) => lockedSeatIdSet.has(s.seatId))
-              .map((s) => `${s.rowPosition}${s.columnPosition}`);
+            const bookedSeatLabels = targetSeats
+              .filter((s: any) => bookedSeatIds.includes(s.id))
+              .map((s: any) => `${s.rowPosition}${s.columnPosition}`);
 
             throw new ConflictException({
               statusCode: 409,
               error: 'Conflict',
-              message: `${ROOM_MESSAGES.MSG06_SEAT_SOLD_IN_UPCOMING_SHOWTIME} (Ghế: ${lockedLabels.join(', ')})`,
-              lockedSeats: lockedLabels,
+              message: ROOM_MESSAGES.MSG06_SEAT_SOLD_IN_UPCOMING_SHOWTIME,
+              details: {
+                bookedSeats: bookedSeatLabels,
+                bookedSeatIds,
+              },
             });
           }
-
-          // Nếu ghế chưa ai mua, gỡ bản ghi EMPTY khỏi các suất chiếu tương lai để khách không đặt nhầm ghế hỏng
-          await this.seatShowtimeModel
-            .deleteMany({
-              showtimeId: { $in: upcomingShowtimeIds },
-              seatId: { $in: validSeatIds },
-              seatStatus: SeatShowtimeStatus.EMPTY,
-            })
-            .exec();
         }
       }
 
-      const setFields: Record<string, unknown> = {};
-      if (input.status !== undefined) setFields.status = input.status;
-      if (input.seatType !== undefined) setFields.seatType = input.seatType;
+      const updateData: any = {};
+      if (input.status !== undefined) updateData.status = input.status;
+      if (input.seatType !== undefined) updateData.seatType = input.seatType;
 
-      const updateResult = await this.seatModel
-        .updateMany(
-          { roomId: room.roomId, seatId: { $in: validSeatIds } },
-          { $set: setFields },
-        )
-        .exec();
+      await this.prisma.seat.updateMany({
+        where: { id: { in: validSeatIds } },
+        data: updateData,
+      });
 
-      // AF-3: Nếu khôi phục ghế về AVAILABLE, đảm bảo các suất chiếu tương lai có lại bản ghi SeatShowtime (EMPTY)
-      if (input.status === SeatStatus.AVAILABLE) {
-        const upcomingShowtimes = await this.showtimeModel
-          .find({
-            roomId: room.roomId,
-            endTime: { $gt: new Date() },
-          })
-          .select('showtimeId')
-          .lean<{ showtimeId: string }[]>()
-          .exec();
+      const isMarkingAvailable = input.status === (SeatStatus.AVAILABLE as any);
+      if (isMarkingAvailable) {
+        const upcomingShowtimes = await this.prisma.showtime.findMany({
+          where: {
+            roomId,
+            endTime: { gt: new Date() },
+          },
+          select: { id: true },
+        });
 
         for (const st of upcomingShowtimes) {
-          const existingEntries = await this.seatShowtimeModel
-            .find({
-              showtimeId: st.showtimeId,
-              seatId: { $in: validSeatIds },
-            })
-            .select('seatId')
-            .lean<{ seatId: string }[]>()
-            .exec();
+          const existingEntries = await this.prisma.seatShowtime.findMany({
+            where: {
+              showtimeId: st.id,
+              seatId: { in: validSeatIds },
+            },
+            select: { seatId: true },
+          });
 
-          const existingSet = new Set(existingEntries.map((e) => e.seatId));
+          const existingSet = new Set(existingEntries.map((e: any) => e.seatId));
           const missingSeatIds = validSeatIds.filter(
-            (id) => !existingSet.has(id),
+            (id: any) => !existingSet.has(id),
           );
 
           if (missingSeatIds.length > 0) {
-            await this.seatShowtimeModel.insertMany(
-              missingSeatIds.map((seatId) => ({
-                showtimeId: st.showtimeId,
+            await this.prisma.seatShowtime.createMany({
+              data: missingSeatIds.map((seatId: any) => ({
+                showtimeId: st.id,
                 seatId,
                 seatStatus: SeatShowtimeStatus.EMPTY,
               })),
-              { ordered: false },
-            );
+            });
           }
         }
       }
 
       const [summaries, seatsWithLockInfo] = await Promise.all([
         this.buildRoomSummaries([room]),
-        this.getRoomSeatsWithUpcomingBookingFlag(room.roomId),
+        this.getRoomSeatsWithUpcomingBookingFlag(room.id),
       ]);
+
+      const updatedSeatDtos = seatsWithLockInfo.filter((s: any) =>
+        validSeatIdSet.has(s.seatId),
+      );
 
       return {
         message: ROOM_MESSAGES.MSG04_SEATS_UPDATED,
-        updatedCount: updateResult.modifiedCount,
+        updatedCount: updatedSeatDtos.length,
         room: summaries[0],
-        seats: seatsWithLockInfo,
+        seats: updatedSeatDtos,
       };
     });
   }
 
   // ---------------------------------------------------------------------------
   // Private Helpers
-  // ---------------------------------------------------------------------------
 
-  private async buildRoomSummaries(
-    rooms: Room[],
-  ): Promise<BranchRoomSummaryDto[]> {
+  private async buildRoomSummaries(rooms: any[]): Promise<BranchRoomSummaryDto[]> {
     if (rooms.length === 0) return [];
-    const roomIds = rooms.map((r) => r.roomId);
+
+    const roomIds = rooms.map((r) => r.id);
     const now = new Date();
 
-    const [seatStats, showtimeCounts] = await Promise.all([
-      this.seatModel.aggregate<{
-        _id: string;
-        totalSeats: number;
-        availableSeats: number;
-        brokenSeats: number;
-        standardSeats: number;
-        vipSeats: number;
-        coupleSeats: number;
-      }>([
-        { $match: { roomId: { $in: roomIds } } },
-        {
-          $group: {
-            _id: '$roomId',
-            totalSeats: { $sum: 1 },
-            availableSeats: {
-              $sum: {
-                $cond: [{ $eq: ['$status', SeatStatus.AVAILABLE] }, 1, 0],
-              },
-            },
-            brokenSeats: {
-              $sum: {
-                $cond: [{ $ne: ['$status', SeatStatus.AVAILABLE] }, 1, 0],
-              },
-            },
-            standardSeats: {
-              $sum: {
-                $cond: [{ $eq: ['$seatType', SeatType.STANDARD] }, 1, 0],
-              },
-            },
-            vipSeats: {
-              $sum: {
-                $cond: [{ $eq: ['$seatType', SeatType.VIP] }, 1, 0],
-              },
-            },
-            coupleSeats: {
-              $sum: {
-                $cond: [{ $eq: ['$seatType', SeatType.COUPLE] }, 1, 0],
-              },
-            },
-          },
+    const [seats, showtimes] = await Promise.all([
+      this.prisma.seat.findMany({
+        where: { roomId: { in: roomIds } },
+        select: { roomId: true, seatType: true, status: true },
+      }),
+      this.prisma.showtime.findMany({
+        where: {
+          roomId: { in: roomIds },
+          endTime: { gt: now },
         },
-      ]),
-      this.showtimeModel.aggregate<{
-        _id: string;
-        upcomingCount: number;
-      }>([
-        {
-          $match: {
-            roomId: { $in: roomIds },
-            endTime: { $gt: now },
-          },
-        },
-        {
-          $group: {
-            _id: '$roomId',
-            upcomingCount: { $sum: 1 },
-          },
-        },
-      ]),
+        select: { roomId: true },
+      }),
     ]);
 
-    const seatMap = new Map(seatStats.map((s) => [s._id, s]));
-    const showtimeMap = new Map(
-      showtimeCounts.map((s) => [s._id, s.upcomingCount]),
-    );
+    const seatStatsByRoom = new Map<string, any>();
+    for (const seat of seats) {
+      let stat = seatStatsByRoom.get(seat.roomId);
+      if (!stat) {
+        stat = {
+          totalSeats: 0,
+          availableSeats: 0,
+          brokenSeats: 0,
+          standardSeats: 0,
+          vipSeats: 0,
+          coupleSeats: 0,
+        };
+        seatStatsByRoom.set(seat.roomId, stat);
+      }
+      stat.totalSeats += 1;
+      if (seat.status === SeatStatus.AVAILABLE) stat.availableSeats += 1;
+      else stat.brokenSeats += 1;
+      if (seat.seatType === SeatType.STANDARD) stat.standardSeats += 1;
+      else if (seat.seatType === SeatType.VIP) stat.vipSeats += 1;
+      else if (seat.seatType === SeatType.COUPLE) stat.coupleSeats += 1;
+    }
+
+    const showtimeCountByRoom = new Map<string, number>();
+    for (const st of showtimes) {
+      showtimeCountByRoom.set(st.roomId, (showtimeCountByRoom.get(st.roomId) ?? 0) + 1);
+    }
 
     return rooms.map((room) => {
-      const stat = seatMap.get(room.roomId);
+      const stat = seatStatsByRoom.get(room.id);
       return {
-        roomId: room.roomId,
+        roomId: room.id,
         roomName: room.roomName,
         roomStatus: room.roomStatus,
         branchId: room.branchId,
@@ -531,7 +435,7 @@ export class BranchRoomService {
         standardSeats: stat?.standardSeats ?? 0,
         vipSeats: stat?.vipSeats ?? 0,
         coupleSeats: stat?.coupleSeats ?? 0,
-        upcomingShowtimesCount: showtimeMap.get(room.roomId) ?? 0,
+        upcomingShowtimesCount: showtimeCountByRoom.get(room.id) ?? 0,
       };
     });
   }
@@ -540,74 +444,67 @@ export class BranchRoomService {
     roomId: string,
   ): Promise<RoomSeatItemDto[]> {
     const [seats, upcomingShowtimes] = await Promise.all([
-      this.seatModel
-        .find({ roomId })
-        .sort({ rowPosition: 1, columnPosition: 1 })
-        .lean<Seat[]>()
-        .exec(),
-      this.showtimeModel
-        .find({ roomId, endTime: { $gt: new Date() } })
-        .select('showtimeId')
-        .lean<{ showtimeId: string }[]>()
-        .exec(),
+      this.prisma.seat.findMany({
+        where: { roomId },
+        orderBy: [{ rowPosition: 'asc' }, { columnPosition: 'asc' }],
+      }),
+      this.prisma.showtime.findMany({
+        where: { roomId, endTime: { gt: new Date() } },
+        select: { id: true },
+      }),
     ]);
 
-    const bookedSeatIds = new Set<string>();
-    if (upcomingShowtimes.length > 0) {
-      const lockedEntries = await this.seatShowtimeModel
-        .find({
-          showtimeId: { $in: upcomingShowtimes.map((s) => s.showtimeId) },
-          seatStatus: { $in: LOCKED_UPCOMING_SEAT_STATUSES },
-        })
-        .select('seatId')
-        .lean<{ seatId: string }[]>()
-        .exec();
+    const upcomingShowtimeIds = upcomingShowtimes.map((s: any) => s.id);
+    let bookedSeatIds = new Set<string>();
 
-      for (const entry of lockedEntries) {
-        bookedSeatIds.add(entry.seatId);
-      }
+    if (upcomingShowtimeIds.length > 0) {
+      const bookedEntries = await this.prisma.seatShowtime.findMany({
+        where: {
+          showtimeId: { in: upcomingShowtimeIds },
+          seatStatus: {
+            in: [SeatShowtimeStatus.BOOKED, SeatShowtimeStatus.RESERVED],
+          },
+        },
+        select: { seatId: true },
+      });
+      bookedSeatIds = new Set(bookedEntries.map((e: any) => e.seatId));
     }
 
-    return seats.map((seat) => ({
-      seatId: seat.seatId,
+    return seats.map((seat: any) => ({
+      seatId: seat.id,
       roomId: seat.roomId,
       rowPosition: seat.rowPosition,
       columnPosition: seat.columnPosition,
       seatLabel: `${seat.rowPosition}${seat.columnPosition}`,
-      seatType: seat.seatType,
-      status: seat.status,
-      isBroken: isSeatBrokenStatus(seat.status),
-      hasUpcomingBookedTicket: bookedSeatIds.has(seat.seatId),
+      seatType: seat.seatType as any,
+      status: seat.status as any,
+      isBroken:
+        seat.status === SeatStatus.MAINTENANCE ||
+        seat.status === SeatStatus.BLOCKED,
+      hasUpcomingBookedTicket: bookedSeatIds.has(seat.id),
     }));
   }
 
   private async getUpcomingShowtimesForRoom(
     roomId: string,
   ): Promise<RoomUpcomingShowtimeDto[]> {
-    const showtimes = await this.showtimeModel
-      .find({
+    const showtimes = await this.prisma.showtime.findMany({
+      where: {
         roomId,
-        endTime: { $gt: new Date() },
-      })
-      .sort({ startTime: 1 })
-      .lean<Showtime[]>()
-      .exec();
+        endTime: { gt: new Date() },
+      },
+      include: {
+        movie: {
+          select: { id: true, movieName: true },
+        },
+      },
+      orderBy: { startTime: 'asc' },
+    });
 
-    if (showtimes.length === 0) return [];
-
-    const movieIds = Array.from(new Set(showtimes.map((s) => s.movieId)));
-    const movies = await this.movieModel
-      .find({ movieId: { $in: movieIds } })
-      .select('movieId movieName')
-      .lean<{ movieId: string; movieName: string }[]>()
-      .exec();
-
-    const movieNameMap = new Map(movies.map((m) => [m.movieId, m.movieName]));
-
-    return showtimes.map((st) => ({
-      showtimeId: st.showtimeId,
+    return showtimes.map((st: any) => ({
+      showtimeId: st.id,
       movieId: st.movieId,
-      movieName: movieNameMap.get(st.movieId) ?? 'Phim đang xếp lịch',
+      movieName: st.movie?.movieName ?? 'Phim đang xếp lịch',
       startTime: st.startTime,
       endTime: st.endTime,
     }));
@@ -648,7 +545,9 @@ export class BranchRoomService {
     }
 
     if (seatDocs.length > 0) {
-      await this.seatModel.insertMany(seatDocs, { ordered: false });
+      await this.prisma.seat.createMany({
+        data: seatDocs,
+      });
     }
   }
 
@@ -656,13 +555,13 @@ export class BranchRoomService {
     managerUserId?: string,
   ): Promise<RoomManagerBranchDto> {
     if (managerUserId) {
-      const manager = await this.userModel
-        .findOne({ userId: managerUserId })
-        .select('role isActive branchId')
-        .lean()
-        .exec();
+      const manager = await this.prisma.user.findUnique({
+        where: { id: managerUserId },
+        select: { role: true, isActive: true, branchId: true },
+      });
 
-      const isManagerRole = manager?.role === Role.BRANCHMANAGER;
+      const isManagerRole =
+        manager?.role === Role.MANAGER || (manager?.role as any) === 'BRANCHMANAGER';
       if (manager && (!manager.isActive || !isManagerRole)) {
         throw new ForbiddenException(
           'Bạn không có quyền truy cập chức năng Quản lý Chi nhánh.',
@@ -670,41 +569,51 @@ export class BranchRoomService {
       }
       if (manager && manager.isActive && isManagerRole) {
         if (manager.branchId) {
-          const assignedBranch = await this.branchModel
-            .findOne({ branchId: manager.branchId })
-            .select('branchId branchName address branchStatus')
-            .lean<RoomManagerBranchDto>()
-            .exec();
+          const assignedBranch = await this.prisma.branch.findUnique({
+            where: { id: manager.branchId },
+            select: { id: true, branchName: true, address: true, branchStatus: true },
+          });
 
           if (assignedBranch) {
-            return assignedBranch;
+            return {
+              branchId: assignedBranch.id,
+              branchName: assignedBranch.branchName,
+              address: assignedBranch.address,
+              branchStatus: assignedBranch.branchStatus as any,
+            };
           }
         }
       }
     }
 
-    let defaultBranch = await this.branchModel
-      .findOne({ branchStatus: BranchStatus.ACTIVE })
-      .select('branchId branchName address branchStatus')
-      .lean<RoomManagerBranchDto>()
-      .exec();
+    let defaultBranch = await this.prisma.branch.findFirst({
+      where: { branchStatus: BranchStatus.ACTIVE },
+      select: { id: true, branchName: true, address: true, branchStatus: true },
+    });
 
     if (!defaultBranch) {
-      const created = await this.branchModel.create({
-        branchName: 'Lotte Cinema Nam Sài Gòn',
-        address:
-          'Tầng 3, TTTM Lotte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng, Quận 7, TP.HCM',
-        branchStatus: BranchStatus.ACTIVE,
+      const created = await this.prisma.branch.create({
+        data: {
+          branchName: 'Lotte Cinema Nam Sài Gòn',
+          address:
+            'Tầng 3, TTTM Lotte, số 469 đường Nguyễn Hữu Thọ, Phường Tân Hưng, Quận 7, TP.HCM',
+          branchStatus: BranchStatus.ACTIVE,
+        },
       });
       defaultBranch = {
-        branchId: created.branchId,
+        id: created.id,
         branchName: created.branchName,
         address: created.address,
         branchStatus: created.branchStatus,
       };
     }
 
-    return defaultBranch;
+    return {
+      branchId: defaultBranch.id,
+      branchName: defaultBranch.branchName,
+      address: defaultBranch.address,
+      branchStatus: defaultBranch.branchStatus as any,
+    };
   }
 
   private async guard<T>(operation: () => Promise<T>): Promise<T> {
@@ -712,18 +621,9 @@ export class BranchRoomService {
       return await operation();
     } catch (error: unknown) {
       if (error instanceof HttpException) throw error;
-      const name =
-        typeof error === 'object' && error !== null && 'name' in error
-          ? String((error as { name?: unknown }).name)
-          : '';
-      if (
-        /Mongo(ose)?(Network|ServerSelection|NotConnected|Timeout)/i.test(name)
-      ) {
-        throw new ServiceUnavailableException(
-          ROOM_MESSAGES.SERVICE_UNAVAILABLE,
-        );
-      }
-      throw error;
+      throw new ServiceUnavailableException(
+        ROOM_MESSAGES.SERVICE_UNAVAILABLE,
+      );
     }
   }
 }

@@ -5,8 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model } from 'mongoose';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { Role } from '../../../auth/infra/decorators/role.decorator';
 import { ScanTicketUsecase } from '../usecase/scan-ticket.usecase';
@@ -20,8 +19,7 @@ import {
   INTERNAL_EVENT_BUS,
   InternalEventBus,
 } from '../../../infra/event/application/internal-event-bus.interface';
-import { Ticket, TicketDocument } from '../../domain/schemas/ticket.schema';
-import { TicketStatus } from '../../domain/enums/ticket-status.enum';
+import { TicketStatus } from '@prisma/client';
 import { ScanTicketReq, StaffScanContextReq } from '../dto/req.dto';
 import {
   ScanTicketResultRes,
@@ -38,8 +36,7 @@ export class TicketService
     CreateTicketsForOrderUsecase
 {
   constructor(
-    @InjectModel(Ticket.name)
-    private readonly ticketModel: Model<TicketDocument>,
+    private readonly prisma: PrismaService,
     @Inject(SHOWTIME_CONTRACT)
     private readonly showtimeContract: ShowtimeContract,
     @Inject(INTERNAL_EVENT_BUS)
@@ -54,9 +51,9 @@ export class TicketService
     if (!normalizedCode) {
       throw new BadRequestException('Mã vé không được để trống');
     }
-    const ticket = await this.ticketModel
-      .findOne({ ticketCode: normalizedCode })
-      .exec();
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { ticketCode: normalizedCode },
+    });
 
     if (!ticket) {
       throw new NotFoundException(`Mã vé không tồn tại: ${normalizedCode}`);
@@ -122,15 +119,19 @@ export class TicketService
     }
 
     const scannedAt = new Date();
-    ticket.ticketStatus = TicketStatus.USED;
-    ticket.usedAt = scannedAt;
-    ticket.scannedBy = staffContext.staffId;
-    await ticket.save();
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        ticketStatus: TicketStatus.USED,
+        usedAt: scannedAt,
+        scannedBy: staffContext.staffId,
+      },
+    });
 
     await this.eventBus.publish(
       new TicketScannedEvent(
-        ticket.ticketId,
-        ticket.ticketCode,
+        updated.id,
+        updated.ticketCode,
         staffContext.staffId,
         scannedAt,
       ),
@@ -139,13 +140,13 @@ export class TicketService
     const seatLabel = `${showtimeDetail.rowPosition || ''}${showtimeDetail.columnPosition || ''}`;
 
     return ScanTicketResultRes.of(
-      ticket.ticketId,
-      ticket.ticketCode,
-      ticket.orderId,
-      ticket.price,
-      ticket.ticketStatus,
-      ticket.usedAt,
-      ticket.seatShowtimeId,
+      updated.id,
+      updated.ticketCode,
+      updated.orderId,
+      updated.price,
+      updated.ticketStatus as any,
+      updated.usedAt ?? undefined,
+      updated.seatShowtimeId,
       showtimeDetail.movieTitle,
       showtimeDetail.roomName,
       seatLabel,
@@ -162,9 +163,9 @@ export class TicketService
 
   async getTicketDetail(ticketCode: string): Promise<TicketDetailRes> {
     const normalizedCode = (ticketCode || '').trim();
-    const ticket = await this.ticketModel
-      .findOne({ ticketCode: normalizedCode })
-      .exec();
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { ticketCode: normalizedCode },
+    });
 
     if (!ticket) {
       throw new NotFoundException(
@@ -181,12 +182,12 @@ export class TicketService
       : '';
 
     return TicketDetailRes.of(
-      ticket.ticketId,
+      ticket.id,
       ticket.ticketCode,
       ticket.orderId,
       ticket.price,
-      ticket.ticketStatus,
-      ticket.usedAt,
+      ticket.ticketStatus as any,
+      ticket.usedAt ?? undefined,
       ticket.seatShowtimeId,
       showtimeDetail?.movieTitle ?? '',
       showtimeDetail?.roomName ?? '',
@@ -201,11 +202,10 @@ export class TicketService
 
   async getTicketsByOrderId(
     orderId: string,
-    session?: ClientSession,
+    prismaTx?: any,
   ): Promise<TicketItemSummaryRes[]> {
-    const ticketQuery = this.ticketModel.find({ orderId });
-    if (session) ticketQuery.session(session);
-    const tickets = await ticketQuery.exec();
+    const client = prismaTx ?? this.prisma;
+    const tickets = await client.ticket.findMany({ where: { orderId } });
     if (!tickets || tickets.length === 0) {
       return [];
     }
@@ -220,11 +220,11 @@ export class TicketService
         : '';
 
       results.push({
-        ticketId: ticket.ticketId,
+        ticketId: ticket.id,
         ticketCode: ticket.ticketCode,
         price: ticket.price,
         ticketStatus: ticket.ticketStatus,
-        usedAt: ticket.usedAt,
+        usedAt: ticket.usedAt ?? undefined,
         seatShowtimeId: ticket.seatShowtimeId,
         movieTitle: showtimeDetail?.movieTitle ?? '',
         roomName: showtimeDetail?.roomName ?? '',
@@ -240,33 +240,19 @@ export class TicketService
     return results;
   }
 
-  /**
-   * Sinh bản ghi vé cho từng ghế trong đơn hàng đã thanh toán.
-   *
-   * Quy trình nghiệp vụ:
-   * 1. Kiểm tra đơn hàng đã có vé chưa; nếu có trả về danh sách vé hiện tại (idempotent).
-   * 2. Lấy chi tiết từng ghế suất chiếu qua ShowtimeContract.
-   * 3. Sinh mã ticketCode duy nhất và tạo bản ghi Ticket với trạng thái VALID.
-   * 4. Trả về danh sách chi tiết vé vừa phát hành.
-   *
-   * @param params - Đối tượng chứa orderId và seatShowtimeIds
-   * @param params.orderId - Mã đơn hàng đã thanh toán
-   * @param params.seatShowtimeIds - Danh sách mã ghế suất chiếu cần phát hành vé
-   * @returns Danh sách vé đã phát hành kèm thông tin phòng, phim, suất chiếu
-   * @throws BadRequestException khi danh sách ghế rỗng hoặc không tìm thấy thông tin suất chiếu
-   */
   async createTicketsForOrder(
     params: {
       orderId: string;
       seatShowtimeIds: string[];
     },
-    session?: ClientSession,
+    prismaTx?: any,
   ): Promise<TicketItemSummaryRes[]> {
+    const client = prismaTx ?? this.prisma;
     const { orderId, seatShowtimeIds } = params;
     if (!orderId) {
       throw new BadRequestException('Mã đơn hàng không được để trống');
     }
-    const existing = await this.getTicketsByOrderId(orderId);
+    const existing = await this.getTicketsByOrderId(orderId, client);
     if (existing.length > 0) {
       return existing;
     }
@@ -294,7 +280,6 @@ export class TicketService
       const ticketCode = `TK-${dateStr}-${randomSuffix}`;
 
       ticketsToCreate.push({
-        ticketId: randomUUID(),
         orderId,
         seatShowtimeId,
         ticketCode,
@@ -303,7 +288,7 @@ export class TicketService
       });
     }
 
-    await this.ticketModel.insertMany(ticketsToCreate, { session });
-    return this.getTicketsByOrderId(orderId, session);
+    await client.ticket.createMany({ data: ticketsToCreate });
+    return this.getTicketsByOrderId(orderId, client);
   }
 }

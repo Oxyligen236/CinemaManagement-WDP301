@@ -16,8 +16,13 @@ export const CONCESSION_MESSAGES = {
   COMBO_PRICE_HIGHER_THAN_SUM:
     'Giá bán combo không nên cao hơn tổng giá bán lẻ của các món thành phần.',
   EXCEL_EMPTY_FILE: 'File Excel không có dữ liệu hoặc không đúng định dạng.',
+  EXCEL_FILE_EMPTY: 'File Excel không có dữ liệu hoặc không đúng định dạng.',
   EXCEL_INVALID_HEADER:
     'Cấu trúc tiêu đề cột file Excel không hợp lệ. Vui lòng tải file mẫu.',
+  ITEM_NAME_REQUIRED: 'Tên sản phẩm không được để trống.',
+  INVALID_CATEGORY: 'Danh mục sản phẩm không hợp lệ.',
+  PRICE_POSITIVE: 'Giá bán sản phẩm phải lớn hơn 0.',
+  STOCK_POSITIVE_INT: 'Số lượng tồn kho phải là số nguyên không âm.',
   IMAGE_FILE_REQUIRED: 'Vui lòng chọn file hình ảnh sản phẩm.',
   IMAGE_INVALID_TYPE:
     'Định dạng hình ảnh không hợp lệ. Chỉ chấp nhận JPG, JPEG, PNG, WEBP.',

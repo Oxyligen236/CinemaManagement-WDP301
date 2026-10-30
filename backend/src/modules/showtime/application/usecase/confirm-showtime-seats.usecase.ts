@@ -16,7 +16,6 @@ export interface ConfirmShowtimeSeatsUsecase {
    */
   confirmSeats(
     seatShowtimeIds: string[],
-    session?: ClientSession,
+    prismaTx?: any,
   ): Promise<number>;
 }
-import { ClientSession } from 'mongoose';

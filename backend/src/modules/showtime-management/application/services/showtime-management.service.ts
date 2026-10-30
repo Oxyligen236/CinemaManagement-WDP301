@@ -415,7 +415,9 @@ export class ShowtimeManagementService {
         showtimes.map((showtime) => showtime.showtimeId),
       ),
     ]);
-    const movieMap = new Map(movies.map((movie) => [movie.movieId, movie]));
+    const movieMap = new Map<string, any>(
+      movies.map((movie: any) => [movie.movieId, movie]),
+    );
     return showtimes.map((showtime) =>
       this.toManaged(
         showtime,

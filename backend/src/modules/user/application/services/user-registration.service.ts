@@ -9,18 +9,15 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import {
   createHash,
   randomInt,
-  randomUUID,
   timingSafeEqual,
 } from 'node:crypto';
 
-import { User, UserDocument } from '../../domain/schemas/user.schema';
-import { Role } from '../../domain/enums/role.enum';
+import { Role } from '@prisma/client';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { UserRegisteredEvent } from '../../../auth/domain/events/user-registered.event';
 import { UserCreatedEvent } from '../../domain/events/user-created.event';
 import {
@@ -43,8 +40,7 @@ export class UserRegistrationService {
   private readonly logger = new Logger(UserRegistrationService.name);
 
   constructor(
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
+    private readonly prisma: PrismaService,
 
     @Inject(INTERNAL_EVENT_BUS)
     private readonly eventBus: InternalEventBus,
@@ -80,7 +76,8 @@ export class UserRegistrationService {
       throw new BadRequestException(MSG.ALL_FIELDS_REQUIRED);
     }
 
-    if (await this.userModel.exists({ email })) {
+    const exists = await this.prisma.user.findUnique({ where: { email } });
+    if (exists) {
       throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
     }
 
@@ -116,86 +113,55 @@ export class UserRegistrationService {
     };
   }
 
-  /**
-   * Sinh mã mới, lưu pending registration và gửi email xác thực.
-   *
-   * Mã cũ bị thay thế ngay khi mã mới được sinh, nên chỉ mã gần nhất còn
-   * hiệu lực. Nếu gửi email thất bại thì pending entry được rollback để người
-   * dùng thử lại được ngay thay vì bị cooldown chặn.
-   *
-   * @param pending - Dữ liệu đăng ký chờ xác thực.
-   * @param restorePrevious - `true` khi đang ghi đè một entry đã tồn tại:
-   *   lúc rollback phải phục hồi entry cũ thay vì xoá trắng.
-   */
   private async issueCode(
     pending: PendingUser,
-    restorePrevious: boolean,
+    isResend: boolean,
   ): Promise<void> {
-    const { email, firstName, lastName } = pending;
-    const previous = restorePrevious
-      ? this.pendingRegistrations.get(email)
-      : undefined;
+    if (isResend) {
+      if (pending.resendCount >= MAX_RESENDS) {
+        throw new HttpException(
+          MSG.RESEND_LIMIT_REACHED,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      pending.resendCount += 1;
+    }
+
     const code = String(randomInt(100000, 1000000));
     const now = Date.now();
 
-    this.pendingRegistrations.save(email, {
-      ...pending,
-      codeHash: this.hashCode(email, code),
-      expiresAt: now + CODE_TTL_SECONDS * 1000,
-      lastSentAt: now,
-    });
+    pending.codeHash = this.hashCode(pending.email, code);
+    pending.expiresAt = now + CODE_TTL_SECONDS * 1000;
+    pending.attempts = 0;
+    pending.lastSentAt = now;
+
+    this.pendingRegistrations.save(pending.email, pending);
 
     try {
       await this.eventBus.publish(
         new UserRegisteredEvent(
-          email,
+          pending.email,
           code,
           CODE_TTL_SECONDS,
-          `${firstName} ${lastName}`,
+          `${pending.firstName} ${pending.lastName}`,
         ),
       );
     } catch (err) {
-      if (previous) {
-        this.pendingRegistrations.save(email, previous);
-      } else {
-        this.pendingRegistrations.delete(email);
+      if (!isResend) {
+        this.pendingRegistrations.delete(pending.email);
       }
       throw err;
     }
   }
 
-  /**
-   * Gửi lại mã xác thực cho một đăng ký đang chờ.
-   *
-   * Quy trình nghiệp vụ:
-   * 1. Chặn nếu email đã có tài khoản (tránh dò email đã đăng ký).
-   * 2. Yêu cầu phải tồn tại pending registration còn hiệu lực.
-   * 3. Áp cooldown và giới hạn tổng số lần gửi lại.
-   * 4. Sinh mã mới, reset số lần nhập sai và gửi email.
-   *
-   * @param rawEmail - Email đã đăng ký ở bước `register`.
-   * @returns Thông báo cùng thời hạn hiệu lực của mã mới.
-   * @throws ConflictException khi email đã có tài khoản.
-   * @throws BadRequestException khi không còn đăng ký chờ xác thực.
-   * @throws HttpException 429 khi còn cooldown hoặc đã hết lượt gửi lại.
-   */
-  async resendVerificationCode(rawEmail: string) {
+  async resendCode(rawEmail: string) {
     const email = String(rawEmail ?? '')
       .trim()
       .toLowerCase();
-
-    if (!email) {
-      throw new BadRequestException(MSG.EMAIL_REQUIRED);
-    }
-
-    if (await this.userModel.exists({ email })) {
-      throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
-    }
-
     const pending = this.pendingRegistrations.get(email);
 
     if (!pending) {
-      throw new BadRequestException(MSG.NO_PENDING_REGISTRATION);
+      throw new BadRequestException(MSG.CODE_INVALID_OR_EXPIRED);
     }
 
     if (Date.now() - pending.lastSentAt < RESEND_COOLDOWN_MS) {
@@ -205,28 +171,16 @@ export class UserRegistrationService {
       );
     }
 
-    if (pending.resendCount >= MAX_RESENDS) {
-      throw new HttpException(
-        MSG.RESEND_LIMIT_REACHED,
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    // Reset `attempts` để lần nhập sai trước không chặn mã mới, nhưng
-    // `MAX_RESENDS` vẫn giới hạn tổng số mã được phát cho một đăng ký.
-    await this.issueCode(
-      { ...pending, attempts: 0, resendCount: pending.resendCount + 1 },
-      true,
-    );
+    await this.issueCode(pending, true);
 
     return {
-      message: 'Verification code sent',
+      message: 'Verification code resent',
       email,
       verificationExpiresInSeconds: CODE_TTL_SECONDS,
     };
   }
 
-  async verifyEmail(rawEmail: string, code: string) {
+  async verifyCode(rawEmail: string, code: string) {
     const email = String(rawEmail ?? '')
       .trim()
       .toLowerCase();
@@ -252,20 +206,21 @@ export class UserRegistrationService {
       throw new BadRequestException(MSG.CODE_INVALID_OR_EXPIRED);
     }
 
-    let user: UserDocument;
+    let user: any;
 
     try {
-      user = await this.userModel.create({
-        userId: randomUUID(),
-        email,
-        password: pending.passwordHash,
-        firstName: pending.firstName,
-        lastName: pending.lastName,
-        role: Role.USER,
-        isActive: true,
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          password: pending.passwordHash,
+          firstName: pending.firstName,
+          lastName: pending.lastName,
+          role: Role.USER,
+          isActive: true,
+        },
       });
     } catch (err: any) {
-      if (err?.code === 11000) {
+      if (err?.code === 'P2002') {
         this.pendingRegistrations.delete(email);
         throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
       }
@@ -274,8 +229,6 @@ export class UserRegistrationService {
 
     this.pendingRegistrations.delete(email);
 
-    // Email chào mừng chỉ mang tính thông báo: tài khoản đã được tạo thành
-    // công nên lỗi gửi mail chỉ được ghi log, không làm thất bại xác thực.
     try {
       await this.eventBus.publish(
         new UserCreatedEvent(
@@ -292,7 +245,7 @@ export class UserRegistrationService {
 
     return {
       message: 'Email verified, account created',
-      userId: user.userId,
+      userId: user.id,
       email: user.email,
     };
   }

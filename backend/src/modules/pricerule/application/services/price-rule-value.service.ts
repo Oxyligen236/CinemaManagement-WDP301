@@ -6,8 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { PrismaService } from '../../../infra/prisma/prisma.service';
 import {
   MAX_VALUES_PER_FIELD,
   MSG03,
@@ -20,18 +19,6 @@ import {
   MULTIPLIER_MIN,
 } from '../../domain/constants/price-rule.constants';
 import { PriceGroup } from '../../domain/enums/price-group.enum';
-import {
-  DayPriceRule,
-  DayPriceRuleDocument,
-} from '../../domain/schemas/day-price-rule.schema';
-import {
-  SeatPriceRule,
-  SeatPriceRuleDocument,
-} from '../../domain/schemas/seat-price-rule.schema';
-import {
-  PriceRuleKeyName,
-  PriceRuleRecord,
-} from '../../domain/types/price-rule-record.type';
 import { CreatePriceValueReqDto, UpdatePriceValueReqDto } from '../dto/req.dto';
 import { PriceValueMutationResDto } from '../dto/res.dto';
 import {
@@ -40,7 +27,6 @@ import {
   validateMultiplier,
 } from '../helpers/multiplier-validation.helper';
 import {
-  keyNameOf,
   resolvePriceField,
   toPriceValueDto,
 } from '../helpers/price-rule.helper';
@@ -60,10 +46,7 @@ export class PriceRuleValueService
   private readonly logger = new Logger(PriceRuleValueService.name);
 
   constructor(
-    @InjectModel(SeatPriceRule.name)
-    private readonly seatModel: Model<SeatPriceRuleDocument>,
-    @InjectModel(DayPriceRule.name)
-    private readonly dayModel: Model<DayPriceRuleDocument>,
+    private readonly prisma: PrismaService,
     private readonly optionQueryService: PriceRuleOptionQueryService,
   ) {}
 
@@ -74,33 +57,63 @@ export class PriceRuleValueService
   ): Promise<PriceValueMutationResDto> {
     const field = resolvePriceField(group, fieldKey);
     const multiplier = this.validateAndNormalize(dto?.multiplier);
-    const { model, keyName } = this.modelAndKey(group);
 
     try {
-      const count = await model
-        .countDocuments({
-          [keyName]: field.fieldKey,
-          adjustmentValue: { $gte: MULTIPLIER_MIN },
-        })
-        .exec();
-      if (count >= MAX_VALUES_PER_FIELD) {
-        throw new ConflictException(MSG_MAX_VALUES);
+      if (group === PriceGroup.SEAT) {
+        const count = await this.prisma.seatPriceRule.count({
+          where: {
+            seatType: field.fieldKey as any,
+            adjustmentValue: { gte: MULTIPLIER_MIN },
+          },
+        });
+        if (count >= MAX_VALUES_PER_FIELD) {
+          throw new ConflictException(MSG_MAX_VALUES);
+        }
+
+        const duplicated = await this.prisma.seatPriceRule.findFirst({
+          where: { seatType: field.fieldKey as any, adjustmentValue: multiplier },
+        });
+        if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
+
+        const created = await this.prisma.seatPriceRule.create({
+          data: {
+            seatType: field.fieldKey as any,
+            adjustmentValue: multiplier,
+          },
+        });
+        return {
+          message: MSG_CREATE_SUCCESS,
+          value: toPriceValueDto({ ruleId: created.id, adjustmentValue: created.adjustmentValue }),
+          field: await this.optionQueryService.getPriceField(group, fieldKey),
+        };
+      } else {
+        const count = await this.prisma.dayPriceRule.count({
+          where: {
+            dayType: field.fieldKey as any,
+            adjustmentValue: { gte: MULTIPLIER_MIN },
+          },
+        });
+        if (count >= MAX_VALUES_PER_FIELD) {
+          throw new ConflictException(MSG_MAX_VALUES);
+        }
+
+        const duplicated = await this.prisma.dayPriceRule.findFirst({
+          where: { dayType: field.fieldKey as any, adjustmentValue: multiplier },
+        });
+        if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
+
+        const created = await this.prisma.dayPriceRule.create({
+          data: {
+            dayType: field.fieldKey as any,
+            adjustmentValue: multiplier,
+          },
+        });
+        return {
+          message: MSG_CREATE_SUCCESS,
+          value: toPriceValueDto({ ruleId: created.id, adjustmentValue: created.adjustmentValue }),
+          field: await this.optionQueryService.getPriceField(group, fieldKey),
+        };
       }
-
-      const duplicated = await model
-        .exists({ [keyName]: field.fieldKey, adjustmentValue: multiplier })
-        .exec();
-      if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
-
-      const created = await model.create({
-        [keyName]: field.fieldKey,
-        adjustmentValue: multiplier,
-      });
-      return {
-        message: MSG_CREATE_SUCCESS,
-        value: toPriceValueDto(created),
-        field: await this.optionQueryService.getPriceField(group, fieldKey),
-      };
     } catch (error) {
       throw this.mapWriteError(error);
     }
@@ -114,39 +127,59 @@ export class PriceRuleValueService
   ): Promise<PriceValueMutationResDto> {
     const field = resolvePriceField(group, fieldKey);
     const multiplier = this.validateAndNormalize(dto?.multiplier);
-    const { model, keyName } = this.modelAndKey(group);
 
     try {
-      const current = await model
-        .findOne({ ruleId, [keyName]: field.fieldKey })
-        .lean()
-        .exec();
-      if (!current) throw new NotFoundException(MSG_NOT_FOUND);
+      if (group === PriceGroup.SEAT) {
+        const current = await this.prisma.seatPriceRule.findFirst({
+          where: { id: ruleId, seatType: field.fieldKey as any },
+        });
+        if (!current) throw new NotFoundException(MSG_NOT_FOUND);
 
-      const duplicated = await model
-        .exists({
-          [keyName]: field.fieldKey,
-          adjustmentValue: multiplier,
-          ruleId: { $ne: ruleId },
-        })
-        .exec();
-      if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
+        const duplicated = await this.prisma.seatPriceRule.findFirst({
+          where: {
+            seatType: field.fieldKey as any,
+            adjustmentValue: multiplier,
+            id: { not: ruleId },
+          },
+        });
+        if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
 
-      const updated = await model
-        .findOneAndUpdate(
-          { ruleId, [keyName]: field.fieldKey },
-          { $set: { adjustmentValue: multiplier } },
-          { new: true },
-        )
-        .lean()
-        .exec();
-      if (!updated) throw new NotFoundException(MSG_NOT_FOUND);
+        const updated = await this.prisma.seatPriceRule.update({
+          where: { id: ruleId },
+          data: { adjustmentValue: multiplier },
+        });
 
-      return {
-        message: MSG03,
-        value: toPriceValueDto(updated),
-        field: await this.optionQueryService.getPriceField(group, fieldKey),
-      };
+        return {
+          message: MSG03,
+          value: toPriceValueDto({ ruleId: updated.id, adjustmentValue: updated.adjustmentValue }),
+          field: await this.optionQueryService.getPriceField(group, fieldKey),
+        };
+      } else {
+        const current = await this.prisma.dayPriceRule.findFirst({
+          where: { id: ruleId, dayType: field.fieldKey as any },
+        });
+        if (!current) throw new NotFoundException(MSG_NOT_FOUND);
+
+        const duplicated = await this.prisma.dayPriceRule.findFirst({
+          where: {
+            dayType: field.fieldKey as any,
+            adjustmentValue: multiplier,
+            id: { not: ruleId },
+          },
+        });
+        if (duplicated) throw new ConflictException(MSG_DUPLICATE_MULTIPLIER);
+
+        const updated = await this.prisma.dayPriceRule.update({
+          where: { id: ruleId },
+          data: { adjustmentValue: multiplier },
+        });
+
+        return {
+          message: MSG03,
+          value: toPriceValueDto({ ruleId: updated.id, adjustmentValue: updated.adjustmentValue }),
+          field: await this.optionQueryService.getPriceField(group, fieldKey),
+        };
+      }
     } catch (error) {
       throw this.mapWriteError(error);
     }
@@ -158,50 +191,50 @@ export class PriceRuleValueService
     ruleId: string,
   ): Promise<PriceValueMutationResDto> {
     const field = resolvePriceField(group, fieldKey);
-    const { model, keyName } = this.modelAndKey(group);
 
     try {
-      const current = await model
-        .findOne({ ruleId, [keyName]: field.fieldKey })
-        .lean()
-        .exec();
-      if (!current) throw new NotFoundException(MSG_NOT_FOUND);
+      if (group === PriceGroup.SEAT) {
+        const current = await this.prisma.seatPriceRule.findFirst({
+          where: { id: ruleId, seatType: field.fieldKey as any },
+        });
+        if (!current) throw new NotFoundException(MSG_NOT_FOUND);
 
-      const result = await model.deleteOne({ ruleId }).exec();
-      if (result.deletedCount === 0) {
-        throw new NotFoundException(MSG_NOT_FOUND);
+        await this.prisma.seatPriceRule.delete({ where: { id: ruleId } });
+
+        return {
+          message: MSG_DELETE_SUCCESS,
+          value: toPriceValueDto({ ruleId: current.id, adjustmentValue: current.adjustmentValue }),
+          field: await this.optionQueryService.getPriceField(group, fieldKey),
+        };
+      } else {
+        const current = await this.prisma.dayPriceRule.findFirst({
+          where: { id: ruleId, dayType: field.fieldKey as any },
+        });
+        if (!current) throw new NotFoundException(MSG_NOT_FOUND);
+
+        await this.prisma.dayPriceRule.delete({ where: { id: ruleId } });
+
+        return {
+          message: MSG_DELETE_SUCCESS,
+          value: toPriceValueDto({ ruleId: current.id, adjustmentValue: current.adjustmentValue }),
+          field: await this.optionQueryService.getPriceField(group, fieldKey),
+        };
       }
-
-      return {
-        message: MSG_DELETE_SUCCESS,
-        value: toPriceValueDto(current),
-        field: await this.optionQueryService.getPriceField(group, fieldKey),
-      };
     } catch (error) {
       throw this.mapWriteError(error);
     }
   }
 
-  /** Phòng thủ lần 2: validate multiplier khi service được gọi ngoài controller. */
   private validateAndNormalize(raw: unknown): number {
-    const error = validateMultiplier(raw);
-    if (error) throw buildMultiplierValidationException([error]);
-    return normalizeMultiplier(toNumberOrKeep({ value: raw }) as number);
+    const numeric = toNumberOrKeep({ value: raw });
+    const err = validateMultiplier(numeric);
+    if (err) throw buildMultiplierValidationException([err]);
+    return normalizeMultiplier(numeric as number);
   }
 
-  private modelAndKey(group: PriceGroup): {
-    model: Model<PriceRuleRecord>;
-    keyName: PriceRuleKeyName;
-  } {
-    const model = (group === PriceGroup.SEAT
-      ? this.seatModel
-      : this.dayModel) as unknown as Model<PriceRuleRecord>;
-    return { model, keyName: keyNameOf(group) };
-  }
-
-  private mapWriteError(error: unknown): HttpException {
+  private mapWriteError(error: unknown): Error {
     if (error instanceof HttpException) return error;
-    this.logger.error('Failed to save price value', error);
+    this.logger.error('Database write error', error);
     return new InternalServerErrorException(MSG_SAVE_FAILED);
   }
 }
