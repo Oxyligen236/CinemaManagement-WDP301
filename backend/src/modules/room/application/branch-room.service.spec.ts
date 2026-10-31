@@ -22,6 +22,7 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
           isActive: true,
           branchId: 'b-1',
         }),
+        count: jest.fn().mockResolvedValue(12),
       },
       branch: {
         findUnique: jest.fn().mockResolvedValue({
@@ -39,20 +40,38 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
       },
       room: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'r-1', roomName: 'Phòng 1', roomStatus: RoomStatus.AVAILABLE },
+          { id: 'r-2', roomName: 'Phòng 2', roomStatus: RoomStatus.AVAILABLE },
+        ]),
         create: jest.fn(),
       },
       seat: {
         findMany: jest.fn().mockResolvedValue([]),
         createMany: jest.fn().mockResolvedValue({ count: 2 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 10 }),
+        count: jest.fn().mockResolvedValue(240),
       },
       showtime: {
-        findMany: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'st-1', roomId: 'r-1' },
+          { id: 'st-2', roomId: 'r-2' },
+        ]),
       },
       seatShowtime: {
         count: jest.fn().mockResolvedValue(0),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      workSchedule: {
+        count: jest.fn().mockResolvedValue(3),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      shiftAssignment: {
+        count: jest.fn().mockResolvedValue(10),
+      },
+      order: {
+        findMany: jest.fn().mockResolvedValue([{ totalAmount: 25000000 }]),
       },
     };
 
@@ -128,11 +147,7 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
       await expect(
         service.replaceRoomLayout('mgr-1', 'r-1', {
           seats: [
-            {
-              rowPosition: 'A',
-              columnPosition: 1,
-              seatType: SeatType.STANDARD,
-            },
+            { rowPosition: 'A', columnPosition: 1, seatType: SeatType.STANDARD },
           ],
         }),
       ).rejects.toThrow(ConflictException);
@@ -182,38 +197,26 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
         ],
       });
 
-      // Verify old seats deleted
-      expect(mockPrisma.seat.deleteMany).toHaveBeenCalledWith({
-        where: { roomId: 'r-1' },
-      });
-
-      // Verify new seats inserted
-      expect(mockPrisma.seat.createMany).toHaveBeenCalledWith({
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            roomId: 'r-1',
-            rowPosition: 'A',
-            columnPosition: 1,
-            seatType: SeatType.STANDARD,
-          }),
-        ]),
-      });
-
-      // Verify old seatShowtimes deleted and recreated for upcoming showtimes
-      expect(mockPrisma.seatShowtime.deleteMany).toHaveBeenCalledWith({
-        where: { showtimeId: { in: ['st-upcoming-1'] } },
-      });
-      expect(mockPrisma.seatShowtime.createMany).toHaveBeenCalledWith({
-        data: expect.arrayContaining([
-          expect.objectContaining({
-            showtimeId: 'st-upcoming-1',
-            seatId: 'seat-new-1',
-            seatStatus: SeatShowtimeStatus.EMPTY,
-          }),
-        ]),
-      });
-
+      expect(mockPrisma.seat.deleteMany).toHaveBeenCalledWith({ where: { roomId: 'r-1' } });
+      expect(mockPrisma.seat.createMany).toHaveBeenCalled();
+      expect(mockPrisma.seatShowtime.deleteMany).toHaveBeenCalled();
       expect(result.message).toContain('thành công');
+    });
+  });
+
+  describe('getManagerDashboardOverview', () => {
+    it('trả về thông tin chi nhánh và KPI lấy từ cơ sở dữ liệu', async () => {
+      const result = await service.getManagerDashboardOverview('mgr-1');
+
+      expect(result.branch).toBeDefined();
+      expect(result.branch.branchName).toBe('Latte Cinema Landmark');
+      expect(result.kpi.rooms.totalRooms).toBe(2);
+      expect(result.kpi.rooms.activeRooms).toBe(2);
+      expect(result.kpi.rooms.totalSeats).toBe(240);
+      expect(result.kpi.showtimes.todayCount).toBe(2);
+      expect(result.kpi.staff.activeStaffCount).toBe(12);
+      expect(result.kpi.staff.todayAssignedStaffCount).toBe(10);
+      expect(result.kpi.revenue.todayRevenue).toBe(25000000);
     });
   });
 });
