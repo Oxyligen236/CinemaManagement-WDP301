@@ -15,6 +15,7 @@ import {
   RoomStatus,
   SeatStatus,
   SeatType,
+  OrderStatus,
 } from '@prisma/client';
 import { ROOM_MESSAGES } from '../domain/room.rules';
 import {
@@ -77,6 +78,122 @@ export class BranchRoomService {
   /**
    * Main flow bước 2: Xem chi tiết 1 phòng chiếu (danh sách ghế, sơ đồ ghế, suất chiếu sắp tới)
    */
+  /**
+   * Thống kê tổng quan vận hành chi nhánh cho Manager Dashboard
+   */
+  async getManagerDashboardOverview(managerUserId: string | undefined) {
+    return this.guard(async () => {
+      const branch = await this.resolveManagerBranch(managerUserId);
+
+      // 1. Rooms & Seats
+      const rooms = await this.prisma.room.findMany({
+        where: { branchId: branch.branchId },
+        select: { id: true, roomName: true, roomStatus: true },
+      });
+      const roomIds = rooms.map((r) => r.id);
+      const totalRooms = rooms.length;
+      const activeRooms = rooms.filter(
+        (r) => r.roomStatus === RoomStatus.AVAILABLE,
+      ).length;
+
+      const totalSeats =
+        roomIds.length > 0
+          ? await this.prisma.seat.count({
+              where: { roomId: { in: roomIds } },
+            })
+          : 0;
+
+      // 2. Showtimes today (Vietnam timezone UTC+7)
+      const now = new Date();
+      const vnFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const todayStr = vnFormatter.format(now);
+      const startOfTodayVN = new Date(todayStr + 'T00:00:00.000+07:00');
+      const endOfTodayVN = new Date(todayStr + 'T23:59:59.999+07:00');
+
+      const showtimesToday =
+        roomIds.length > 0
+          ? await this.prisma.showtime.findMany({
+              where: {
+                roomId: { in: roomIds },
+                startTime: { gte: startOfTodayVN, lte: endOfTodayVN },
+              },
+              select: { id: true, roomId: true },
+            })
+          : [];
+
+      const activeRoomsWithShowtimes = new Set(
+        showtimesToday.map((s) => s.roomId),
+      ).size;
+
+      // 3. Staff & Schedules
+      const activeStaffCount = await this.prisma.user.count({
+        where: {
+          branchId: branch.branchId,
+          role: Role.STAFF,
+          isActive: true,
+        },
+      });
+
+      const branchShiftsCount = await this.prisma.workSchedule.count({
+        where: {
+          branchId: branch.branchId,
+          isActive: true,
+        },
+      });
+
+      const todayAssignmentsCount = await this.prisma.shiftAssignment.count({
+        where: {
+          branchId: branch.branchId,
+          date: todayStr,
+        },
+      });
+
+      // 4. Revenue today for this branch
+      const paidOrdersToday = await this.prisma.order.findMany({
+        where: {
+          branchId: branch.branchId,
+          status: OrderStatus.PAID,
+          createdAt: { gte: startOfTodayVN, lte: endOfTodayVN },
+        },
+        select: { totalAmount: true },
+      });
+
+      const todayRevenue = paidOrdersToday.reduce(
+        (sum, o) => sum + (o.totalAmount || 0),
+        0,
+      );
+
+      return {
+        branch,
+        kpi: {
+          showtimes: {
+            todayCount: showtimesToday.length,
+            activeRoomsWithShowtimes,
+          },
+          rooms: {
+            totalRooms,
+            activeRooms,
+            totalSeats,
+          },
+          staff: {
+            activeStaffCount,
+            todayAssignedStaffCount: todayAssignmentsCount,
+            todayShiftsCount: branchShiftsCount,
+          },
+          revenue: {
+            todayRevenue,
+            paidOrdersCount: paidOrdersToday.length,
+          },
+        },
+      };
+    });
+  }
+
   async getRoomDetail(
     managerUserId: string | undefined,
     roomId: string,
