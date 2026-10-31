@@ -29,7 +29,7 @@ export class AdminService {
 
     if (!admin || !admin.isActive || admin.role !== Role.ADMIN) {
       throw new ForbiddenException(
-        'You do not have permission to access this resource',
+        'Bạn không có quyền truy cập tài nguyên này',
       );
     }
 
@@ -125,7 +125,7 @@ export class AdminService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy tài khoản');
     }
 
     return { user: { ...user, userId: user.id } };
@@ -158,24 +158,31 @@ export class AdminService {
   ) {
     if (userId === adminUserId) {
       throw new ForbiddenException(
-        'You cannot assign a branch to your own account',
+        'Không thể chỉ định chi nhánh cho tài khoản của bạn',
       );
     }
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, firstName: true, lastName: true, role: true, isActive: true, branchId: true },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+        branchId: true,
+      },
     });
 
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) throw new NotFoundException('Không tìm thấy tài khoản');
     if (!user.isActive) {
       throw new BadRequestException(
-        'Cannot assign branch to an inactive account',
+        'Không thể chỉ định chi nhánh cho một tài khoản không hoạt động',
       );
     }
     if (user.role !== Role.MANAGER && user.role !== Role.STAFF) {
       throw new BadRequestException(
-        'Only Branch Manager or Staff accounts can be assigned to a branch',
+        'Chỉ các tài khoản Branch Manager hoặc Staff mới có thể được chỉ định cho một chi nhánh',
       );
     }
 
@@ -189,7 +196,7 @@ export class AdminService {
 
     if (!branch) {
       throw new BadRequestException(
-        'Selected branch is inactive and cannot be assigned.',
+        'Chi nhánh được chọn không hoạt động và không thể được chỉ định.',
       );
     }
 
@@ -213,7 +220,7 @@ export class AdminService {
     });
 
     return {
-      message: 'Update asset(s) successfully.',
+      message: 'Cập nhật tài khoản thành công.',
       user: { ...updatedUser, userId: updatedUser.id },
     };
   }
@@ -226,7 +233,7 @@ export class AdminService {
         (input.role !== Role.MANAGER && input.role !== Role.STAFF)
       ) {
         throw new BadRequestException(
-          'Only Branch Manager or Staff accounts can be assigned to a branch',
+          'Chỉ các tài khoản Branch Manager hoặc Staff mới có thể được chỉ định cho một chi nhánh',
         );
       }
       const branch = await this.prisma.branch.findFirst({
@@ -238,7 +245,7 @@ export class AdminService {
       });
       if (!branch) {
         throw new BadRequestException(
-          'Selected branch is inactive and cannot be assigned.',
+          'Chi nhnhánh được chọn không hoạt động và không thể được chỉ định.',
         );
       }
     }
@@ -256,7 +263,7 @@ export class AdminService {
       });
 
       return {
-        message: 'User created successfully',
+        message: 'Tạo tài khoản thành công',
         user: {
           userId: user.id,
           email: user.email,
@@ -270,7 +277,7 @@ export class AdminService {
     } catch (error: any) {
       if (error?.code === 'P2002') {
         throw new ConflictException(
-          'Username must be unique across the entire system.',
+          'Tên người dùng phải là duy nhất trong toàn hệ thống.',
         );
       }
       throw error;
@@ -279,7 +286,9 @@ export class AdminService {
 
   async updateUser(userId: string, input: UpdateUserDto, adminUserId: string) {
     if (Object.keys(input).length === 0) {
-      throw new BadRequestException('At least one field is required');
+      throw new BadRequestException(
+        'Ít nhất một trường phải được cung cấp để cập nhật',
+      );
     }
 
     if (userId === adminUserId) {
@@ -289,15 +298,22 @@ export class AdminService {
       });
 
       if (!self) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException('Không tìm thấy tài khoản của bạn');
       }
 
-      if (input.role !== undefined && (input.role as unknown as Role) !== self.role) {
-        throw new ForbiddenException('You cannot change your own role');
+      if (
+        input.role !== undefined &&
+        (input.role as unknown as Role) !== self.role
+      ) {
+        throw new ForbiddenException(
+          'Không thể thay đổi vai trò của chính bạn',
+        );
       }
 
       if (input.isActive === false) {
-        throw new ForbiddenException('You cannot disable your own account');
+        throw new ForbiddenException(
+          'Không thể vô hiệu hóa tài khoản của chính bạn',
+        );
       }
     }
 
@@ -335,7 +351,10 @@ export class AdminService {
         },
       });
 
-      return { message: 'User updated successfully', user: { ...user, userId: user.id } };
+      return {
+        message: 'Cập nhật tài khoản thành công',
+        user: { ...user, userId: user.id },
+      };
     } catch (error: any) {
       if (error?.code === 'P2002') {
         throw new ConflictException(
@@ -343,7 +362,7 @@ export class AdminService {
         );
       }
       if (error?.code === 'P2025') {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException('Không tìm thấy tài khoản để cập nhật');
       }
       throw error;
     }
