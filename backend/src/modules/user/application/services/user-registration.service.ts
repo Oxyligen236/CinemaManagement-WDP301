@@ -25,6 +25,11 @@ import {
   PendingUser,
 } from './pending-registration.service';
 import { REGISTRATION_MESSAGES as MSG } from '../../domain/constants/auth-message.constants';
+import { GetVerificationStatusUsecase } from '../usecase/get-verification-status.usecase';
+import {
+  VerificationChallengeRes,
+  VerificationStatusRes,
+} from '../dto/res.dto';
 
 const CODE_TTL_SECONDS = 300;
 const MAX_ATTEMPTS = 5;
@@ -32,7 +37,7 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_RESENDS = 3;
 
 @Injectable()
-export class UserRegistrationService {
+export class UserRegistrationService implements GetVerificationStatusUsecase {
   private readonly logger = new Logger(UserRegistrationService.name);
 
   constructor(
@@ -48,12 +53,40 @@ export class UserRegistrationService {
     return createHash('sha256').update(`${email}:${code}`).digest('hex');
   }
 
+  /** Số giây còn lại của mã xác thực, làm tròn lên để không hiển thị 0 khi mã vẫn còn. */
+  private expiresInSeconds(pending: PendingUser): number {
+    return Math.max(0, Math.ceil((pending.expiresAt - Date.now()) / 1000));
+  }
+
+  /** Số giây còn lại của cooldown gửi lại mã; 0 nghĩa là gửi lại được ngay. */
+  private resendAvailableInSeconds(pending: PendingUser): number {
+    return Math.max(
+      0,
+      Math.ceil((pending.lastSentAt + RESEND_COOLDOWN_MS - Date.now()) / 1000),
+    );
+  }
+
+  private toChallenge(
+    pending: PendingUser,
+    message: string,
+    alreadyPending: boolean,
+  ): VerificationChallengeRes {
+    return {
+      message,
+      email: pending.email,
+      alreadyPending,
+      verificationExpiresInSeconds: this.expiresInSeconds(pending),
+      resendAvailableInSeconds: this.resendAvailableInSeconds(pending),
+      resendsRemaining: Math.max(0, MAX_RESENDS - pending.resendCount),
+    };
+  }
+
   async register(input: {
     email: string;
     password: string;
     firstName: string;
     lastName: string;
-  }) {
+  }): Promise<VerificationChallengeRes> {
     if (
       !input ||
       typeof input.email !== 'string' ||
@@ -77,35 +110,58 @@ export class UserRegistrationService {
       throw new ConflictException(MSG.EMAIL_ALREADY_REGISTERED);
     }
 
+    // Người dùng thoát khỏi màn hình xác thực rồi đăng ký lại cùng email: mã đã
+    // gửi vẫn còn hiệu lực, nên trả lại đúng trạng thái đang chờ (không sinh mã
+    // mới, không reset cooldown lẫn số lần gửi lại) để frontend mở lại màn hình
+    // xác thực thay vì báo lỗi.
     const existing = this.pendingRegistrations.get(email);
-    if (existing && Date.now() - existing.lastSentAt < RESEND_COOLDOWN_MS) {
-      throw new HttpException(
-        MSG.RESEND_COOLDOWN,
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+    if (existing) {
+      return this.toChallenge(existing, MSG.VERIFICATION_PENDING, true);
     }
 
     const passwordHash = await bcrypt.hash(input.password, 10);
 
-    await this.issueCode(
-      {
+    const pending: PendingUser = {
+      email,
+      passwordHash,
+      firstName,
+      lastName,
+      codeHash: '',
+      expiresAt: 0,
+      attempts: 0,
+      lastSentAt: 0,
+      resendCount: 0,
+    };
+
+    await this.issueCode(pending, false);
+
+    return this.toChallenge(pending, 'Verification code sent', false);
+  }
+
+  async getVerificationStatus(
+    rawEmail: string,
+  ): Promise<VerificationStatusRes> {
+    const email = String(rawEmail ?? '')
+      .trim()
+      .toLowerCase();
+    const pending = this.pendingRegistrations.get(email);
+
+    if (!pending) {
+      return {
         email,
-        passwordHash,
-        firstName,
-        lastName,
-        codeHash: '',
-        expiresAt: 0,
-        attempts: 0,
-        lastSentAt: 0,
-        resendCount: 0,
-      },
-      existing !== undefined,
-    );
+        pending: false,
+        verificationExpiresInSeconds: 0,
+        resendAvailableInSeconds: 0,
+        resendsRemaining: 0,
+      };
+    }
 
     return {
-      message: 'Verification code sent',
       email,
-      verificationExpiresInSeconds: CODE_TTL_SECONDS,
+      pending: true,
+      verificationExpiresInSeconds: this.expiresInSeconds(pending),
+      resendAvailableInSeconds: this.resendAvailableInSeconds(pending),
+      resendsRemaining: Math.max(0, MAX_RESENDS - pending.resendCount),
     };
   }
 
@@ -161,7 +217,7 @@ export class UserRegistrationService {
     return this.verifyCode(rawEmail, code);
   }
 
-  async resendCode(rawEmail: string) {
+  async resendCode(rawEmail: string): Promise<VerificationChallengeRes> {
     const email = String(rawEmail ?? '')
       .trim()
       .toLowerCase();
@@ -187,11 +243,7 @@ export class UserRegistrationService {
 
     await this.issueCode(pending, true);
 
-    return {
-      message: 'Verification code resent',
-      email,
-      verificationExpiresInSeconds: CODE_TTL_SECONDS,
-    };
+    return this.toChallenge(pending, 'Verification code resent', false);
   }
 
   async verifyCode(rawEmail: string, code: string) {

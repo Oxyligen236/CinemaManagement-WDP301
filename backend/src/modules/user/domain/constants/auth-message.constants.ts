@@ -59,6 +59,13 @@ export const REGISTRATION_MESSAGES = {
   EMAIL_ALREADY_REGISTERED:
     'Email này đã được đăng ký. Vui lòng đăng nhập hoặc dùng email khác.',
 
+  /**
+   * Email đang có đăng ký chờ xác thực: không phải lỗi, mã cũ vẫn còn hiệu lực
+   * nên frontend mở lại màn hình xác thực thay vì báo lỗi ở trang đăng ký.
+   */
+  VERIFICATION_PENDING:
+    'Email này đang chờ xác thực. Vui lòng nhập mã đã được gửi trước đó.',
+
   RESEND_COOLDOWN: 'Vui lòng đợi một phút trước khi yêu cầu mã xác thực mới.',
   NO_PENDING_REGISTRATION:
     'Không có đăng ký nào đang chờ xác thực. Vui lòng đăng ký lại.',
