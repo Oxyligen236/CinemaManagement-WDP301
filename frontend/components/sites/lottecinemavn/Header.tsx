@@ -90,6 +90,14 @@ export function Header() {
               )}
               <li className="pt-[9px] pl-[16px]">
                 <Link
+                  href="/profile"
+                  className="text-[#6f6247] hover:border-b hover:border-[#9d9580] pb-[1px]"
+                >
+                  Tài khoản
+                </Link>
+              </li>
+              <li className="pt-[9px] pl-[16px]">
+                <Link
                   href="/profile/orders"
                   className="text-[#6f6247] hover:border-b hover:border-[#9d9580] pb-[1px]"
                 >
