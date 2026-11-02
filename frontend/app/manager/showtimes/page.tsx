@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   AlertTriangle,
-  ArrowLeft,
   CalendarClock,
   CheckCircle2,
   Clock,
@@ -297,10 +295,6 @@ export default function ManageShowtimePage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/manager" className="inline-flex h-[40px] items-center gap-2 border border-[#dad2b4] bg-[#efebdb] px-4 text-[13px] font-bold text-[#6f6247] transition-colors hover:bg-[#dad2b4] hover:text-[#231f20]">
-            <ArrowLeft className="h-4 w-4" />
-            Về Tổng quan
-          </Link>
           <button type="button" onClick={handleOpenCreateModal} className="inline-flex h-[40px] items-center gap-2 bg-[#da291c] px-5 text-[13px] font-bold text-white transition-colors hover:bg-[#b82116] cursor-pointer">
             <Plus className="h-4 w-4" />
             Tạo Suất chiếu mới
@@ -487,9 +481,19 @@ export default function ManageShowtimePage() {
                     <tr key={item.showtimeId} className={`${phase !== 'UPCOMING' ? 'bg-[#f8f7f3] opacity-75' : 'hover:bg-[#fcfbfa]'}`}>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center border border-[#dad2b4] bg-[#efebdb] text-[#da291c]">
-                            <Film className="h-4 w-4" />
-                          </div>
+                          {item.posterUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.posterUrl}
+                              alt={`Poster ${item.movieName}`}
+                              loading="lazy"
+                              className="h-16 w-11 shrink-0 rounded object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-16 w-11 shrink-0 items-center justify-center rounded bg-[#efebdb] text-xs text-[#6f6247]">
+                              N/A
+                            </div>
+                          )}
                           <div>
                             <p className="font-bold text-[#231f20] text-[14px]">{item.movieName}</p>
                             <p className="text-[12px] text-[#666]">Thời lượng: <strong>{item.movieDuration} phút</strong></p>

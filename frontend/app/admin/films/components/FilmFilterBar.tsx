@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { Search } from "lucide-react";
 import { Genre, STATUS_LABEL } from "../api";
 
 export interface FilmFilters {
@@ -13,17 +14,19 @@ interface Props {
   genres: Genre[];
   initial: FilmFilters;
   onSearch: (filters: FilmFilters) => void;
-  onCreate: () => void;
+  onCreate?: () => void;
 }
 
-const fieldClass =
-  "h-10 w-full rounded-lg border border-border-main bg-white px-3 text-sm text-text-main placeholder:text-text-muted focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600";
+const inputClass =
+  "h-[38px] w-full border border-[#dad2b4] bg-[#fcfbfa] px-3 text-[13px] text-[#231f20] placeholder:text-[#9d9580] outline-none transition-colors focus:border-[#da291c] focus:ring-1 focus:ring-[#da291c]";
+
+const labelClass =
+  "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]";
 
 export default function FilmFilterBar({
   genres,
   initial,
   onSearch,
-  onCreate,
 }: Props) {
   const [filters, setFilters] = useState<FilmFilters>(initial);
 
@@ -33,69 +36,75 @@ export default function FilmFilterBar({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="grid grid-cols-1 gap-3 rounded-xl border border-border-main bg-surface p-4 shadow-card sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto_auto]"
-    >
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-text-sub">
-          Tên phim
+    <div className="border border-[#e3e1d6] bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-[#e3e1d6] bg-[#efebdb] px-5 py-3">
+        <span className="text-[13px] font-bold uppercase text-[#231f20]">
+          Bộ lọc Tìm kiếm Phim
         </span>
-        <input
-          type="search"
-          value={filters.keyword}
-          onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
-          placeholder="Nhập tên phim"
-          className={fieldClass}
-        />
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-text-sub">
-          Thể loại
-        </span>
-        <select
-          value={filters.genreId}
-          onChange={(e) => setFilters({ ...filters, genreId: e.target.value })}
-          className={fieldClass}
-        >
-          <option value="">Tất cả</option>
-          {genres.map((genre) => (
-            <option key={genre.genreId} value={genre.genreId}>
-              {genre.genreName}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium text-text-sub">
-          Trạng thái
-        </span>
-        <select
-          value={filters.status}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          className={fieldClass}
-        >
-          <option value="">Tất cả</option>
-          {Object.entries(STATUS_LABEL).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
-        type="submit"
-        className="h-10 self-end rounded-lg border border-border-main bg-white px-4 text-sm font-medium text-text-main transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary-600 motion-reduce:transition-none"
+        <span className="text-[12px] text-[#6f6247]">Toàn hệ thống</span>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto]"
       >
-        Tìm kiếm
-      </button>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="h-10 self-end rounded-lg bg-primary-600 px-4 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:ring-2 focus-visible:ring-primary-600 motion-reduce:transition-none"
-      >
-        Tạo phim mới
-      </button>
-    </form>
+        <label className="block">
+          <span className={labelClass}>Tên phim</span>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9d9580]" />
+            <input
+              type="search"
+              value={filters.keyword}
+              onChange={(e) =>
+                setFilters({ ...filters, keyword: e.target.value })
+              }
+              placeholder="Nhập tên phim"
+              className={`${inputClass} pl-9`}
+            />
+          </div>
+        </label>
+        <label className="block">
+          <span className={labelClass}>Thể loại</span>
+          <select
+            value={filters.genreId}
+            onChange={(e) =>
+              setFilters({ ...filters, genreId: e.target.value })
+            }
+            className={inputClass}
+          >
+            <option value="">Tất cả thể loại</option>
+            {genres.map((genre) => (
+              <option key={genre.genreId} value={genre.genreId}>
+                {genre.genreName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className={labelClass}>Trạng thái phát hành</span>
+          <select
+            value={filters.status}
+            onChange={(e) =>
+              setFilters({ ...filters, status: e.target.value })
+            }
+            className={inputClass}
+          >
+            <option value="">Tất cả trạng thái</option>
+            {Object.entries(STATUS_LABEL).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="inline-flex h-[38px] cursor-pointer items-center justify-center gap-1.5 self-end border border-[#dad2b4] bg-[#efebdb] px-5 text-[13px] font-bold text-[#6f6247] transition-colors hover:bg-[#dad2b4] hover:text-[#231f20]"
+        >
+          <Search className="h-4 w-4" />
+          Tìm kiếm
+        </button>
+      </form>
+    </div>
   );
 }
