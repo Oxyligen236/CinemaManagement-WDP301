@@ -30,7 +30,7 @@ describe('PromotionAdminService', () => {
 
     mockEventBus = {
       publish: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<InternalEventBus>;
+    };
 
     mockPrisma = {
       promotion: {
@@ -43,10 +43,7 @@ describe('PromotionAdminService', () => {
       },
     };
 
-    service = new PromotionAdminService(
-      mockPrisma as unknown as PrismaService,
-      mockEventBus,
-    );
+    service = new PromotionAdminService(mockPrisma, mockEventBus);
   });
 
   describe('createPromotion', () => {

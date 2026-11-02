@@ -26,7 +26,8 @@ export class ShowtimeContractImpl implements ShowtimeContract {
       },
     });
 
-    if (!seatShowtime || !seatShowtime.showtime || !seatShowtime.seat) return null;
+    if (!seatShowtime || !seatShowtime.showtime || !seatShowtime.seat)
+      return null;
     const { showtime, seat } = seatShowtime;
     const { movie, room } = showtime;
     if (!movie || !room) return null;

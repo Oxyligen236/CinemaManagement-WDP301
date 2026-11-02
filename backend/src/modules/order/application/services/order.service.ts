@@ -113,7 +113,9 @@ export class OrderService
   ) {}
 
   async createVnpayPayment(userId: string, orderId: string, ipAddr: string) {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order)
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     if (order.userId !== userId)
@@ -149,7 +151,9 @@ export class OrderService
   }
 
   private async fulfillVnpayOrder(orderId: string) {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       return { RspCode: '01', Message: 'Order not found' };
     }
@@ -169,7 +173,9 @@ export class OrderService
       const seatOrdersInTx = await tx.seatOrder.findMany({
         where: { orderId },
       });
-      const seatIds = seatOrdersInTx.map(({ seatShowtimeId }) => seatShowtimeId);
+      const seatIds = seatOrdersInTx.map(
+        ({ seatShowtimeId }) => seatShowtimeId,
+      );
       if (seatIds.length > 0) {
         await this.showtimeBookingService.confirmSeats(seatIds, tx);
         await this.ticketContract.createTicketsForOrder(
@@ -946,7 +952,9 @@ export class OrderService
     actor: { userId: string; role: string; branchId?: string },
     reason?: string,
   ): Promise<CancelOrderRes> {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
     if (!order) {
       throw new NotFoundException(`Không tìm thấy đơn hàng với ID ${orderId}`);
     }

@@ -23,19 +23,18 @@ describe('MovieOptionQueryService', () => {
 
     mockPrisma = {
       movie: {
-        findMany: jest.fn().mockResolvedValue([
-          movie(),
-          movie({ id: 'm-2', movieName: 'Inside Out 2' }),
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            movie(),
+            movie({ id: 'm-2', movieName: 'Inside Out 2' }),
+          ]),
         count: jest.fn().mockResolvedValue(2),
         findUnique: jest.fn().mockResolvedValue(movie()),
       },
     };
 
-    service = new MovieOptionQueryService(
-      mockPrisma as unknown as PrismaService,
-      storageService as any,
-    );
+    service = new MovieOptionQueryService(mockPrisma, storageService as any);
   });
 
   describe('searchMovieOptions', () => {

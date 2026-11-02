@@ -14,8 +14,5 @@ export interface ConfirmShowtimeSeatsUsecase {
    * @returns Số lượng ghế thực tế đã chuyển sang BOOKED
    * @throws ConflictException khi số ghế cập nhật không khớp số lượng yêu cầu
    */
-  confirmSeats(
-    seatShowtimeIds: string[],
-    prismaTx?: any,
-  ): Promise<number>;
+  confirmSeats(seatShowtimeIds: string[], prismaTx?: any): Promise<number>;
 }

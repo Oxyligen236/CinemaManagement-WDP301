@@ -1,9 +1,5 @@
 import { PublicShowtimeQueryService } from './public-showtime-query.service';
-import {
-  RoomStatus,
-  SeatStatus,
-  SeatShowtimeStatus,
-} from '@prisma/client';
+import { RoomStatus, SeatStatus, SeatShowtimeStatus } from '@prisma/client';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 describe('PublicShowtimeQueryService', () => {
@@ -37,9 +33,7 @@ describe('PublicShowtimeQueryService', () => {
       },
     };
 
-    service = new PublicShowtimeQueryService(
-      mockPrisma as unknown as PrismaService,
-    );
+    service = new PublicShowtimeQueryService(mockPrisma);
   });
 
   it('trả về mảng rỗng khi chi nhánh không có phòng khả dụng', async () => {

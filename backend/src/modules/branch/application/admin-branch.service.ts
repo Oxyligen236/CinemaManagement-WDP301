@@ -142,7 +142,8 @@ export class AdminBranchService {
           branchName: input.branchName.trim(),
           address: input.address.trim(),
           hotline: input.hotline?.trim() || '1900 2224',
-          branchStatus: (input.branchStatus as BranchStatus) ?? BranchStatus.ACTIVE,
+          branchStatus:
+            (input.branchStatus as BranchStatus) ?? BranchStatus.ACTIVE,
         },
       });
 
@@ -183,7 +184,10 @@ export class AdminBranchService {
         const duplicate = await this.prisma.branch.findFirst({
           where: {
             id: { not: branchId },
-            branchName: { equals: input.branchName.trim(), mode: 'insensitive' },
+            branchName: {
+              equals: input.branchName.trim(),
+              mode: 'insensitive',
+            },
           },
         });
 
@@ -205,10 +209,13 @@ export class AdminBranchService {
       }
 
       const data: any = {};
-      if (input.branchName !== undefined) data.branchName = input.branchName.trim();
+      if (input.branchName !== undefined)
+        data.branchName = input.branchName.trim();
       if (input.address !== undefined) data.address = input.address.trim();
-      if (input.hotline !== undefined) data.hotline = input.hotline.trim() || '1900 2224';
-      if (input.branchStatus !== undefined) data.branchStatus = input.branchStatus;
+      if (input.hotline !== undefined)
+        data.hotline = input.hotline.trim() || '1900 2224';
+      if (input.branchStatus !== undefined)
+        data.branchStatus = input.branchStatus;
 
       const updated = await this.prisma.branch.update({
         where: { id: branchId },
@@ -319,9 +326,7 @@ export class AdminBranchService {
     }
   }
 
-  private async enrichBranches(
-    branches: any[],
-  ): Promise<AdminBranchItemDto[]> {
+  private async enrichBranches(branches: any[]): Promise<AdminBranchItemDto[]> {
     if (branches.length === 0) return [];
 
     const branchIds = branches.map((b) => b.id);
@@ -375,7 +380,10 @@ export class AdminBranchService {
 
     const showtimeCountByRoom = new Map<string, number>();
     for (const st of showtimes) {
-      showtimeCountByRoom.set(st.roomId, (showtimeCountByRoom.get(st.roomId) ?? 0) + 1);
+      showtimeCountByRoom.set(
+        st.roomId,
+        (showtimeCountByRoom.get(st.roomId) ?? 0) + 1,
+      );
     }
 
     const roomsByBranch = new Map<string, any[]>();
@@ -481,7 +489,10 @@ export class AdminBranchService {
 
     const showtimeCountByRoom = new Map<string, number>();
     for (const st of showtimes) {
-      showtimeCountByRoom.set(st.roomId, (showtimeCountByRoom.get(st.roomId) ?? 0) + 1);
+      showtimeCountByRoom.set(
+        st.roomId,
+        (showtimeCountByRoom.get(st.roomId) ?? 0) + 1,
+      );
     }
 
     return rooms.map((room) => {

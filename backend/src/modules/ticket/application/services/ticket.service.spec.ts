@@ -36,11 +36,7 @@ describe('TicketService', () => {
       publish: jest.fn().mockResolvedValue(undefined),
     };
 
-    service = new TicketService(
-      mockPrisma as unknown as PrismaService,
-      mockShowtimeContract,
-      mockEventBus,
-    );
+    service = new TicketService(mockPrisma, mockShowtimeContract, mockEventBus);
   });
 
   describe('scanTicket', () => {
@@ -271,7 +267,9 @@ describe('TicketService', () => {
         branchName: 'Chi nhánh 1',
         branchAddress: '123 Đường 1',
       };
-      mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue(showtimeDetail);
+      mockShowtimeContract.getSeatShowtimeDetail.mockResolvedValue(
+        showtimeDetail,
+      );
 
       mockPrisma.ticket.update.mockResolvedValue({
         ...validTicket,

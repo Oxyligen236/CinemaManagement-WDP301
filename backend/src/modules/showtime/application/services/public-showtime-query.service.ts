@@ -166,8 +166,7 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
 
     return showtimes.map((st) => {
       const movie = movieMap.get(st.movieId);
-      const stats =
-        seatShowtimeStatsByShowtime.get(st.id) ||
+      const stats = seatShowtimeStatsByShowtime.get(st.id) ||
         roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
       const roomInfo = roomMap.get(st.roomId);
 

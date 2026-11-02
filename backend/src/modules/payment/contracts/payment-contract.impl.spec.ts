@@ -15,7 +15,7 @@ describe('PaymentContractImpl', () => {
       },
     };
 
-    contract = new PaymentContractImpl(mockPrisma as unknown as PrismaService);
+    contract = new PaymentContractImpl(mockPrisma);
   });
 
   describe('processCashPayment', () => {

@@ -51,21 +51,27 @@ describe('PriceRuleValueService', () => {
       seatPriceRule: {
         count: jest.fn().mockResolvedValue(1),
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue(rule({ id: 'r-new', adjustmentValue: 1.7 })),
+        create: jest
+          .fn()
+          .mockResolvedValue(rule({ id: 'r-new', adjustmentValue: 1.7 })),
         update: jest.fn().mockResolvedValue(rule({ adjustmentValue: 1.8 })),
         delete: jest.fn().mockResolvedValue({}),
       },
       dayPriceRule: {
         count: jest.fn().mockResolvedValue(0),
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue(rule({ id: 'd1', adjustmentValue: 1.2, dayType: 'WEEKEND' })),
+        create: jest
+          .fn()
+          .mockResolvedValue(
+            rule({ id: 'd1', adjustmentValue: 1.2, dayType: 'WEEKEND' }),
+          ),
         update: jest.fn().mockResolvedValue(rule({ adjustmentValue: 1.8 })),
         delete: jest.fn().mockResolvedValue({}),
       },
     };
 
     service = new PriceRuleValueService(
-      mockPrisma as unknown as PrismaService,
+      mockPrisma,
       optionQuery as unknown as PriceRuleOptionQueryService,
     );
   });

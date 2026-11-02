@@ -96,18 +96,22 @@ export class ItemService
       itemId: item.id,
       branchId: item.branchId,
       name: item.name,
-      category: item.category as any,
+      category: item.category,
       size: item.size ?? null,
       price: item.price,
       costPrice: item.costPrice ?? 0,
       stockQuantity: item.stockQuantity,
       lowStockThreshold: item.lowStockThreshold,
       isLowStock,
-      status: item.status as any,
+      status: item.status,
       imageKey: item.imageKey ?? null,
       description: item.description ?? null,
-      createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : undefined,
-      updatedAt: item.updatedAt ? new Date(item.updatedAt).toISOString() : undefined,
+      createdAt: item.createdAt
+        ? new Date(item.createdAt).toISOString()
+        : undefined,
+      updatedAt: item.updatedAt
+        ? new Date(item.updatedAt).toISOString()
+        : undefined,
     };
   }
 
@@ -141,7 +145,7 @@ export class ItemService
       data: {
         branchId,
         name: trimmedName,
-        category: req.category as ItemCategory,
+        category: req.category,
         size: (req.size as ItemSize) || null,
         price: req.price,
         costPrice: req.costPrice ?? 0,
@@ -149,7 +153,7 @@ export class ItemService
         lowStockThreshold:
           req.lowStockThreshold ??
           CONCESSION_CONSTANTS.DEFAULT_LOW_STOCK_THRESHOLD,
-        status: initialStatus as ItemStatus,
+        status: initialStatus,
         imageKey: imageKey || req.imageKey || null,
         description: req.description?.trim() || null,
       },
@@ -199,7 +203,8 @@ export class ItemService
     if (req.size !== undefined) data.size = req.size || null;
     if (req.price !== undefined) data.price = req.price;
     if (req.costPrice !== undefined) data.costPrice = req.costPrice;
-    if (req.lowStockThreshold !== undefined) data.lowStockThreshold = req.lowStockThreshold;
+    if (req.lowStockThreshold !== undefined)
+      data.lowStockThreshold = req.lowStockThreshold;
     if (req.description !== undefined) {
       data.description = req.description ? req.description.trim() : null;
     }
@@ -210,7 +215,7 @@ export class ItemService
     }
 
     if (req.status) {
-      data.status = resolveItemStockStatus(item.stockQuantity, req.status as any);
+      data.status = resolveItemStockStatus(item.stockQuantity, req.status);
     }
 
     const updated = await this.prisma.item.update({
@@ -256,7 +261,9 @@ export class ItemService
 
     if (query.lowStockOnly) {
       items = items.filter(
-        (i) => i.status !== ItemStatus.INACTIVE && i.stockQuantity <= i.lowStockThreshold,
+        (i) =>
+          i.status !== ItemStatus.INACTIVE &&
+          i.stockQuantity <= i.lowStockThreshold,
       );
     }
 
@@ -316,7 +323,10 @@ export class ItemService
       );
     }
 
-    const status = resolveItemStockStatus(nextStock, item.status as any) as ItemStatus;
+    const status = resolveItemStockStatus(
+      nextStock,
+      item.status as any,
+    ) as ItemStatus;
 
     await this.prisma.item.update({
       where: { id: itemId },
@@ -348,7 +358,10 @@ export class ItemService
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
 
-    const status = resolveItemStockStatus(item.stockQuantity, req.status as any) as ItemStatus;
+    const status = resolveItemStockStatus(
+      item.stockQuantity,
+      req.status,
+    ) as ItemStatus;
     const saved = await this.prisma.item.update({
       where: { id: itemId },
       data: { status },
@@ -460,13 +473,19 @@ export class ItemService
       totalRows++;
 
       if (!nameVal) {
-        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.ITEM_NAME_REQUIRED });
+        errors.push({
+          rowNumber,
+          reason: CONCESSION_MESSAGES.ITEM_NAME_REQUIRED,
+        });
         continue;
       }
 
       const parsedCategory = parseExcelCategory(catVal);
       if (!parsedCategory) {
-        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.INVALID_CATEGORY });
+        errors.push({
+          rowNumber,
+          reason: CONCESSION_MESSAGES.INVALID_CATEGORY,
+        });
         continue;
       }
 
@@ -478,8 +497,15 @@ export class ItemService
       }
 
       const parsedStock = Number(stockVal);
-      if (isNaN(parsedStock) || parsedStock < 0 || !Number.isInteger(parsedStock)) {
-        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.STOCK_POSITIVE_INT });
+      if (
+        isNaN(parsedStock) ||
+        parsedStock < 0 ||
+        !Number.isInteger(parsedStock)
+      ) {
+        errors.push({
+          rowNumber,
+          reason: CONCESSION_MESSAGES.STOCK_POSITIVE_INT,
+        });
         continue;
       }
 
@@ -505,12 +531,15 @@ export class ItemService
             ? existing.stockQuantity + parsedStock
             : parsedStock;
 
-        const status = resolveItemStockStatus(nextStock, existing.status as any) as ItemStatus;
+        const status = resolveItemStockStatus(
+          nextStock,
+          existing.status as any,
+        ) as ItemStatus;
 
         await this.prisma.item.update({
           where: { id: existing.id },
           data: {
-            category: parsedCategory as ItemCategory,
+            category: parsedCategory,
             size: parsedSize !== null ? (parsedSize as ItemSize) : undefined,
             price: parsedPrice,
             costPrice,
@@ -531,7 +560,7 @@ export class ItemService
           data: {
             branchId,
             name: nameVal,
-            category: parsedCategory as ItemCategory,
+            category: parsedCategory,
             size: parsedSize as ItemSize,
             price: parsedPrice,
             costPrice,
@@ -569,7 +598,14 @@ export class ItemService
         branchId,
         status: { not: ItemStatus.INACTIVE },
       },
-      select: { id: true, name: true, category: true, size: true, price: true, stockQuantity: true },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        size: true,
+        price: true,
+        stockQuantity: true,
+      },
       orderBy: { name: 'asc' },
     });
 

@@ -46,7 +46,12 @@ export class PosStaffController {
     const authUser = req.user as AuthUser;
     const user = await this.prisma.user.findUnique({
       where: { id: authUser.sub },
-      select: { branchId: true, firstName: true, lastName: true, isActive: true },
+      select: {
+        branchId: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+      },
     });
 
     if (!user || !user.branchId || !user.isActive) {

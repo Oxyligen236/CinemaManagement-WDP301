@@ -46,7 +46,7 @@ export class AdminService {
       Object.values(Role).map((role) => [role, 0]),
     ) as Record<Role, number>;
     for (const g of roleGroups) {
-      usersByRole[g.role as Role] = g._count.id;
+      usersByRole[g.role] = g._count.id;
     }
 
     return {

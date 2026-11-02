@@ -131,8 +131,7 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
     return showtimes.map((st) => {
       const movie = movieMap.get(st.movieId);
       const room = roomMap.get(st.roomId);
-      const stats =
-        seatShowtimeStatsByShowtime.get(st.id) ||
+      const stats = seatShowtimeStatsByShowtime.get(st.id) ||
         roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
 
       const rawPoster = movie?.posterKey;

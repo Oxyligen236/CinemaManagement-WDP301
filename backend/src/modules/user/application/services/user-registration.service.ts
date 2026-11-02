@@ -10,11 +10,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
-import {
-  createHash,
-  randomInt,
-  timingSafeEqual,
-} from 'node:crypto';
+import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
@@ -166,7 +162,6 @@ export class UserRegistrationService {
   }
 
   async resendCode(rawEmail: string) {
-
     const email = String(rawEmail ?? '')
       .trim()
       .toLowerCase();

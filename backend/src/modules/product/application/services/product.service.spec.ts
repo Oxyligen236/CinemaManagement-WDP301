@@ -1,6 +1,11 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ProductService } from './product.service';
-import { BranchStatus, ItemStatus, ComboStatus, ItemCategory } from '@prisma/client';
+import {
+  BranchStatus,
+  ItemStatus,
+  ComboStatus,
+  ItemCategory,
+} from '@prisma/client';
 import { ItemService } from './item.service';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 
@@ -32,7 +37,7 @@ describe('ProductService', () => {
     };
 
     service = new ProductService(
-      mockPrisma as unknown as PrismaService,
+      mockPrisma,
       mockItemService as unknown as ItemService,
     );
   });

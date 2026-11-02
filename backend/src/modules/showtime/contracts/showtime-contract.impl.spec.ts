@@ -12,7 +12,7 @@ describe('ShowtimeContractImpl', () => {
       },
     };
 
-    contract = new ShowtimeContractImpl(mockPrisma as unknown as PrismaService);
+    contract = new ShowtimeContractImpl(mockPrisma);
   });
 
   it('trả về null nếu không tìm thấy seatShowtime', async () => {

@@ -48,12 +48,14 @@ describe('RoomOptionQueryService', () => {
           return Promise.resolve(list);
         }),
         findUnique: jest.fn((args: { where: { id: string } }) =>
-          Promise.resolve(MOCK_ROOMS.find((r) => r.id === args.where.id) ?? null),
+          Promise.resolve(
+            MOCK_ROOMS.find((r) => r.id === args.where.id) ?? null,
+          ),
         ),
       },
     };
 
-    service = new RoomOptionQueryService(mockPrisma as unknown as PrismaService);
+    service = new RoomOptionQueryService(mockPrisma);
   });
 
   describe('listRoomsByBranch', () => {
@@ -88,7 +90,9 @@ describe('RoomOptionQueryService', () => {
     it('propagates database errors', async () => {
       mockPrisma.room.findMany.mockRejectedValue(new Error('db down'));
 
-      await expect(service.listRoomsByBranch(BRANCH_A)).rejects.toThrow('db down');
+      await expect(service.listRoomsByBranch(BRANCH_A)).rejects.toThrow(
+        'db down',
+      );
     });
   });
 

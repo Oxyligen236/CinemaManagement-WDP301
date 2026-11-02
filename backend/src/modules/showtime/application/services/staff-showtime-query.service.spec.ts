@@ -35,7 +35,7 @@ describe('StaffShowtimeQueryService', () => {
 
     service = new StaffShowtimeQueryService(
       userBranchQueryService as unknown as UserBranchQueryService,
-      mockPrisma as unknown as PrismaService,
+      mockPrisma,
     );
   });
 

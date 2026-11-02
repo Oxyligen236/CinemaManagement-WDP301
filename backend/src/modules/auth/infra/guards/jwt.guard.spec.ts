@@ -26,10 +26,7 @@ describe('JwtGuard', () => {
         findUnique: jest.fn(),
       },
     };
-    guard = new JwtGuard(
-      { verifyAsync } as unknown as JwtService,
-      mockPrisma as unknown as PrismaService,
-    );
+    guard = new JwtGuard({ verifyAsync } as unknown as JwtService, mockPrisma);
   });
 
   it('rejects when Authorization header is missing', async () => {
