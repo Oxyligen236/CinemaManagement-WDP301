@@ -23,10 +23,15 @@ flowchart TD
 
     %% Customer Experience Flow
     subgraph CustomerFlow [Customer Experience - Online Booking Flow]
+        UserProfile["/profile (Thông tin tài khoản & Đổi mật khẩu)"]
         CustomerOrders["/profile/orders (Lịch sử đặt vé cá nhân)"]
         OrderDetailModal["[Modal] Chi tiết đơn hàng & Vé"]
 
         Home -->|Xem lịch sử mua vé| CustomerOrders
+        Home -->|Header: Menu Tài khoản| UserProfile
+        UserProfile -->|Xem Lịch sử vé| CustomerOrders
+        UserProfile -->|Quay lại| Home
+        UserProfile -->|Đăng xuất| Login
         CustomerOrders -->|Chi tiết| OrderDetailModal
         CustomerOrders -->|"Thanh toán ngay (Đơn PENDING)"| BookingSummary
         CustomerOrders -->|"Hủy đơn giữ chỗ (PENDING)"| CustomerOrders
@@ -97,6 +102,8 @@ flowchart TD
         StaffOrderDetail -->|"Hủy đơn (PENDING)"| StaffOrders
         StaffScan -->|Quét mã hợp lệ| ScanResultBanner
         StaffScan -->|"Quét vé khác chi nhánh (Cảnh báo đỏ 220Hz)"| ScanResultBanner
+        StaffPOS -->|Topbar: Hồ sơ| UserProfile
+        UserProfile -->|Quay lại| StaffPOS
         StaffPOS -->|Đăng xuất| Home
     end
 
@@ -136,6 +143,8 @@ flowchart TD
         AdminPriceMultipliers -->|Xóa giá trị| DeletePriceValueDialog
         DeletePriceValueDialog -->|Xác nhận / Hủy| AdminPriceMultipliers
 
+        AdminDashboard -->|Topbar: Hồ sơ| UserProfile
+        UserProfile -->|Quay lại| AdminDashboard
         AdminDashboard -->|Đăng xuất| Home
     end
 
@@ -176,6 +185,8 @@ flowchart TD
         ImportExcelModal -->|Import hoàn tất / Báo cáo kết quả| ManageProducts
         ComboModal -->|Lưu thành công| ManageProducts
         ChangeStatusDialog -->|Xác nhận thành công| ManageProducts
+        BMDashboard -->|Topbar: Hồ sơ| UserProfile
+        UserProfile -->|Quay lại| BMDashboard
         BMDashboard -->|Đăng xuất| Home
     end
 
