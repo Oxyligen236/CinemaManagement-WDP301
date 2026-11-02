@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   ApiError,
@@ -131,16 +133,28 @@ export default function AdminPriceMultipliersPage() {
   }, []);
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-text-main">
-          Cấu hình hệ số giá vé
-        </h1>
-        <p className="text-sm text-text-sub">
-          Chỉ áp dụng cho suất chiếu tạo mới và vé mua trong tương lai
-          (BR-BRM-12). Suất chiếu đã tạo giữ nguyên hệ số đã chọn. Khi không
-          chọn giá trị nào, suất chiếu dùng hệ số 1.0x.
-        </p>
+    <div className="space-y-6 font-['Arial',sans-serif]">
+      <div className="flex flex-col gap-4 border-b-2 border-[#231f20] pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#da291c]">
+            LATTE CINEMA • QUẢN TRỊ BẢNG GIÁ TOÀN HỆ THỐNG
+          </p>
+          <h1 className="mt-1 text-[24px] font-bold uppercase text-[#231f20]">
+            Cấu hình hệ số giá vé
+          </h1>
+          <p className="mt-1 max-w-3xl text-[13px] text-[#666]">
+            Chỉ áp dụng cho suất chiếu tạo mới và vé mua trong tương lai
+            (BR-BRM-12). Suất chiếu đã tạo giữ nguyên hệ số đã chọn. Khi không
+            chọn giá trị nào, suất chiếu dùng hệ số 1.0x.
+          </p>
+        </div>
+        <Link
+          href="/admin/dashboard"
+          className="inline-flex h-[40px] items-center gap-2 border border-[#dad2b4] bg-[#efebdb] px-4 text-[13px] font-bold text-[#6f6247] transition-colors hover:bg-[#dad2b4] hover:text-[#231f20]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Về Tổng quan
+        </Link>
       </div>
 
       {(session === "checking" || session === "anonymous") && (
@@ -174,7 +188,7 @@ export default function AdminPriceMultipliersPage() {
                   aria-label={title}
                   className="space-y-3"
                 >
-                  <h2 className="text-lg font-semibold text-text-main">
+                  <h2 className="border-l-4 border-[#da291c] bg-[#efebdb] px-3 py-2 text-[13px] font-bold uppercase text-[#231f20]">
                     {title}
                   </h2>
                   <div className="grid gap-4 lg:grid-cols-2">
@@ -196,6 +210,6 @@ export default function AdminPriceMultipliersPage() {
       )}
 
       {toast && <Toast key={toast.id} message={toast.message} />}
-    </main>
+    </div>
   );
 }
