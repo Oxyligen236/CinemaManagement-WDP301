@@ -167,16 +167,7 @@ function LoginForm() {
           onBlur={() => validateField(form, "password")}
           autoComplete="current-password"
           error={fieldErrors.password}
-        >
-          <div className="mt-2 flex justify-end">
-            <Link
-              href="/forgot-password"
-              className="text-[12px] font-bold text-[#da291c] hover:underline"
-            >
-              Quên mật khẩu?
-            </Link>
-          </div>
-        </AuthField>
+        ></AuthField>
 
         {error && <AuthErrorBanner message={error} />}
 
@@ -190,6 +181,14 @@ function LoginForm() {
           )}
           {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
+        <div className="mt-2 flex justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-[12px] font-bold text-[#da291c] hover:underline"
+          >
+            Quên mật khẩu?
+          </Link>
+        </div>
       </form>
     </AuthShell>
   );
