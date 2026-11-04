@@ -1,0 +1,111 @@
+sequenceDiagram
+    autonumber
+    actor Customer as Customer (User)
+    participant UI as CustomerClient: Boundary
+    participant OrderCtrl as OrderController: Boundary
+    participant OrderSvc as OrderService: Control
+    participant ShowtimeSvc as ShowtimeBookingService: Control
+    participant PromotionSvc as PromotionService: Control
+    participant DB as PrismaDatabase: Entity
+    participant Queue as OrderExpirationQueue (BullMQ): Broker
+    participant EventBus as InternalEventBus: Broker
+    participant VNPay as VNPayGateway: External
+    participant VNPayCtrl as VnpayReturnController: Boundary
+    participant TicketSvc as TicketService: Control
+    participant ProductSvc as ProductService: Control
+    participant ExpireConsumer as OrderExpirationConsumer: Control
+
+    %% ================= 1. ORDER CREATION & TEMPORARY SEAT HOLD =================
+    Note over Customer, EventBus: STAGE 1: Select showtime, seats, F&B combos, and hold seats (10 minutes)
+    Customer ->>+ UI: Select showtime, available seats (EMPTY), F&B combos & voucher code
+    UI ->>+ OrderCtrl: POST /orders/booking { showtimeId, seatShowtimeIds, products, promotionCode }
+    OrderCtrl ->>+ OrderSvc: createBookingOrder(userId, req)
+
+    OrderSvc ->>+ ShowtimeSvc: reserveSeats(seatShowtimeIds)
+    ShowtimeSvc -->>- OrderSvc: SeatBookingDetail[] (Change EMPTY -> RESERVED)
+
+    opt [req.promotionCode != null]
+        OrderSvc ->>+ PromotionSvc: validatePromotionCode({ code, orderAmount, userId })
+        PromotionSvc -->>- OrderSvc: ValidatePromotionResultDto (discountAmount)
+    end
+
+    critical [DB Transaction: Initialize Order, SeatOrder, ProductOrder]
+        OrderSvc ->>+ DB: $transaction: create Order(PENDING), SeatOrder[], ProductOrder[]
+        DB -->>- OrderSvc: Order saved successfully (orderId)
+    end
+
+    OrderSvc -) Queue: publish('order-expiration', { orderId }, delay: 600,000ms)
+    OrderSvc -) EventBus: publish(OrderCreatedEvent)
+    OrderSvc -->>- OrderCtrl: BookingSummaryRes (expiresAt, totalAmount, orderId)
+    OrderCtrl -->>- UI: 201 Created (BookingSummaryRes)
+    UI -->>- Customer: Display 10:00 countdown timer & VNPay payment button
+
+    %% ================= 2. VNPAY PAYMENT URL INITIALIZATION =================
+    Note over Customer, VNPay: STAGE 2: Generate online payment URL via VNPay Gateway
+    Customer ->>+ UI: Click "Pay with VNPay"
+    UI ->>+ OrderCtrl: POST /orders/:orderId/vnpay
+    OrderCtrl ->>+ OrderSvc: createVnpayPayment(userId, orderId, clientIp)
+    OrderSvc ->>+ VNPay: buildPaymentUrl(orderId, totalAmount, ipAddr)
+    VNPay -->>- OrderSvc: paymentUrl (with HMAC-SHA512 SecureHash)
+    OrderSvc -->>- OrderCtrl: VnpayPaymentUrlRes { paymentUrl }
+    OrderCtrl -->>- UI: 200 OK { paymentUrl }
+    UI -->>- Customer: Redirect browser to VNPay gateway
+
+    %% ================= 3. IPN WEBHOOK & ORDER FULFILLMENT =================
+    Note over VNPay, EventBus: STAGE 3: Server-to-Server IPN Webhook processes payment result & issues tickets
+    Customer ->>+ VNPay: Enter OTP & confirm payment
+    VNPay -->>- Customer: Payment successful, prepare redirect
+    VNPay ->>+ VNPayCtrl: GET /payments/vnpay/ipn (vnp_ResponseCode=00, vnp_TxnRef, vnp_SecureHash)
+    VNPayCtrl ->>+ OrderSvc: handleVnpayIpn(query)
+    OrderSvc ->>+ OrderSvc: fulfillVnpayOrder(orderId)
+
+    alt [vnp_ResponseCode == '00' (Payment Successful)]
+        critical [DB Transaction: Fulfill Order - Seats BOOKED, Tickets VALID, Deduct Stock]
+            OrderSvc ->>+ DB: $transaction: update Order(PAID) & Payment(SUCCESS)
+            OrderSvc ->>+ ShowtimeSvc: confirmSeats(seatShowtimeIds, tx) (RESERVED -> BOOKED)
+            ShowtimeSvc -->>- OrderSvc: confirmedCount
+            OrderSvc ->>+ TicketSvc: createTicketsForOrder({ orderId, seatShowtimeIds }, tx)
+            TicketSvc -->>- OrderSvc: TicketItemSummaryDto[] (VALID)
+            OrderSvc ->>+ ProductSvc: deductConcessionStock(items, tx)
+            ProductSvc -->>- OrderSvc: void
+            DB -->>- OrderSvc: Transaction committed successfully
+        end
+        OrderSvc -) EventBus: publish(OrderPaidEvent)
+    else [Payment Failed / Cancelled by Customer at Gateway]
+        OrderSvc ->>+ DB: update Payment { status: FAILED }
+        DB -->>- OrderSvc: Payment updated
+    end
+
+    OrderSvc -->>- OrderSvc: { RspCode: '00', Message: 'Confirm Success' }
+    OrderSvc -->>- VNPayCtrl: { RspCode: '00', Message: 'Confirm Success' }
+    VNPayCtrl -->>- VNPay: HTTP 200 { RspCode: '00', Message: 'Confirm Success' }
+
+    %% ================= 4. CLIENT RETURN & ORDER SUMMARY =================
+    Note over VNPay, UI: STAGE 4: Customer browser is redirected to Web/App & fetches order summary
+    VNPay ->>+ VNPayCtrl: GET /payments/vnpay/return (vnp_ResponseCode=00, vnp_TxnRef)
+    VNPayCtrl ->>+ OrderSvc: handleVnpayReturn(query)
+    OrderSvc -->>- VNPayCtrl: { orderId, isSuccess: true, responseCode: '00' }
+    VNPayCtrl -->>- UI: 302 Redirect /booking/payment-return?orderId=...&status=success
+    UI ->>+ OrderCtrl: GET /orders/:orderId/summary
+    OrderCtrl ->>+ OrderSvc: getBookingSummary(userId, orderId)
+    OrderSvc -->>- OrderCtrl: BookingSummaryRes (status: PAID, ticketDetails, products)
+    OrderCtrl -->>- UI: 200 OK (BookingSummaryRes)
+    UI -->> Customer: Display booking confirmation screen & electronic QR tickets
+
+    %% ================= 5. SEAT HOLD TIMEOUT EXPIRATION =================
+    Note over Queue, DB: STAGE 5: Order expiration handler via BullMQ delayed job
+    Queue -) ExpireConsumer: handle({ orderId }) [Triggered after 600,000ms delay]
+    ExpireConsumer ->>+ OrderSvc: expireOrder(orderId)
+    OrderSvc ->>+ DB: findUnique(orderId)
+    DB -->>- OrderSvc: Order { status: PENDING, seatShowtimeIds }
+
+    opt [Order.status == PENDING]
+        critical [DB & State Release: Cancel seat hold & Update order to EXPIRED]
+            OrderSvc ->>+ DB: updateMany Order status=EXPIRED where id=orderId, status=PENDING
+            DB -->>- OrderSvc: updated count = 1
+            OrderSvc ->>+ ShowtimeSvc: releaseSeats(seatShowtimeIds) (RESERVED -> EMPTY)
+            ShowtimeSvc -->>- OrderSvc: releasedSeatsCount
+        end
+        OrderSvc -) EventBus: publish(OrderExpiredEvent)
+    end
+    OrderSvc -->>- ExpireConsumer: true (Job completed)

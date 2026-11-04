@@ -1,0 +1,33 @@
+sequenceDiagram
+    autonumber
+    actor Staff as Staff (Cashier)
+    participant POS_UI as POS Client (/staff/pos): Boundary
+    participant PosCtrl as PosStaffController: Boundary
+    participant PosSvc as PosOrderService: Control
+    participant ShowtimeSvc as ShowtimeBookingService: Control
+    participant DB as PrismaDatabase: Entity
+    participant EventBus as InternalEventBus: Broker
+
+    %% ================= STAGE 1: ORDER CREATION AT POS COUNTER =================
+    Note over Staff, EventBus: STAGE 1: Select branch showtime, seats, combos, and create POS PENDING order
+    Staff ->>+ POS_UI: Select branch showtime, pick seats & F&B combos
+    POS_UI ->>+ PosCtrl: POST /staff/pos/orders { showtimeId, seatShowtimeIds, products }
+    PosCtrl ->>+ PosCtrl: getStaffContext(req) [Authenticate branchId & staffId]
+    PosCtrl -->>- PosCtrl: staffContext { staffId, branchId, staffName }
+    PosCtrl ->>+ PosSvc: createPosBookingOrder(staffContext, req)
+
+    PosSvc ->>+ PosSvc: verifyOrderBranch(showtimeId, staffContext.branchId)
+    PosSvc -->>- PosSvc: branchVerified
+
+    PosSvc ->>+ ShowtimeSvc: reserveSeats(seatShowtimeIds)
+    ShowtimeSvc -->>- PosSvc: SeatBookingDetail[] (Change EMPTY -> RESERVED)
+
+    critical [DB Transaction: Initialize Order POS PENDING]
+        PosSvc ->>+ DB: $transaction: create Order(staffId, branchId, PENDING), SeatOrder[], ProductOrder[]
+        DB -->>- PosSvc: Order saved successfully (orderId)
+    end
+
+    PosSvc -) EventBus: publish(OrderCreatedEvent)
+    PosSvc -->>- PosCtrl: PosBookingSummaryRes (orderId, totalAmount, expiresAt)
+    PosCtrl -->>- POS_UI: 201 Created (Display cart summary & payment options)
+    POS_UI -->>- Staff: Ready for payment

@@ -1,0 +1,61 @@
+sequenceDiagram
+    autonumber
+    actor Customer as Customer (User)
+    participant UI as CustomerClient: Boundary
+    participant OrderCtrl as OrderController: Controller
+    participant VNPay as VNPayGateway: External
+    participant VNPayCtrl as VnpayReturnController: Controller
+    participant OrderSvc as OrderService: Service
+    participant Prisma as PrismaService: Repository
+    participant ShowtimeSvc as ShowtimeBookingService: Service
+    participant TicketSvc as TicketService: Service
+    participant ProductSvc as ProductService: Service
+    participant EventBus as EventEmitter
+    participant Database
+
+    %% ================= PART 1: IPN WEBHOOK & ORDER FULFILLMENT =================
+    Customer ->>+ VNPay: Enter OTP & confirm payment
+    VNPay -->>- Customer: Payment successful, prepare redirect
+    VNPay ->>+ VNPayCtrl: GET /payments/vnpay/ipn (vnp_ResponseCode=00, vnp_TxnRef, vnp_SecureHash)
+    VNPayCtrl ->>+ OrderSvc: handleVnpayIpn(query)
+    OrderSvc ->>+ OrderSvc: fulfillVnpayOrder(orderId)
+
+    alt [vnp_ResponseCode == '00' (Payment Successful)]
+        OrderSvc ->>+ Prisma: update Order(PAID) & Payment(SUCCESS)
+        Prisma ->>+ Database: update Order & Payment
+        Database -->>- Prisma: Order & Payment updated successfully
+        OrderSvc ->>+ ShowtimeSvc: confirmSeats(seatShowtimeIds, tx) (RESERVED -> BOOKED)
+        ShowtimeSvc -->>- OrderSvc: confirmedCount
+        OrderSvc ->>+ TicketSvc: createTicketsForOrder({ orderId, seatShowtimeIds }, tx)
+        TicketSvc ->>+ Prisma: create tickets
+        Prisma ->>+ Database: insert tickets
+        Database -->>- Prisma: tickets created successfully
+        Prisma -->>- TicketSvc: TicketItemSummaryDto[] (VALID)
+        TicketSvc -->>- OrderSvc: TicketItemSummaryDto[] (VALID)
+        OrderSvc ->>+ ProductSvc: deductConcessionStock(items, tx)
+        ProductSvc ->>+ Prisma: update ProductStock { stock = stock - quantity }
+        Prisma ->>+ Database: update ProductStock
+        Database -->>- Prisma: ProductStock updated successfully
+        ProductSvc -->>- OrderSvc: void
+        Prisma -->>- OrderSvc: Transaction committed successfully
+
+        OrderSvc -) EventBus: publish(OrderPaidEvent)
+    else [Payment Failed / Cancelled by Customer at Gateway]
+        OrderSvc ->>+ Prisma: update Payment { status: FAILED }
+        Prisma -->>- OrderSvc: Payment updated
+    end
+
+    OrderSvc -->>- OrderSvc: { RspCode: '00', Message: 'Confirm Success' }
+    OrderSvc -->>- VNPayCtrl: { RspCode: '00', Message: 'Confirm Success' }
+    VNPayCtrl -->>- VNPay: HTTP 200 { RspCode: '00', Message: 'Confirm Success' }
+
+    %% ================= PART 2: CLIENT REDIRECTION & ORDER SUMMARY =================
+    VNPay ->>+ VNPayCtrl: GET /payments/vnpay/return (vnp_ResponseCode=00, vnp_TxnRef)
+    VNPayCtrl ->>+ OrderSvc: handleVnpayReturn(query)
+    OrderSvc -->>- VNPayCtrl: { orderId, isSuccess: true, responseCode: '00' }
+    VNPayCtrl -->>- UI: 302 Redirect /booking/payment-return?orderId=...&status=success
+    UI ->>+ OrderCtrl: GET /orders/:orderId/summary
+    OrderCtrl ->>+ OrderSvc: getBookingSummary(userId, orderId)
+    OrderSvc -->>- OrderCtrl: BookingSummaryRes (status: PAID, ticketDetails, products)
+    OrderCtrl -->>- UI: 200 OK (BookingSummaryRes)
+    UI -->> Customer: Display booking confirmation screen & electronic QR tickets

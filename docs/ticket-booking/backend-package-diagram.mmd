@@ -1,0 +1,162 @@
+flowchart TB
+    %% =========================================================================
+    %% 1. PRESENTATION LAYER
+    %% =========================================================================
+    subgraph Presentation["Presentation Layer (Boundary)"]
+        direction TB
+        subgraph OrderControllers["order.infra.controllers"]
+            OrderController["OrderController"]
+            PosStaffController["PosStaffController"]
+            VnpayReturnController["VnpayReturnController"]
+            OrderStaffController["OrderStaffController"]
+            OrderAdminController["OrderAdminController"]
+        end
+
+        subgraph ShowtimeControllers["showtime.infra.controllers"]
+            ShowtimeController["ShowtimeController"]
+            BranchShowtimeController["BranchShowtimeController"]
+        end
+
+        subgraph CatalogControllers["catalog.infra.controllers"]
+            MovieController["MovieController"]
+            RoomController["RoomController"]
+            ProductController["ProductController"]
+            PromotionController["PromotionController"]
+        end
+
+        subgraph IamControllers["iam.infra.controllers"]
+            AuthController["AuthController"]
+            UserController["UserController"]
+            StaffController["StaffController"]
+        end
+    end
+
+    %% =========================================================================
+    %% 2. APPLICATION LAYER
+    %% =========================================================================
+    subgraph Application["Application Layer (Control)"]
+        direction TB
+        subgraph OrderApp["order.application"]
+            OrderService["OrderService"]
+            PosOrderService["PosOrderService"]
+            OrderExpirationConsumer["OrderExpirationConsumer"]
+        end
+
+        subgraph ShowtimeApp["showtime.application"]
+            ShowtimeBookingService["ShowtimeBookingService"]
+            ShowtimeQueryService["ShowtimeQueryService"]
+        end
+
+        subgraph CatalogApp["catalog.application"]
+            MovieService["MovieService"]
+            ProductService["ProductService"]
+            PromotionService["PromotionService"]
+            RoomService["RoomService"]
+        end
+
+        subgraph IamApp["iam.application"]
+            AuthService["AuthService"]
+            UserService["UserService"]
+            StaffService["StaffService"]
+        end
+
+        subgraph AnalyticsApp["analytics.application"]
+            StatisticsService["StatisticsService"]
+        end
+    end
+
+    %% =========================================================================
+    %% 3. CONTRACTS LAYER
+    %% =========================================================================
+    subgraph Contracts["Cross-Module Contracts Layer"]
+        direction TB
+        subgraph OrderContracts["order.contracts"]
+            ShowtimeBookingContract[("&laquo;interface&raquo;<br/>ShowtimeBookingContract")]
+            TicketContract[("&laquo;interface&raquo;<br/>TicketContract")]
+            ProductContract[("&laquo;interface&raquo;<br/>ProductContract")]
+            PromotionContract[("&laquo;interface&raquo;<br/>PromotionContract")]
+            PaymentContract[("&laquo;interface&raquo;<br/>PaymentContract")]
+        end
+    end
+
+    %% =========================================================================
+    %% 4. DOMAIN LAYER
+    %% =========================================================================
+    subgraph Domain["Domain Layer (Core Entities & Events)"]
+        direction TB
+        subgraph OrderDomain["order.domain"]
+            OrderAggregate["Order Aggregate"]
+            OrderEvents["Order Events"]
+            OrderEnums["Order Enums"]
+        end
+
+        subgraph ShowtimeDomain["showtime.domain"]
+            ShowtimeAggregate["Showtime Aggregate"]
+            SeatShowtimeAggregate["SeatShowtime Aggregate"]
+            ShowtimeEnums["Showtime Enums"]
+        end
+
+        subgraph CatalogDomain["catalog.domain"]
+            MovieEntity["Movie Entity"]
+            RoomEntity["RoomEntity"]
+            ProductEntity["ProductEntity"]
+            PromotionEntity["PromotionEntity"]
+        end
+    end
+
+    %% =========================================================================
+    %% 5. INFRASTRUCTURE LAYER
+    %% =========================================================================
+    subgraph Infrastructure["Infrastructure Layer (Data & Drivers)"]
+        direction TB
+        subgraph InfraDB["infra.database"]
+            PrismaService["PrismaService"]
+            DatabaseModule["DatabaseModule"]
+        end
+
+        subgraph InfraQueue["infra.queue"]
+            BullmqService["BullmqService"]
+            QueueModule["QueueModule"]
+        end
+
+        subgraph InfraEvent["infra.event"]
+            InternalEventBusService["InternalEventBusService"]
+            EventModule["EventModule"]
+        end
+
+        subgraph InfraCache["infra.cache"]
+            RedisService["RedisService"]
+            CacheModule["CacheModule"]
+        end
+
+        subgraph InfraMail["infra.mail"]
+            MailerService["MailerService"]
+            MailModule["MailModule"]
+        end
+
+        subgraph InfraStorage["infra.storage"]
+            CloudflareR2Service["CloudflareR2Service"]
+            StorageModule["StorageModule"]
+        end
+    end
+
+    %% =========================================================================
+    %% DEPENDENCY FLOWS (UML DEPENDENCY ..>)
+    %% =========================================================================
+    OrderControllers -.-> OrderApp
+    ShowtimeControllers -.-> ShowtimeApp
+    CatalogControllers -.-> CatalogApp
+    IamControllers -.-> IamApp
+
+    OrderApp -.-> OrderContracts
+    OrderApp -.-> OrderDomain
+    OrderApp -.-> InfraDB
+    OrderApp -.-> InfraQueue
+    OrderApp -.-> InfraEvent
+
+    ShowtimeApp -.-> ShowtimeBookingContract
+    CatalogApp -.-> ProductContract
+    CatalogApp -.-> PromotionContract
+
+    OrderContracts -.-> OrderDomain
+    InfraQueue -.-> InfraCache

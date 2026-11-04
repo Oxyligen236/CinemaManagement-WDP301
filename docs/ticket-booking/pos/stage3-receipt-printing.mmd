@@ -1,0 +1,24 @@
+sequenceDiagram
+    autonumber
+    actor Staff as Staff (Cashier)
+    actor Customer as Customer (At Counter)
+    participant POS_UI as POS Client (/staff/pos): Boundary
+    participant PosCtrl as PosStaffController: Boundary
+    participant PosSvc as PosOrderService: Control
+    participant DB as PrismaDatabase: Entity
+    participant Printer as ThermalPrinter80mm: Boundary
+
+    %% ================= STAGE 3: RECEIPT & THERMAL TICKET PRINTING =================
+    Note over Staff, Printer: STAGE 3: Fetch receipt data & Trigger 80mm thermal print job
+    POS_UI ->>+ PosCtrl: GET /staff/pos/orders/:orderId/receipt
+    PosCtrl ->>+ PosSvc: getPosReceipt(staffContext, orderId)
+    PosSvc ->>+ DB: findUnique Order (include seatOrders, productOrders, tickets, branch)
+    DB -->>- PosSvc: Full Order Details (Cinema, Movie, Room, Seats, F&B, Barcode)
+    PosSvc -->>- PosCtrl: PosReceiptRes (Complete receipt print payload)
+    PosCtrl -->>- POS_UI: 200 OK (PosReceiptRes)
+
+    Staff ->>+ POS_UI: Click "Print Tickets & Receipt"
+    POS_UI ->>+ Printer: Send 80mm thermal print command (window.print() with auto-cut)
+    Printer -->>- POS_UI: Output physical movie tickets & F&B collection slip
+    POS_UI -->>- Staff: Printing completed
+    Staff -->> Customer: Hand physical tickets and F&B receipt to customer
