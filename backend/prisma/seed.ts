@@ -11,13 +11,13 @@ import {
   ItemSize,
   ItemStatus,
   OrderStatus,
-  TicketStatus,
   PaymentMethod,
   PaymentStatus,
   DiscountType,
   DayType,
   ShiftAttendanceStatus,
 } from '@prisma/client';
+import { TicketStatus } from '../src/modules/order/domain/enums/ticket-status.enum';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();

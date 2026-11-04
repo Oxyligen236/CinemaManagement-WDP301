@@ -12,8 +12,11 @@ import {
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../../auth/infra/guards/role.guard';
 import { Role, Roles } from '../../../auth/infra/decorators/role.decorator';
-import { TicketService } from '../../application/services/ticket.service';
-import { ScanTicketReq } from '../../application/dto/req.dto';
+import { OrderService } from '../../application/services/order.service';
+import {
+  ScanTicketReq,
+  StaffScanContextReq,
+} from '../../application/dto/req.dto';
 import {
   ScanTicketResultRes,
   TicketDetailRes,
@@ -33,7 +36,7 @@ interface RequestWithUser {
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class TicketController {
   constructor(
-    private readonly ticketService: TicketService,
+    private readonly orderService: OrderService,
     private readonly userBranchQueryService: UserBranchQueryService,
   ) {}
 
@@ -54,11 +57,13 @@ export class TicketController {
       branchId = queriedBranchId ?? undefined;
     }
 
-    return this.ticketService.scanTicket(dto, {
+    const staffContext: StaffScanContextReq = {
       staffId,
       branchId,
       role,
-    });
+    };
+
+    return this.orderService.scanTicket(staffContext, dto);
   }
 
   @Get(':ticketCode')
@@ -66,6 +71,6 @@ export class TicketController {
   async getTicketDetail(
     @Param('ticketCode') ticketCode: string,
   ): Promise<TicketDetailRes> {
-    return this.ticketService.getTicketDetail(ticketCode);
+    return this.orderService.getTicketDetail(ticketCode);
   }
 }

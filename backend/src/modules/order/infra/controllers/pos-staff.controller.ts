@@ -15,7 +15,7 @@ import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../../auth/infra/guards/role.guard';
 import { Role, Roles } from '../../../auth/infra/decorators/role.decorator';
 import { AuthenticatedRequest, AuthUser } from '../../../auth/domain/auth-user';
-import { PosOrderService } from '../../application/services/pos-order.service';
+import { OrderService } from '../../application/services/order.service';
 import {
   ApplyPromotionReq,
   CancelPosOrderReq,
@@ -24,6 +24,7 @@ import {
   ProcessPosCashPaymentReq,
 } from '../../application/dto/req.dto';
 import {
+  CancelOrderRes,
   PosBookingSummaryRes,
   PosCashPaymentResultRes,
   PosQrPaymentRes,
@@ -36,7 +37,7 @@ import {
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class PosStaffController {
   constructor(
-    private readonly posOrderService: PosOrderService,
+    private readonly orderService: OrderService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -76,7 +77,7 @@ export class PosStaffController {
     @Body() body: CreatePosOrderReq,
   ): Promise<PosBookingSummaryRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.posOrderService.createPosBookingOrder(staffContext, body);
+    return this.orderService.createPosBookingOrder(staffContext, body);
   }
 
   @Post(':orderId/apply-promotion')
@@ -86,7 +87,7 @@ export class PosStaffController {
     @Body() body: ApplyPromotionReq,
   ): Promise<PosBookingSummaryRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.posOrderService.applyPosPromotion(staffContext, orderId, body);
+    return this.orderService.applyPosPromotion(staffContext, orderId, body);
   }
 
   @Post(':orderId/cancel')
@@ -94,9 +95,17 @@ export class PosStaffController {
     @Req() req: AuthenticatedRequest,
     @Param('orderId') orderId: string,
     @Body() body?: CancelPosOrderReq,
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<CancelOrderRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.posOrderService.cancelPosOrder(staffContext, orderId, body);
+    return this.orderService.cancelOrder(
+      orderId,
+      {
+        userId: staffContext.staffId,
+        role: Role.STAFF,
+        branchId: staffContext.branchId,
+      },
+      body?.reason,
+    );
   }
 
   @Post(':orderId/pay/cash')
@@ -106,11 +115,7 @@ export class PosStaffController {
     @Body() body: ProcessPosCashPaymentReq,
   ): Promise<PosCashPaymentResultRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.posOrderService.confirmPosCashPayment(
-      staffContext,
-      orderId,
-      body,
-    );
+    return this.orderService.confirmPosCashPayment(staffContext, orderId, body);
   }
 
   @Post(':orderId/pay/qr')
@@ -120,11 +125,7 @@ export class PosStaffController {
     @Body() body: InitiatePosQrPaymentReq,
   ): Promise<PosQrPaymentRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.posOrderService.initiatePosQrPayment(
-      staffContext,
-      orderId,
-      body,
-    );
+    return this.orderService.initiatePosQrPayment(staffContext, orderId, body);
   }
 
   @Get(':orderId/pay/status')
@@ -133,7 +134,7 @@ export class PosStaffController {
     @Param('orderId') orderId: string,
   ): Promise<PosCashPaymentResultRes | PosQrPaymentRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.posOrderService.checkPosPaymentStatus(staffContext, orderId);
+    return this.orderService.checkPosPaymentStatus(staffContext, orderId);
   }
 
   @Get(':orderId/receipt')
@@ -142,6 +143,6 @@ export class PosStaffController {
     @Param('orderId') orderId: string,
   ): Promise<PosReceiptRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.posOrderService.getPosReceipt(staffContext, orderId);
+    return this.orderService.getPosReceipt(staffContext, orderId);
   }
 }
