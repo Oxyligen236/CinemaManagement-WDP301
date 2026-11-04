@@ -1,33 +1,95 @@
 sequenceDiagram
     autonumber
-    actor Staff as Staff (Cashier)
+    actor Staff as Staff
     participant POS_UI as POS Client (/staff/pos): Boundary
-    participant PosCtrl as PosStaffController: Boundary
-    participant PosSvc as PosOrderService: Control
-    participant ShowtimeSvc as ShowtimeBookingService: Control
-    participant DB as PrismaDatabase: Entity
-    participant EventBus as InternalEventBus: Broker
+    participant StaffShowtimeCtrl as StaffShowtimeController: Controller
+    participant ShowtimeCtrl as ShowtimeController: Controller
+    participant StaffProductCtrl as StaffProductController: Controller
+    participant PosCtrl as PosStaffController: Controller
+    participant StaffShowtimeQuerySvc as StaffShowtimeQueryService: Service
+    participant SeatShowtimeQuerySvc as SeatShowtimeQueryService: Service
+    participant ProductSvc as ProductService: Service
+    participant PosSvc as PosOrderService: Service
+    participant ShowtimeBookingSvc as ShowtimeBookingService: Service
+    participant Prisma as PrismaService: Repository
+    participant Database
 
-    %% ================= STAGE 1: ORDER CREATION AT POS COUNTER =================
-    Note over Staff, EventBus: STAGE 1: Select branch showtime, seats, combos, and create POS PENDING order
-    Staff ->>+ POS_UI: Select branch showtime, pick seats & F&B combos
-    POS_UI ->>+ PosCtrl: POST /staff/pos/orders { showtimeId, seatShowtimeIds, products }
-    PosCtrl ->>+ PosCtrl: getStaffContext(req) [Authenticate branchId & staffId]
-    PosCtrl -->>- PosCtrl: staffContext { staffId, branchId, staffName }
-    PosCtrl ->>+ PosSvc: createPosBookingOrder(staffContext, req)
+    Note over Staff, Database: Step 1: Select Showtime & Seats
+    Staff ->>+ POS_UI: Browse branch showtimes
+    POS_UI ->>+ StaffShowtimeCtrl: GET /staff/showtimes/today
+    StaffShowtimeCtrl ->>+ StaffShowtimeQuerySvc: getStaffTodayShowtimes(staffUserId)
+    StaffShowtimeQuerySvc ->>+ Prisma: showtime.findMany(roomId in roomIds, startTime)
+    Prisma ->>+ Database: SELECT * FROM showtimes
+    Database -->>- Prisma: showtime rows
+    Prisma -->>- StaffShowtimeQuerySvc: showtimes
+    StaffShowtimeQuerySvc -->>- StaffShowtimeCtrl: StaffShowtimeItemResDto[]
+    StaffShowtimeCtrl -->>- POS_UI: 200 OK (StaffShowtimeItemResDto[])
 
-    PosSvc ->>+ PosSvc: verifyOrderBranch(showtimeId, staffContext.branchId)
-    PosSvc -->>- PosSvc: branchVerified
+    Staff ->> POS_UI: Select showtime
+    POS_UI ->>+ ShowtimeCtrl: GET /showtimes/:id/seats
+    ShowtimeCtrl ->>+ SeatShowtimeQuerySvc: getShowtimeSeats(showtimeId)
+    SeatShowtimeQuerySvc ->>+ Prisma: seatShowtime.findMany(showtimeId, include: seat)
+    Prisma ->>+ Database: SELECT * FROM seat_showtimes JOIN seats
+    Database -->>- Prisma: seat_showtime rows
+    Prisma -->>- SeatShowtimeQuerySvc: seatShowtimes
+    SeatShowtimeQuerySvc -->>- ShowtimeCtrl: SeatShowtimeResDto[]
+    ShowtimeCtrl -->>- POS_UI: 200 OK (SeatShowtimeResDto[])
+    Staff ->> POS_UI: Select available seats (seatShowtimeIds)
 
-    PosSvc ->>+ ShowtimeSvc: reserveSeats(seatShowtimeIds)
-    ShowtimeSvc -->>- PosSvc: SeatBookingDetail[] (Change EMPTY -> RESERVED)
+    Note over Staff, Database: Step 2: Select Food & Beverages
+    POS_UI ->>+ StaffProductCtrl: GET /staff/products
+    StaffProductCtrl ->>+ ProductSvc: getBranchConcessions(branchId)
+    ProductSvc ->>+ Prisma: item.findMany(branchId) & combo.findMany(branchId)
+    Prisma ->>+ Database: SELECT * FROM items, combos
+    Database -->>- Prisma: item & combo rows
+    Prisma -->>- ProductSvc: items, combos
+    ProductSvc -->>- StaffProductCtrl: BranchConcessionCatalogRes
+    StaffProductCtrl -->>- POS_UI: 200 OK (BranchConcessionCatalogRes)
+    Staff ->> POS_UI: Select combos & F&B items
 
-    critical [DB Transaction: Initialize Order POS PENDING]
-        PosSvc ->>+ DB: $transaction: create Order(staffId, branchId, PENDING), SeatOrder[], ProductOrder[]
-        DB -->>- PosSvc: Order saved successfully (orderId)
-    end
+    Note over Staff, Database: Step 3: Create Order & Hold Seats
+    Staff ->> POS_UI: Submit order creation
+    POS_UI ->>+ PosCtrl: POST /staff/pos/orders (CreatePosOrderReq)
+    PosCtrl ->>+ PosSvc: createPosBookingOrder(staffContext, body)
 
-    PosSvc -) EventBus: publish(OrderCreatedEvent)
+    PosSvc ->>+ ShowtimeBookingSvc: reserveSeats(seatShowtimeIds)
+    ShowtimeBookingSvc ->>+ Prisma: seatShowtime.updateMany(seatStatus: RESERVED)
+    Prisma ->>+ Database: UPDATE seat_showtimes SET seat_status = 'RESERVED'
+    Database -->>- Prisma: updated rows count
+    Prisma -->>- ShowtimeBookingSvc: updateResult
+    ShowtimeBookingSvc -->>- PosSvc: SeatBookingDetail[]
+
+    PosSvc ->>+ Prisma: order.create(Order, SeatOrder[], ProductOrder[])
+    Prisma ->>+ Database: INSERT INTO orders, seat_orders, product_orders
+    Database -->>- Prisma: created order record (orderId)
+    Prisma -->>- PosSvc: Order (orderId)
+
     PosSvc -->>- PosCtrl: PosBookingSummaryRes (orderId, totalAmount, expiresAt)
-    PosCtrl -->>- POS_UI: 201 Created (Display cart summary & payment options)
-    POS_UI -->>- Staff: Ready for payment
+    PosCtrl -->>- POS_UI: 201 Created (PosBookingSummaryRes)
+    POS_UI -->>- Staff: Display order summary & action options
+
+    Note over Staff, Database: Step 4: Confirm or Cancel Order
+    alt Customer Confirms Order
+        Staff ->>+ POS_UI: Confirm order and proceed
+        POS_UI -->>- Staff: Order status: PENDING -> Proceed to Stage 2 (Counter Payment)
+    else Customer Cancels / Abandons Order
+        Staff ->>+ POS_UI: Click "Cancel Order"
+        POS_UI ->>+ PosCtrl: POST /staff/pos/orders/:orderId/cancel (CancelPosOrderReq)
+        PosCtrl ->>+ PosSvc: cancelPosOrder(staffContext, orderId, body)
+
+        PosSvc ->>+ Prisma: order.update(id: orderId, status: CANCELLED)
+        Prisma ->>+ Database: UPDATE orders SET status = 'CANCELLED'
+        Database -->>- Prisma: updated order row
+        Prisma -->>- PosSvc: updated order
+
+        PosSvc ->>+ ShowtimeBookingSvc: releaseSeats(seatShowtimeIds)
+        ShowtimeBookingSvc ->>+ Prisma: seatShowtime.updateMany(seatStatus: EMPTY)
+        Prisma ->>+ Database: UPDATE seat_showtimes SET seat_status = 'EMPTY'
+        Database -->>- Prisma: updated rows count
+        Prisma -->>- ShowtimeBookingSvc: released count
+        ShowtimeBookingSvc -->>- PosSvc: number of seats released
+
+        PosSvc -->>- PosCtrl: { success: true, message }
+        PosCtrl -->>- POS_UI: 200 OK ({ success: true, message })
+        POS_UI -->>- Staff: Order cancelled, seats released to EMPTY
+    end

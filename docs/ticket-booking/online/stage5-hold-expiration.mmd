@@ -3,7 +3,7 @@ sequenceDiagram
     participant Queue as QueueService (BullMQ)
     participant ExpireConsumer as OrderExpirationConsumer: Control
     participant OrderSvc as OrderService: Service
-    participant Prisma as PrismaDatabase: Entity
+    participant Prisma as PrismaService: Repository
     participant ShowtimeSvc as ShowtimeBookingService: Service
     participant EventBus as EventEmitter 
     participant Database
