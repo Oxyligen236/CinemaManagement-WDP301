@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
+import { X, AlertCircle, Loader2, ArrowRight, Plus, ClipboardCheck, Minus } from 'lucide-react';
 import {
   ItemRes,
   StockAdjustmentType,
@@ -158,7 +158,10 @@ export default function StockAdjustModal({
                   onChange={() => setAdjustmentType('ADD')}
                   className="hidden"
                 />
-                <span className="text-[14px]">➕ Nhập thêm</span>
+                <span className="inline-flex items-center gap-1.5 text-[14px]">
+                  <Plus className="h-4 w-4" />
+                  <span>Nhập thêm</span>
+                </span>
                 <span className="text-[10px] font-normal text-[#888] mt-0.5">
                   Cộng vào kho
                 </span>
@@ -179,7 +182,10 @@ export default function StockAdjustModal({
                   onChange={() => setAdjustmentType('SET')}
                   className="hidden"
                 />
-                <span className="text-[14px]">📝 Chốt kiểm kê</span>
+                <span className="inline-flex items-center gap-1.5 text-[14px]">
+                  <ClipboardCheck className="h-4 w-4" />
+                  <span>Chốt kiểm kê</span>
+                </span>
                 <span className="text-[10px] font-normal text-[#888] mt-0.5">
                   Ghi đè số thực
                 </span>
@@ -200,7 +206,10 @@ export default function StockAdjustModal({
                   onChange={() => setAdjustmentType('SUBTRACT')}
                   className="hidden"
                 />
-                <span className="text-[14px]">➖ Xuất / Hủy</span>
+                <span className="inline-flex items-center gap-1.5 text-[14px]">
+                  <Minus className="h-4 w-4" />
+                  <span>Xuất / Hủy</span>
+                </span>
                 <span className="text-[10px] font-normal text-[#888] mt-0.5">
                   Trừ khỏi kho
                 </span>
