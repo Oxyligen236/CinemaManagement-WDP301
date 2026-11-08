@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Tag,
   CheckCircle,
+  Ban,
 } from "lucide-react";
 import {
   ItemRes,
@@ -624,16 +625,19 @@ export default function ManagerProductsPage() {
                         {/* Status */}
                         <td className="py-3 px-4 text-center">
                           {item.status === "AVAILABLE" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#f0fdf4] text-[#15803d] border border-[#bbf7d0]">
-                              ● Đang bán
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>Đang bán</span>
                             </span>
                           ) : item.status === "OUT_OF_STOCK" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#fef2f2] text-[#da291c] border border-[#fca5a5]">
-                              ● Hết hàng
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span>Hết hàng</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
-                              ● Ngừng bán
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                              <Ban className="h-3 w-3" />
+                              <span>Ngừng bán</span>
                             </span>
                           )}
                         </td>
@@ -729,7 +733,7 @@ export default function ManagerProductsPage() {
               className="inline-flex h-[38px] items-center gap-1.5 bg-[#a3e635] px-4 text-[13px] font-bold text-[#18181b] hover:bg-[#84cc16] shadow-sm transition-colors cursor-pointer shrink-0"
             >
               <Plus className="h-4 w-4" />
-              <span>+ Tạo gói Combo mới</span>
+              <span>Tạo gói Combo mới</span>
             </button>
           </div>
 
@@ -866,16 +870,19 @@ export default function ManagerProductsPage() {
                         {/* Status */}
                         <td className="py-3 px-4 text-center">
                           {combo.status === "AVAILABLE" && !isZeroStock ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#f0fdf4] text-[#15803d] border border-[#bbf7d0]">
-                              ● Đang bán
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>Đang bán</span>
                             </span>
                           ) : isZeroStock || combo.status === "OUT_OF_STOCK" ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#fef2f2] text-[#da291c] border border-[#fca5a5]">
-                              ● Hết hàng
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span>Hết hàng</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
-                              ● Ngừng bán
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                              <Ban className="h-3 w-3" />
+                              <span>Ngừng bán</span>
                             </span>
                           )}
                         </td>
