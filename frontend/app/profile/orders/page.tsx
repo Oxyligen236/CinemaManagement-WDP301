@@ -9,6 +9,7 @@ import { OrderDetailModal } from '@/components/orders/OrderDetailModal';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
+import { isOrderHoldExpired, extractErrorMessage } from '@/lib/utils/order.helper';
 import {
   Ticket,
   Eye,
@@ -23,6 +24,7 @@ import {
   Building2,
   XCircle,
   Loader2,
+  Clock,
 } from 'lucide-react';
 
 export default function CustomerOrderHistoryPage() {
@@ -97,7 +99,8 @@ export default function CustomerOrderHistoryPage() {
       setCancelReason('');
       setReloadKey((k) => k + 1);
     } catch (err: unknown) {
-      setCancelError(err instanceof Error ? err.message : 'Hủy đơn hàng thất bại');
+      setCancelError(extractErrorMessage(err, 'Hủy đơn hàng thất bại'));
+      setReloadKey((k) => k + 1);
     } finally {
       setIsCancelling(false);
     }
@@ -324,27 +327,34 @@ export default function CustomerOrderHistoryPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {order.status === 'PENDING' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCancellingOrder(order);
-                            setCancelReason('');
-                            setCancelError(null);
-                          }}
-                          className="inline-flex h-10 items-center justify-center gap-1.5 bg-white hover:bg-red-50 text-status-danger hover:text-red-800 border border-red-300 px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>Hủy đơn</span>
-                        </button>
-                        <Link
-                          href={`/booking/summary/${order.orderId}`}
-                          className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#efebdb] hover:bg-[#dad2b4] text-[#6f6247] hover:text-[#231f20] border border-[#dad2b4] px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
-                        >
-                          <CreditCard className="w-3.5 h-3.5 text-[#da291c]" />
-                          <span>Thanh toán ngay</span>
-                        </Link>
-                      </>
+                      isOrderHoldExpired(order.createdAt, order.status) ? (
+                        <span className="inline-flex h-10 items-center justify-center gap-1.5 px-3 bg-amber-100 text-amber-900 border border-amber-300 text-[12px] font-semibold">
+                          <Clock className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Đã hết hạn thanh toán</span>
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCancellingOrder(order);
+                              setCancelReason('');
+                              setCancelError(null);
+                            }}
+                            className="inline-flex h-10 items-center justify-center gap-1.5 bg-white hover:bg-red-50 text-status-danger hover:text-red-800 border border-red-300 px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Hủy đơn</span>
+                          </button>
+                          <Link
+                            href={`/booking/summary/${order.orderId}`}
+                            className="inline-flex h-10 items-center justify-center gap-1.5 bg-[#efebdb] hover:bg-[#dad2b4] text-[#6f6247] hover:text-[#231f20] border border-[#dad2b4] px-3.5 text-[12px] font-bold uppercase tracking-wide transition-colors cursor-pointer shadow-xs"
+                          >
+                            <CreditCard className="w-3.5 h-3.5 text-[#da291c]" />
+                            <span>Thanh toán ngay</span>
+                          </Link>
+                        </>
+                      )
                     )}
                     <button
                       type="button"

@@ -6,6 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { OrderDetail } from '@/lib/types/order.types';
 import { orderApi } from '@/lib/api/order.api';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
+import { isOrderHoldExpired, extractErrorMessage } from '@/lib/utils/order.helper';
 import { OrderStatusBadge, TicketStatusBadge } from './OrderStatusBadge';
 import {
   Film,
@@ -50,6 +51,7 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
   const isPaid = order.status === 'PAID';
   const isPending = order.status === 'PENDING';
+  const isHoldExpired = isOrderHoldExpired(order.createdAt, order.status);
 
   // Tính tổng tiền vé và tổng tiền combo bắp nước
   const ticketSubtotal =
@@ -73,7 +75,8 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
       onOrderUpdated?.();
       onClose();
     } catch (err: unknown) {
-      setCancelError(err instanceof Error ? err.message : 'Hủy đơn hàng thất bại');
+      setCancelError(extractErrorMessage(err, 'Hủy đơn hàng thất bại'));
+      onOrderUpdated?.();
     } finally {
       setIsCancelling(false);
     }
@@ -109,8 +112,9 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </div>
             <button
               type="button"
+              disabled={isCancelling}
               onClick={onClose}
-              className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+              className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Đóng modal"
             >
               <X className="h-5 w-5" />
@@ -182,15 +186,22 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
 
                 {isPending && (
                   <div className="pt-2 border-t border-amber-200/60 flex flex-wrap items-center justify-end gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setShowCancelConfirm(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-red-300 bg-white hover:bg-red-50 text-status-danger text-[12px] font-bold uppercase tracking-wider rounded-lg transition-colors shadow-xs cursor-pointer"
-                    >
-                      <XCircle className="w-4 h-4 text-status-danger" />
-                      <span>Hủy đơn hàng</span>
-                    </button>
-                    {mode === 'customer' && (
+                    {isHoldExpired ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[12px] font-semibold">
+                        <Clock className="w-4 h-4 text-amber-700" />
+                        <span>Đã hết hạn giữ chỗ (10 phút)</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowCancelConfirm(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-red-300 bg-white hover:bg-red-50 text-status-danger text-[12px] font-bold uppercase tracking-wider rounded-lg transition-colors shadow-xs cursor-pointer"
+                      >
+                        <XCircle className="w-4 h-4 text-status-danger" />
+                        <span>Hủy đơn hàng</span>
+                      </button>
+                    )}
+                    {mode === 'customer' && !isHoldExpired && (
                       <Link
                         href={`/booking/summary/${order.orderId}`}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-[#da291c] hover:bg-[#b82116] text-white text-[12px] font-bold uppercase tracking-wider rounded-lg transition-colors shadow-xs"
@@ -463,19 +474,32 @@ export const OrderDetailModal: React.FC<OrderDetailModalProps> = ({
             </span>
             <div className="flex items-center gap-2.5">
               {isPending && (
-                <button
-                  type="button"
-                  onClick={() => setShowCancelConfirm(true)}
-                  className="px-4 py-2 border border-red-300 bg-white hover:bg-red-50 text-status-danger font-bold text-[12px] uppercase tracking-wider rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <XCircle className="w-4 h-4 text-status-danger" />
-                  <span>Hủy đơn</span>
-                </button>
+                isHoldExpired ? (
+                  <button
+                    type="button"
+                    disabled
+                    title="Đơn hàng đã quá hạn giữ chỗ 10 phút"
+                    className="px-4 py-2 border border-border-main bg-surface-muted text-text-muted font-bold text-[12px] uppercase tracking-wider rounded-lg cursor-not-allowed opacity-60 flex items-center gap-1.5"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>Đã hết hạn giữ chỗ</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="px-4 py-2 border border-red-300 bg-white hover:bg-red-50 text-status-danger font-bold text-[12px] uppercase tracking-wider rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <XCircle className="w-4 h-4 text-status-danger" />
+                    <span>Hủy đơn</span>
+                  </button>
+                )
               )}
               <button
                 type="button"
+                disabled={isCancelling}
                 onClick={onClose}
-                className="px-5 py-2 border border-border-main bg-surface text-text-main font-bold text-[12px] uppercase tracking-wider rounded-lg hover:bg-surface-muted transition-colors cursor-pointer"
+                className="px-5 py-2 border border-border-main bg-surface text-text-main font-bold text-[12px] uppercase tracking-wider rounded-lg hover:bg-surface-muted transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Đóng
               </button>

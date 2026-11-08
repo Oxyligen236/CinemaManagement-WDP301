@@ -55,7 +55,6 @@ import {
 } from '../../../infra/event/application/internal-event-bus.interface';
 import {
   ApplyPromotionReq,
-  CancelOrderReq,
   CancelPosOrderReq,
   CreateBookingOrderReq,
   CreatePosOrderReq,
@@ -1040,17 +1039,38 @@ export class OrderService
       throw new NotFoundException(`Không tìm thấy đơn hàng với ID ${orderId}`);
     }
 
+    if (order.status === OrderStatus.EXPIRED) {
+      throw new BadRequestException(
+        'Đơn hàng đã hết hạn giữ chỗ (10 phút), không thể hủy',
+      );
+    }
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Đơn hàng đã được hủy trước đó');
+    }
+    if (order.status === OrderStatus.PAID) {
+      throw new BadRequestException(
+        'Đơn hàng đã thanh toán thành công, không thể hủy',
+      );
+    }
     if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException(
         'Chỉ có thể hủy đơn hàng đang chờ thanh toán (PENDING)',
       );
     }
 
-    if (actor.role === Role.USER || actor.role === 'CUSTOMER') {
+    const elapsedMs = Date.now() - new Date(order.createdAt).getTime();
+    if (elapsedMs > ORDER_HOLD_TIMEOUT_MS) {
+      await this.expireOrder(orderId);
+      throw new BadRequestException(
+        'Đơn hàng đã hết hạn giữ chỗ (10 phút), không thể hủy',
+      );
+    }
+
+    if (actor.role === (Role.USER as string) || actor.role === 'CUSTOMER') {
       if (order.userId !== actor.userId) {
         throw new ForbiddenException('Bạn không có quyền hủy đơn hàng này');
       }
-    } else if (actor.role === Role.STAFF) {
+    } else if (actor.role === (Role.STAFF as string)) {
       let orderBranchId: string | null | undefined = order.branchId;
       if (!orderBranchId) {
         const seatOrders = await this.prisma.seatOrder.findMany({

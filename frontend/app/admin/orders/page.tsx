@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
+import { isOrderHoldExpired, extractErrorMessage } from '@/lib/utils/order.helper';
 import { AlertCircle } from 'lucide-react';
 
 export default function AdminOrdersPage() {
@@ -86,7 +87,8 @@ export default function AdminOrdersPage() {
       setCancelReason('');
       setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
-      setCancelError(err instanceof Error ? err.message : 'Hủy đơn hàng thất bại');
+      setCancelError(extractErrorMessage(err, 'Hủy đơn hàng thất bại'));
+      setRefreshKey((k) => k + 1);
     } finally {
       setIsCancelling(false);
     }
@@ -277,17 +279,29 @@ export default function AdminOrdersPage() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {o.status === 'PENDING' && (
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          onClick={() => {
-                            setCancellingOrder(o);
-                            setCancelReason('');
-                            setCancelError(null);
-                          }}
-                        >
-                          Hủy đơn
-                        </Button>
+                        isOrderHoldExpired(o.createdAt, o.status) ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled
+                            title="Đơn hàng đã quá hạn giữ chỗ 10 phút"
+                            className="opacity-50 cursor-not-allowed text-xs"
+                          >
+                            Hết hạn giữ chỗ
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => {
+                              setCancellingOrder(o);
+                              setCancelReason('');
+                              setCancelError(null);
+                            }}
+                          >
+                            Hủy đơn
+                          </Button>
+                        )
                       )}
                       <Button
                         size="sm"
