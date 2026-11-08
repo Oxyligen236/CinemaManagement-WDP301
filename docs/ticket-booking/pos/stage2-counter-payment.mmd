@@ -1,0 +1,63 @@
+sequenceDiagram
+    autonumber
+    actor Staff as Staff (Cashier)
+    actor Customer as Customer (At Counter)
+    participant POS_UI as POS Client (/staff/pos): Boundary
+    participant PosCtrl as PosStaffController: Boundary
+    participant PosSvc as PosOrderService: Control
+    participant ShowtimeSvc as ShowtimeBookingService: Control
+    participant ProductSvc as ProductService: Control
+    participant PaymentSvc as PaymentService: Control
+    participant TicketSvc as TicketService: Control
+    participant DB as PrismaDatabase: Entity
+    participant EventBus as InternalEventBus: Broker
+
+    %% ================= STAGE 2: COUNTER PAYMENT PROCESSING =================
+    Note over Staff, EventBus: STAGE 2: Execute counter payment (Cash or Dynamic QR)
+    alt [STAGE 2A: CASH PAYMENT]
+        Staff ->>+ POS_UI: Receive cash from customer, input cashReceived (e.g., 200,000VND for 180,000VND order)
+        POS_UI ->>+ PosCtrl: POST /staff/pos/orders/:orderId/cash-payment { cashReceived: 200000 }
+        PosCtrl ->>+ PosSvc: confirmPosCashPayment(staffContext, orderId, req)
+
+        PosSvc ->>+ PosSvc: validateCashReceived(cashReceived >= totalAmount)
+        PosSvc -->>- PosSvc: validated (changeAmount: 20,000VND)
+
+        PosSvc ->>+ PaymentSvc: processCashPayment({ orderId, totalAmount, cashReceived })
+        PaymentSvc -->>- PosSvc: CashPaymentSummaryDto (CASH, SUCCESS, changeAmount: 20000)
+
+        critical [DB Transaction: Confirm seats, generate tickets & deduct branch inventory]
+            PosSvc ->>+ DB: $transaction: update Order(status: PAID)
+            PosSvc ->>+ ShowtimeSvc: confirmSeats(seatShowtimeIds, tx) (RESERVED -> BOOKED)
+            ShowtimeSvc -->>- PosSvc: confirmedCount
+            PosSvc ->>+ TicketSvc: createTicketsForOrder({ orderId, seatShowtimeIds }, tx)
+            TicketSvc -->>- PosSvc: TicketItemSummaryDto[] (Status: VALID)
+            PosSvc ->>+ ProductSvc: deductConcessionStock(products, tx)
+            ProductSvc -->>- PosSvc: void
+            DB -->>- PosSvc: Transaction committed successfully
+        end
+
+        PosSvc -) EventBus: publish(OrderPaidEvent)
+        PosSvc -->>- PosCtrl: PosCashPaymentResultRes { isSuccess: true, changeAmount: 20000, tickets }
+        PosCtrl -->>- POS_UI: 200 OK (Cash payment successful)
+        POS_UI -->>- Staff: Display change 20,000VND & ready to print receipt
+
+    else [STAGE 2B: DYNAMIC QR PAYMENT (VietQR / VNPay)]
+        Staff ->>+ POS_UI: Select "QR Payment" method
+        POS_UI ->>+ PosCtrl: POST /staff/pos/orders/:orderId/qr-payment { paymentMethod: 'VNPAY' }
+        PosCtrl ->>+ PosSvc: initiatePosQrPayment(staffContext, orderId, req)
+        PosSvc ->>+ PaymentSvc: generateQrPayment({ orderId, amount, method: 'VNPAY' })
+        PaymentSvc -->>- PosSvc: QrPaymentSummaryDto { qrCodeUrl, qrPayload, paymentId }
+        PosSvc -->>- PosCtrl: PosQrPaymentRes { qrCodeUrl, qrPayload, paymentId }
+        PosCtrl -->>- POS_UI: 200 OK (Dynamic QR Code)
+        POS_UI -->>- Staff: Display dynamic QR code on customer-facing secondary screen
+
+        loop [Poll every 2 seconds: check order payment status]
+            POS_UI ->>+ PosCtrl: GET /staff/pos/orders/:orderId/payment-status
+            PosCtrl ->>+ PosSvc: checkPosPaymentStatus(staffContext, orderId)
+            PosSvc ->>+ PaymentSvc: checkPaymentStatus(orderId)
+            PaymentSvc -->>- PosSvc: PaymentStatusSummaryDto { status: 'PAID' }
+            PosSvc -->>- PosCtrl: PosPaymentStatusRes { status: 'PAID' }
+            PosCtrl -->>- POS_UI: 200 OK { status: 'PAID' }
+        end
+        Note over POS_UI, Staff: Customer completes banking transfer, polling receives status: 'PAID'
+    end

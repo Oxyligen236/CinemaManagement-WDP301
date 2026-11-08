@@ -1,0 +1,33 @@
+sequenceDiagram
+    autonumber
+    participant Queue as QueueService (BullMQ)
+    participant ExpireConsumer as OrderExpirationConsumer: Control
+    participant OrderSvc as OrderService: Service
+    participant Prisma as PrismaService: Repository
+    participant ShowtimeSvc as ShowtimeBookingService: Service
+    participant EventBus as EventEmitter 
+    participant Database
+
+    Queue -) ExpireConsumer: handle({ orderId }) [Triggered after 600,000ms delay]
+    ExpireConsumer ->>+ OrderSvc: expireOrder(orderId)
+    OrderSvc ->>+ Prisma: findUnique(orderId)
+    Prisma ->>+ Database: select order by id
+    Database -->>- Prisma: return order
+    Prisma -->>- OrderSvc: Order { status: PENDING, seatShowtimeIds }
+
+    opt [Order.status == PENDING]
+
+            OrderSvc ->>+ Prisma: updateMany Order status=EXPIRED where id=orderId, status=PENDING
+            Prisma ->>+ Database: update Order set status=EXPIRED where id=orderId, status=PENDING
+            Database -->>- Prisma: updated count = 1
+            Prisma -->>- OrderSvc: updated count = 1
+            OrderSvc ->>+ ShowtimeSvc: releaseSeats(seatShowtimeIds) (RESERVED -> EMPTY)
+            ShowtimeSvc ->>+ Prisma: update SeatShowtime 
+            Prisma ->>+ Database: update SeatShowtime set status=EMPTY where id in seatShowtimeIds
+            Database -->>- Prisma: releasedSeatsCount
+            Prisma -->>- ShowtimeSvc: releasedSeatsCount
+            ShowtimeSvc -->>- OrderSvc: releasedSeatsCount
+        
+        OrderSvc -) EventBus: publish(OrderExpiredEvent)
+    end
+    OrderSvc -->>- ExpireConsumer: true (Job completed)

@@ -1,0 +1,335 @@
+classDiagram
+    direction TB
+
+    namespace Boundary_Layer {
+        class OrderController {
+            - orderService: OrderService
+            + createBooking(req: AuthenticatedRequest, body: CreateBookingOrderReq): Promise~BookingSummaryRes~
+            + getMyOrders(req: AuthenticatedRequest, query: QueryMyOrdersReq): Promise~Page~OrderSummaryRes~~
+            + getBookingSummary(req: AuthenticatedRequest, orderId: String): Promise~BookingSummaryRes~
+            + applyPromotion(req: AuthenticatedRequest, orderId: String, body: ApplyPromotionReq): Promise~BookingSummaryRes~
+            + createVnpayPayment(req: AuthenticatedRequest, orderId: String, ip: String): Promise~VnpayPaymentUrlRes~
+            + cancelMyOrder(req: AuthenticatedRequest, orderId: String, body: CancelOrderReq): Promise~CancelOrderRes~
+            + getOrderDetail(req: AuthenticatedRequest, orderId: String): Promise~OrderDetailRes~
+        }
+
+        class PosStaffController {
+            - posOrderService: PosOrderService
+            - prisma: PrismaService
+            - getStaffContext(req: AuthenticatedRequest): Promise~StaffContext~
+            + createPosBookingOrder(req: AuthenticatedRequest, body: CreatePosOrderReq): Promise~PosBookingSummaryRes~
+            + confirmPosCashPayment(req: AuthenticatedRequest, orderId: String, body: ProcessPosCashPaymentReq): Promise~PosCashPaymentResultRes~
+            + initiatePosQrPayment(req: AuthenticatedRequest, orderId: String, body: InitiatePosQrPaymentReq): Promise~PosQrPaymentRes~
+            + checkPosPaymentStatus(req: AuthenticatedRequest, orderId: String): Promise~PosPaymentStatusRes~
+            + getPosReceipt(req: AuthenticatedRequest, orderId: String): Promise~PosReceiptRes~
+            + cancelPosOrder(req: AuthenticatedRequest, orderId: String, body: CancelPosOrderReq): Promise~CancelPosOrderRes~
+        }
+
+        class VnpayReturnController {
+            - orderService: OrderService
+            + handleIpn(query: Record~String, any~): Promise~VnpayIpnRes~
+            + handleReturn(query: Record~String, any~, response: Response): Promise~void~
+        }
+
+        class OrderExpirationConsumer {
+            - queueService: QueueService
+            - orderService: OrderService
+            + onModuleInit(): Promise~void~
+            + handle(jobData: JobData): Promise~void~
+        }
+    }
+
+    namespace Application_Control {
+        class OrderService {
+            - logger: Logger
+            - prisma: PrismaService
+            - paymentContract: PaymentContract
+            - ticketContract: TicketContract
+            - productContract: ProductContract
+            - promotionContract: PromotionContract
+            - showtimeBookingService: ShowtimeBookingContract
+            - queueService: QueueService
+            - internalEventBus: InternalEventBus
+            - branchQueryService: BranchQueryService
+            + createBookingOrder(userId: String, request: CreateBookingOrderReq): Promise~BookingSummaryRes~
+            + getBookingSummary(userId: String, orderId: String): Promise~BookingSummaryRes~
+            + applyPromotion(userId: String, orderId: String, request: ApplyPromotionReq): Promise~BookingSummaryRes~
+            + createVnpayPayment(userId: String, orderId: String, ipAddr: String): Promise~VnpayPaymentUrlRes~
+            + handleVnpayReturn(query: Record~String, any~): Promise~VnpayReturnResult~
+            + handleVnpayIpn(query: Record~String, any~): Promise~VnpayIpnRes~
+            - fulfillVnpayOrder(orderId: String): Promise~VnpayIpnRes~
+            + expireOrder(orderId: String): Promise~Boolean~
+            + cancelOrder(orderId: String, userContext: UserContext, reason: String): Promise~CancelOrderRes~
+            + getMyOrderHistory(userId: String, query: QueryMyOrdersReq): Promise~Page~OrderSummaryRes~~
+            + queryStaffOrders(query: QueryStaffOrdersReq): Promise~Page~OrderSummaryRes~~
+            + queryAdminOrders(query: QueryAdminOrdersReq): Promise~Page~OrderSummaryRes~~
+            + getOrderDetail(orderId: String, userContext: UserContext): Promise~OrderDetailRes~
+            - paginateOrders(where: PrismaOrderWhereInput, pageReq: PageRequest): Promise~Page~OrderSummaryRes~~
+        }
+
+        class PosOrderService {
+            - logger: Logger
+            - prisma: PrismaService
+            - showtimeBookingService: ShowtimeBookingContract
+            - ticketContract: TicketContract
+            - productContract: ProductContract
+            - promotionContract: PromotionContract
+            - paymentContract: PaymentContract
+            - queueService: QueueService
+            - internalEventBus: InternalEventBus
+            + createPosBookingOrder(staffContext: StaffContext, request: CreatePosOrderReq): Promise~PosBookingSummaryRes~
+            + applyPosPromotion(staffContext: StaffContext, orderId: String, request: ApplyPromotionReq): Promise~PosBookingSummaryRes~
+            + cancelPosOrder(staffContext: StaffContext, orderId: String, request: CancelPosOrderReq): Promise~CancelPosOrderRes~
+            + confirmPosCashPayment(staffContext: StaffContext, orderId: String, request: ProcessPosCashPaymentReq): Promise~PosCashPaymentResultRes~
+            + initiatePosQrPayment(staffContext: StaffContext, orderId: String, request: InitiatePosQrPaymentReq): Promise~PosQrPaymentRes~
+            + checkPosPaymentStatus(staffContext: StaffContext, orderId: String): Promise~PosPaymentStatusRes~
+            + getPosReceipt(staffContext: StaffContext, orderId: String): Promise~PosReceiptRes~
+            - verifyOrderBranch(orderId: String, branchId: String): Promise~void~
+            - buildPosBookingSummary(order: Order): Promise~PosBookingSummaryRes~
+        }
+    }
+
+    namespace Infrastructure_Contracts {
+        class PrismaService {
+            + order: any
+            + seatOrder: any
+            + productOrder: any
+            + payment: any
+            + ticket: any
+        }
+
+        class ShowtimeBookingContract {
+            <<interface>>
+            + reserveSeats(ids: String[]): Promise~SeatBookingDetail[]~
+            + releaseSeats(ids: String[]): Promise~Number~
+            + getSeatBookingDetails(ids: String[]): Promise~SeatBookingDetail[]~
+            + confirmSeats(ids: String[], prismaTx: any): Promise~Number~
+        }
+
+        class TicketContract {
+            <<interface>>
+            + getTicketsByOrderId(orderId: String): Promise~TicketItemSummaryDto[]~
+            + createTicketsForOrder(params: CreateTicketsParams, prismaTx: any): Promise~TicketItemSummaryDto[]~
+        }
+
+        class ProductContract {
+            <<interface>>
+            + getProductsByIds(productIds: String[]): Promise~Map~String, ProductSummaryDto~~
+            + deductConcessionStock(items: ConcessionItem[], prismaTx: any): Promise~void~
+        }
+
+        class PromotionContract {
+            <<interface>>
+            + getPromotionById(promotionId: String): Promise~PromotionDetailDto~
+            + validatePromotionCode(params: ValidatePromotionParams): Promise~ValidatePromotionResultDto~
+            + recordPromotionUsage(params: RecordUsageParams): Promise~void~
+        }
+
+        class PaymentContract {
+            <<interface>>
+            + processCashPayment(params: CashPaymentParams): Promise~CashPaymentSummaryDto~
+            + generateQrPayment(params: QrPaymentParams): Promise~QrPaymentSummaryDto~
+            + checkPaymentStatus(identifier: String): Promise~PaymentStatusSummaryDto~
+            + createVnpayPaymentUrl(params: VnpayUrlParams): Promise~VnpayPaymentUrlDto~
+            + verifyVnpayIpn(query: Record~String, any~): Promise~VnpayIpnVerificationResult~
+            + verifyVnpayReturn(query: Record~String, any~): Promise~VnpayReturnVerificationResult~
+        }
+
+        class QueueService {
+            <<interface>>
+            + publish(queueName: String, data: any, opts: any): Promise~void~
+            + consume(queueName: String, handler: any): Promise~void~
+        }
+
+        class InternalEventBus {
+            <<interface>>
+            + publish(event: any): Promise~void~
+        }
+    }
+
+    namespace Domain_Entities {
+        class Order {
+            + id: String
+            + userId: String
+            + branchId: String
+            + promotionId: String
+            + totalAmount: Float
+            + status: OrderStatus
+            + createdAt: DateTime
+            + updatedAt: DateTime
+        }
+
+        class SeatOrder {
+            + id: String
+            + orderId: String
+            + seatShowtimeId: String
+            + price: Float
+            + orderAt: DateTime
+            + createdAt: DateTime
+            + updatedAt: DateTime
+        }
+
+        class ProductOrder {
+            + id: String
+            + orderId: String
+            + productId: String
+            + quantity: Int
+            + unitPrice: Float
+            + createdAt: DateTime
+            + updatedAt: DateTime
+        }
+
+        class Ticket {
+            + id: String
+            + orderId: String
+            + seatShowtimeId: String
+            + ticketCode: String
+            + price: Float
+            + ticketStatus: TicketStatus
+            + usedAt: DateTime
+            + scannedBy: String
+            + createdAt: DateTime
+            + updatedAt: DateTime
+        }
+
+        class Payment {
+            + id: String
+            + orderId: String
+            + amount: Float
+            + method: PaymentMethod
+            + status: PaymentStatus
+            + transactionId: String
+            + createdAt: DateTime
+            + updatedAt: DateTime
+        }
+
+        class SeatShowtime {
+            + id: String
+            + showtimeId: String
+            + seatId: String
+            + seatStatus: SeatShowtimeStatus
+        }
+    }
+
+    namespace Domain_Events {
+        class OrderCreatedEvent {
+            + orderId: String
+            + userId: String
+            + totalAmount: Float
+            + occurredAt: DateTime
+        }
+
+        class OrderPaidEvent {
+            + orderId: String
+            + userId: String
+            + totalAmount: Float
+            + paymentMethod: PaymentMethod
+            + occurredAt: DateTime
+        }
+
+        class OrderExpiredEvent {
+            + orderId: String
+            + reason: String
+            + occurredAt: DateTime
+        }
+
+        class OrderCancelledEvent {
+            + orderId: String
+            + reason: String
+            + cancelledBy: String
+            + occurredAt: DateTime
+        }
+    }
+
+    namespace Domain_Enums {
+        class OrderStatus {
+            <<enumeration>>
+            PENDING
+            PAID
+            CANCELLED
+            EXPIRED
+        }
+
+        class SeatShowtimeStatus {
+            <<enumeration>>
+            EMPTY
+            RESERVED
+            BOOKED
+        }
+
+        class PaymentMethod {
+            <<enumeration>>
+            VNPAY
+            CASH
+            MOMO
+            ZALOPAY
+        }
+
+        class PaymentStatus {
+            <<enumeration>>
+            PENDING
+            SUCCESS
+            FAILED
+            REFUNDED
+        }
+
+        class TicketStatus {
+            <<enumeration>>
+            VALID
+            USED
+            CANCELLED
+        }
+    }
+
+    %% ================= RELATIONSHIPS =================
+    %% 1. Boundary to Control
+    OrderController ..> OrderService : delegates
+    PosStaffController ..> PosOrderService : delegates
+    VnpayReturnController ..> OrderService : delegates
+    OrderExpirationConsumer ..> OrderService : triggers expire
+
+    %% 2. Service to Domain Entities (Manages lifecycle - kéo cụm Domain xuống dọc theo Service)
+    OrderService ..> Order : manages
+    PosOrderService ..> Order : manages
+
+    %% 3. Entity Composition & Association
+    Order "1" *-- "0..*" SeatOrder : contains
+    Order "1" *-- "0..*" ProductOrder : contains
+    Order "1" *-- "0..*" Ticket : owns
+    Order "1" *-- "0..*" Payment : logs
+
+    SeatOrder "0..*" --> "1" SeatShowtime : maps to
+    Ticket "0..*" --> "1" SeatShowtime : references
+
+    %% 4. Entities to State Enums
+    Order --> OrderStatus : status
+    Payment --> PaymentMethod : method
+    Payment --> PaymentStatus : status
+    Ticket --> TicketStatus : status
+    SeatShowtime --> SeatShowtimeStatus : status
+
+    %% 5. Services & Consumer to Infrastructure Contracts
+    OrderService o-- PrismaService : uses
+    OrderService o-- ShowtimeBookingContract : uses
+    OrderService o-- TicketContract : uses
+    OrderService o-- ProductContract : uses
+    OrderService o-- PromotionContract : uses
+    OrderService o-- PaymentContract : uses
+    OrderService o-- QueueService : uses
+    OrderService o-- InternalEventBus : uses
+
+    PosOrderService o-- ShowtimeBookingContract : uses
+    PosOrderService o-- TicketContract : uses
+    PosOrderService o-- ProductContract : uses
+    PosOrderService o-- PromotionContract : uses
+    PosOrderService o-- PaymentContract : uses
+    PosOrderService o-- QueueService : uses
+    PosOrderService o-- InternalEventBus : uses
+
+    OrderExpirationConsumer o-- QueueService : listens
+
+    %% 6. Domain Events Emission
+    InternalEventBus ..> OrderCreatedEvent : delivers
+    InternalEventBus ..> OrderPaidEvent : delivers
+    InternalEventBus ..> OrderExpiredEvent : delivers
+    InternalEventBus ..> OrderCancelledEvent : delivers

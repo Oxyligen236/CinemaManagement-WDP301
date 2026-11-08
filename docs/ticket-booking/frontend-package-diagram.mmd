@@ -1,0 +1,131 @@
+flowchart TB
+    %% =========================================================================
+    %% 1. APP ROUTER & VIEWPORT LAYER
+    %% =========================================================================
+    subgraph AppRouter["App Router Layer (Routes & Pages)"]
+        direction TB
+        subgraph AppCustomer["app.customer"]
+            HomePage["HomePage: /"]
+            MoviesPage["MoviesPage: /movies"]
+            BookingPage["BookingPage: /booking"]
+            PaymentReturnPage["PaymentReturnPage: /booking/payment-return"]
+            ProfileOrdersPage["ProfileOrdersPage: /profile/orders"]
+        end
+
+        subgraph AppStaff["app.staff"]
+            StaffPosPage["StaffPosPage: /staff/pos"]
+            StaffOrdersPage["StaffOrdersPage: /staff/orders"]
+            StaffTicketsScanPage["StaffTicketsScanPage: /staff/tickets/scan"]
+        end
+
+        subgraph AppManager["app.manager"]
+            ManagerShowtimesPage["ManagerShowtimesPage: /manager/showtimes"]
+            ManagerStaffPage["ManagerStaffPage: /manager/staff"]
+            ManagerStatisticsPage["ManagerStatisticsPage: /manager/statistics"]
+        end
+
+        subgraph AppAdmin["app.admin"]
+            AdminDashboardPage["AdminDashboardPage: /admin/dashboard"]
+            AdminWorkSchedulesPage["AdminWorkSchedulesPage: /admin/work-schedules"]
+        end
+    end
+
+    %% =========================================================================
+    %% 2. PRESENTATION COMPONENTS LAYER
+    %% =========================================================================
+    subgraph Components["Components Layer (UI Widgets)"]
+        direction TB
+        subgraph CompStaffPos["components.staff_pos"]
+            PosSeatGrid["PosSeatGrid"]
+            PosConcessionCatalog["PosConcessionCatalog"]
+            PosCartPanel["PosCartPanel"]
+            PosCashPaymentModal["PosCashPaymentModal"]
+            PosDynamicQrModal["PosDynamicQrModal"]
+            ThermalReceiptModal["ThermalReceiptModal"]
+        end
+
+        subgraph CompOrders["components.orders"]
+            OrderSummaryCard["OrderSummaryCard"]
+            OrderDetailModal["OrderDetailModal"]
+            CountdownTimer["CountdownTimer"]
+        end
+
+        subgraph CompShowtimes["components.showtimes"]
+            ShowtimePicker["ShowtimePicker"]
+            SeatMatrixView["SeatMatrixView"]
+        end
+
+        subgraph CompUiCore["components.ui_core"]
+            Button["Button"]
+            Modal["Modal"]
+            SafeImage["SafeImage"]
+            Input["Input"]
+            Badge["Badge"]
+        end
+    end
+
+    %% =========================================================================
+    %% 3. STATE & DATA ACCESS LAYER
+    %% =========================================================================
+    subgraph DataAccess["Data Access & API Layer (lib/api)"]
+        direction TB
+        subgraph LibApi["lib.api"]
+            OrderApiClient["OrderApiClient"]
+            PosStaffApiClient["PosStaffApiClient"]
+            ShowtimeApiClient["ShowtimeApiClient"]
+            AuthApiClient["AuthApiClient"]
+            ConcessionApiClient["ConcessionApiClient"]
+        end
+
+        subgraph LibHooks["lib.hooks"]
+            usePosOrder["usePosOrder"]
+            useShowtimeSeats["useShowtimeSeats"]
+            useCountdown["useCountdown"]
+            useAuth["useAuth"]
+        end
+    end
+
+    %% =========================================================================
+    %% 4. CROSS-CUTTING CORE & TYPES LAYER
+    %% =========================================================================
+    subgraph CoreTypes["Core & Types Layer (lib/types & utils)"]
+        direction TB
+        subgraph LibTypes["lib.types"]
+            OrderTypes["OrderTypes"]
+            PosTypes["PosTypes"]
+            ShowtimeTypes["ShowtimeTypes"]
+            UserProfileTypes["UserProfileTypes"]
+        end
+
+        subgraph LibUtils["lib.utils"]
+            HttpClient["HttpClient"]
+            ErrorHandler["ErrorHandler"]
+            CurrencyFormatter["CurrencyFormatter"]
+            DateFormatter["DateFormatter"]
+        end
+
+        subgraph LibConstants["lib.constants"]
+            ApiEndpoints["ApiEndpoints"]
+            DesignTokens["DesignTokens"]
+            StorageKeys["StorageKeys"]
+        end
+    end
+
+    %% =========================================================================
+    %% DEPENDENCY FLOWS (UML DEPENDENCY ..>)
+    %% =========================================================================
+    AppCustomer -.-> CompOrders
+    AppCustomer -.-> CompShowtimes
+    AppCustomer -.-> LibHooks
+
+    AppStaff -.-> CompStaffPos
+    AppStaff -.-> LibHooks
+
+    CompStaffPos -.-> CompUiCore
+    CompStaffPos -.-> LibTypes
+    CompOrders -.-> CompUiCore
+
+    LibHooks -.-> LibApi
+    LibApi -.-> LibUtils
+    LibApi -.-> LibTypes
+    LibUtils -.-> LibConstants

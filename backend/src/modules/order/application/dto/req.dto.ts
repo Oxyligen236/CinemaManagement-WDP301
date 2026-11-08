@@ -1,7 +1,7 @@
 import {
-  ArrayNotEmpty,
   ArrayUnique,
   IsArray,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -13,9 +13,10 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { PageRequest } from '../../../../common/dto/page.dto';
 import { PaymentMethod } from '../../contracts/payment.contract';
+import { Role } from '../../../auth/infra/decorators/role.decorator';
 
 export class BookingProductReq {
   @IsString() @IsNotEmpty() productId!: string;
@@ -68,11 +69,13 @@ export class QueryStaffOrdersReq extends PageRequest {
   status?: string;
 
   @IsOptional()
+  @IsString()
   date?: string;
 }
 
 export class QueryAdminOrdersReq extends PageRequest {
   @IsOptional()
+  @IsString()
   userId?: string;
 
   @IsOptional()
@@ -87,9 +90,11 @@ export class QueryAdminOrdersReq extends PageRequest {
   status?: string;
 
   @IsOptional()
+  @IsDateString()
   fromDate?: string;
 
   @IsOptional()
+  @IsDateString()
   toDate?: string;
 }
 
@@ -144,4 +149,33 @@ export class CancelOrderReq {
   @IsString()
   @MaxLength(255)
   reason?: string;
+}
+
+export class StaffScanContextReq {
+  @IsString()
+  @IsNotEmpty()
+  staffId!: string;
+
+  @IsString()
+  @IsOptional()
+  branchId?: string;
+
+  @IsEnum(Role)
+  role!: Role;
+}
+
+export class ScanTicketReq {
+  @IsString()
+  @IsNotEmpty()
+  @Transform(({ value }: { value: string }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  ticketCode!: string;
+
+  @IsString()
+  @IsOptional()
+  @Transform(({ value }: { value?: string }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  showtimeId?: string;
 }

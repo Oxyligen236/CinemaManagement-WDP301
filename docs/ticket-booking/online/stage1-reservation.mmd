@@ -1,0 +1,37 @@
+sequenceDiagram
+    autonumber
+    actor Customer as Customer
+    participant UI as CustomerClient
+    participant OrderCtrl as OrderController: Controller
+    participant OrderSvc as OrderService: Service
+    participant ShowtimeSvc as ShowtimeBookingService: Service
+    participant PromotionSvc as PromotionService: Service
+    participant Prisma as PrismaService: Repository
+    participant Queue as QueueService:  Service
+    participant EventBus as EventEmitter
+    participant Database 
+
+    %% ================= STAGE 1: ORDER CREATION & TEMPORARY SEAT HOLD =================
+    Customer ->>+ UI: Select showtime, available seats (EMPTY), F&B combos & voucher code
+    UI ->>+ OrderCtrl: POST /orders/booking { showtimeId, seatShowtimeIds, products, promotionCode }
+    OrderCtrl ->>+ OrderSvc: createBookingOrder(userId, req)
+
+    OrderSvc ->>+ ShowtimeSvc: reserveSeats(seatShowtimeIds)
+    ShowtimeSvc -->>- OrderSvc: SeatBookingDetail[] (Change EMPTY -> RESERVED)
+
+    opt [req.promotionCode != null]
+        OrderSvc ->>+ PromotionSvc: validatePromotionCode({ code, orderAmount, userId })
+        PromotionSvc -->>- OrderSvc: ValidatePromotionResultDto (discountAmount)
+    end
+
+
+        OrderSvc ->>+ Prisma:  create Order(PENDING), SeatOrder[], ProductOrder[]
+        Prisma ->>+ Database: insert into Order, SeatOrder, ProductOrder
+        Database -->>- Prisma: Order saved successfully (orderId)
+        Prisma -->>- OrderSvc: Order saved successfully (orderId)
+
+
+    OrderSvc -) Queue: publish('order-expiration', { orderId }, delay: 600,000ms)
+    OrderSvc -->>- OrderCtrl: BookingSummaryRes (expiresAt, totalAmount, orderId)
+    OrderCtrl -->>- UI: 201 Created (BookingSummaryRes)
+    UI -->>- Customer: Display 10:00 countdown timer & VNPay payment button
