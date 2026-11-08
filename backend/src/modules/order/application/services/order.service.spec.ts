@@ -1046,6 +1046,7 @@ describe('OrderService', () => {
         id: 'order-cancel-1',
         userId: 'user-001',
         status: OrderStatus.PENDING,
+        createdAt: new Date(Date.now() - 3 * 60 * 1000),
       };
 
       mockPrisma.order.findUnique.mockResolvedValue(mockPendingOrder);
@@ -1075,6 +1076,7 @@ describe('OrderService', () => {
         id: 'order-cancel-1',
         userId: 'other-user',
         status: OrderStatus.PENDING,
+        createdAt: new Date(),
       };
 
       mockPrisma.order.findUnique.mockResolvedValue(mockPendingOrder);
@@ -1087,11 +1089,54 @@ describe('OrderService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('nem BadRequestException khi don khong o trang thai PENDING', async () => {
+    it('nem BadRequestException khi don o trang thai EXPIRED', async () => {
+      const mockExpiredOrder = {
+        id: 'order-cancel-1',
+        userId: 'user-001',
+        status: OrderStatus.EXPIRED,
+        createdAt: new Date(),
+      };
+
+      mockPrisma.order.findUnique.mockResolvedValue(mockExpiredOrder);
+
+      await expect(
+        service.cancelOrder('order-cancel-1', {
+          userId: 'user-001',
+          role: 'USER',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Đơn hàng đã hết hạn giữ chỗ (10 phút), không thể hủy',
+        ),
+      );
+    });
+
+    it('nem BadRequestException khi don o trang thai CANCELLED', async () => {
+      const mockCancelledOrder = {
+        id: 'order-cancel-1',
+        userId: 'user-001',
+        status: OrderStatus.CANCELLED,
+        createdAt: new Date(),
+      };
+
+      mockPrisma.order.findUnique.mockResolvedValue(mockCancelledOrder);
+
+      await expect(
+        service.cancelOrder('order-cancel-1', {
+          userId: 'user-001',
+          role: 'USER',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Đơn hàng đã được hủy trước đó'),
+      );
+    });
+
+    it('nem BadRequestException khi don o trang thai PAID', async () => {
       const mockPaidOrder = {
         id: 'order-cancel-1',
         userId: 'user-001',
         status: OrderStatus.PAID,
+        createdAt: new Date(),
       };
 
       mockPrisma.order.findUnique.mockResolvedValue(mockPaidOrder);
@@ -1101,7 +1146,61 @@ describe('OrderService', () => {
           userId: 'user-001',
           role: 'USER',
         }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Đơn hàng đã thanh toán thành công, không thể hủy',
+        ),
+      );
+    });
+
+    it('nem BadRequestException khi don o trang thai khac PENDING', async () => {
+      const mockRefundedOrder = {
+        id: 'order-cancel-1',
+        userId: 'user-001',
+        status: 'REFUNDED' as any,
+        createdAt: new Date(),
+      };
+
+      mockPrisma.order.findUnique.mockResolvedValue(mockRefundedOrder);
+
+      await expect(
+        service.cancelOrder('order-cancel-1', {
+          userId: 'user-001',
+          role: 'USER',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Chỉ có thể hủy đơn hàng đang chờ thanh toán (PENDING)',
+        ),
+      );
+    });
+
+    it('kich hoat expireOrder va nem BadRequestException khi don PENDING da qua han 10 phut (Lazy Expiration)', async () => {
+      const mockOverduePendingOrder = {
+        id: 'order-cancel-1',
+        userId: 'user-001',
+        status: OrderStatus.PENDING,
+        createdAt: new Date(Date.now() - 11 * 60 * 1000),
+      };
+
+      mockPrisma.order.findUnique.mockResolvedValue(mockOverduePendingOrder);
+      const expireOrderSpy = jest
+        .spyOn(service, 'expireOrder')
+        .mockResolvedValue(true);
+
+      await expect(
+        service.cancelOrder('order-cancel-1', {
+          userId: 'user-001',
+          role: 'USER',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Đơn hàng đã hết hạn giữ chỗ (10 phút), không thể hủy',
+        ),
+      );
+
+      expect(expireOrderSpy).toHaveBeenCalledWith('order-cancel-1');
+      expireOrderSpy.mockRestore();
     });
 
     it('huy don PENDING thanh cong cho Staff cung chi nhanh', async () => {
@@ -1110,6 +1209,7 @@ describe('OrderService', () => {
         userId: 'staff-01',
         branchId: 'branch-01',
         status: OrderStatus.PENDING,
+        createdAt: new Date(),
       };
 
       mockPrisma.order.findUnique.mockResolvedValue(mockPendingOrder);
@@ -1130,6 +1230,7 @@ describe('OrderService', () => {
         userId: 'staff-01',
         branchId: 'branch-02',
         status: OrderStatus.PENDING,
+        createdAt: new Date(),
       };
 
       mockPrisma.order.findUnique.mockResolvedValue(mockPendingOrder);
@@ -1149,6 +1250,7 @@ describe('OrderService', () => {
         userId: 'user-any',
         branchId: 'branch-any',
         status: OrderStatus.PENDING,
+        createdAt: new Date(),
       };
 
       mockPrisma.order.findUnique.mockResolvedValue(mockPendingOrder);

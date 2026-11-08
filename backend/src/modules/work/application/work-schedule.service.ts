@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { CreateWorkScheduleDto } from './dto/create-work-schedule.dto';
-import { Role, ShiftAttendanceStatus, OrderStatus, Prisma } from '@prisma/client';
+import {
+  Role,
+  ShiftAttendanceStatus,
+  OrderStatus,
+  Prisma,
+} from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { VietnamTime } from '../domain/vietnam-time.helper';
 
@@ -269,7 +274,9 @@ export class WorkScheduleService {
     if (!staff) throw new BadRequestException('Nhân viên không hợp lệ');
 
     // Business Rule: Cannot assign staff if the shift has already ended
-    if (VietnamTime.isShiftExpired(date, schedule.startTime, schedule.endTime)) {
+    if (
+      VietnamTime.isShiftExpired(date, schedule.startTime, schedule.endTime)
+    ) {
       throw new BadRequestException(
         'Ca làm việc này đã kết thúc, không thể phân công nhân viên.',
       );
@@ -330,7 +337,9 @@ export class WorkScheduleService {
     if (!schedule) throw new NotFoundException('Không tìm thấy ca làm');
 
     // Shift cannot be closed before its scheduled end time
-    if (!VietnamTime.isShiftExpired(date, schedule.startTime, schedule.endTime)) {
+    if (
+      !VietnamTime.isShiftExpired(date, schedule.startTime, schedule.endTime)
+    ) {
       throw new BadRequestException(
         'Ca làm chưa kết thúc, không thể đóng ca sớm.',
       );

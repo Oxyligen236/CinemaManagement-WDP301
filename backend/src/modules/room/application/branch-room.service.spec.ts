@@ -147,7 +147,11 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
       await expect(
         service.replaceRoomLayout('mgr-1', 'r-1', {
           seats: [
-            { rowPosition: 'A', columnPosition: 1, seatType: SeatType.STANDARD },
+            {
+              rowPosition: 'A',
+              columnPosition: 1,
+              seatType: SeatType.STANDARD,
+            },
           ],
         }),
       ).rejects.toThrow(ConflictException);
@@ -197,7 +201,9 @@ describe('BranchRoomService - Layout Designer & Custom Seats', () => {
         ],
       });
 
-      expect(mockPrisma.seat.deleteMany).toHaveBeenCalledWith({ where: { roomId: 'r-1' } });
+      expect(mockPrisma.seat.deleteMany).toHaveBeenCalledWith({
+        where: { roomId: 'r-1' },
+      });
       expect(mockPrisma.seat.createMany).toHaveBeenCalled();
       expect(mockPrisma.seatShowtime.deleteMany).toHaveBeenCalled();
       expect(result.message).toContain('thành công');

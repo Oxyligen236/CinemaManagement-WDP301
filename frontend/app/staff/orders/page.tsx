@@ -8,6 +8,7 @@ import { OrderDetailModal } from '@/components/orders/OrderDetailModal';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
+import { isOrderHoldExpired, extractErrorMessage } from '@/lib/utils/order.helper';
 import {
   ClipboardList,
   RefreshCw,
@@ -17,6 +18,7 @@ import {
   AlertCircle,
   XCircle,
   Loader2,
+  Clock,
 } from 'lucide-react';
 
 export default function StaffOrdersPage() {
@@ -101,7 +103,8 @@ export default function StaffOrdersPage() {
       setCancelReason('');
       setRefreshKey((k) => k + 1);
     } catch (err: unknown) {
-      setCancelError(err instanceof Error ? err.message : 'Hủy đơn hàng thất bại');
+      setCancelError(extractErrorMessage(err, 'Hủy đơn hàng thất bại'));
+      setRefreshKey((k) => k + 1);
     } finally {
       setIsCancelling(false);
     }
@@ -274,18 +277,28 @@ export default function StaffOrdersPage() {
                     <td className="px-4 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {o.status === 'PENDING' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCancellingOrder(o);
-                              setCancelReason('');
-                              setCancelError(null);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-red-300 bg-white text-status-danger hover:bg-red-50 text-xs font-bold transition-colors cursor-pointer"
-                          >
-                            <XCircle className="h-3.5 w-3.5" />
-                            <span>Hủy đơn</span>
-                          </button>
+                          isOrderHoldExpired(o.createdAt, o.status) ? (
+                            <span
+                              title="Đơn hàng đã quá hạn giữ chỗ 10 phút"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] text-xs font-bold opacity-70 cursor-not-allowed"
+                            >
+                              <Clock className="h-3.5 w-3.5" />
+                              <span>Hết hạn giữ chỗ</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCancellingOrder(o);
+                                setCancelReason('');
+                                setCancelError(null);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-red-300 bg-white text-status-danger hover:bg-red-50 text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                              <span>Hủy đơn</span>
+                            </button>
+                          )
                         )}
                         <button
                           type="button"
