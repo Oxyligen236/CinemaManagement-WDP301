@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   UseGuards,
+  Query,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
 import {
   RegisterDto,
   ResendVerificationDto,
+  VerificationStatusQueryReq,
   VerifyEmailDto,
 } from '../application/dto/register.dto';
 import { LoginDto } from '../application/dto/login.dto';
@@ -52,6 +54,11 @@ export class UserController {
   @Post('register')
   register(@Body() input: RegisterDto) {
     return this.userRegistrationService.register(input);
+  }
+
+  @Get('verification-status')
+  verificationStatus(@Query() query: VerificationStatusQueryReq) {
+    return this.userRegistrationService.getVerificationStatus(query.email);
   }
 
   @Post('resend-verification')

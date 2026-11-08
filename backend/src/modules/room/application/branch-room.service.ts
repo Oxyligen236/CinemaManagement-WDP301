@@ -15,11 +15,13 @@ import {
   RoomStatus,
   SeatStatus,
   SeatType,
+  OrderStatus,
 } from '@prisma/client';
 import { ROOM_MESSAGES } from '../domain/room.rules';
 import {
   BranchRoomQueryDto,
   CreateBranchRoomDto,
+  ReplaceRoomLayoutDto,
   UpdateBranchRoomDto,
   UpdateRoomSeatsDto,
 } from './dto/req.dto';
@@ -76,6 +78,122 @@ export class BranchRoomService {
   /**
    * Main flow bước 2: Xem chi tiết 1 phòng chiếu (danh sách ghế, sơ đồ ghế, suất chiếu sắp tới)
    */
+  /**
+   * Thống kê tổng quan vận hành chi nhánh cho Manager Dashboard
+   */
+  async getManagerDashboardOverview(managerUserId: string | undefined) {
+    return this.guard(async () => {
+      const branch = await this.resolveManagerBranch(managerUserId);
+
+      // 1. Rooms & Seats
+      const rooms = await this.prisma.room.findMany({
+        where: { branchId: branch.branchId },
+        select: { id: true, roomName: true, roomStatus: true },
+      });
+      const roomIds = rooms.map((r) => r.id);
+      const totalRooms = rooms.length;
+      const activeRooms = rooms.filter(
+        (r) => r.roomStatus === RoomStatus.AVAILABLE,
+      ).length;
+
+      const totalSeats =
+        roomIds.length > 0
+          ? await this.prisma.seat.count({
+              where: { roomId: { in: roomIds } },
+            })
+          : 0;
+
+      // 2. Showtimes today (Vietnam timezone UTC+7)
+      const now = new Date();
+      const vnFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const todayStr = vnFormatter.format(now);
+      const startOfTodayVN = new Date(todayStr + 'T00:00:00.000+07:00');
+      const endOfTodayVN = new Date(todayStr + 'T23:59:59.999+07:00');
+
+      const showtimesToday =
+        roomIds.length > 0
+          ? await this.prisma.showtime.findMany({
+              where: {
+                roomId: { in: roomIds },
+                startTime: { gte: startOfTodayVN, lte: endOfTodayVN },
+              },
+              select: { id: true, roomId: true },
+            })
+          : [];
+
+      const activeRoomsWithShowtimes = new Set(
+        showtimesToday.map((s) => s.roomId),
+      ).size;
+
+      // 3. Staff & Schedules
+      const activeStaffCount = await this.prisma.user.count({
+        where: {
+          branchId: branch.branchId,
+          role: Role.STAFF,
+          isActive: true,
+        },
+      });
+
+      const branchShiftsCount = await this.prisma.workSchedule.count({
+        where: {
+          branchId: branch.branchId,
+          isActive: true,
+        },
+      });
+
+      const todayAssignmentsCount = await this.prisma.shiftAssignment.count({
+        where: {
+          branchId: branch.branchId,
+          date: todayStr,
+        },
+      });
+
+      // 4. Revenue today for this branch
+      const paidOrdersToday = await this.prisma.order.findMany({
+        where: {
+          branchId: branch.branchId,
+          status: OrderStatus.PAID,
+          createdAt: { gte: startOfTodayVN, lte: endOfTodayVN },
+        },
+        select: { totalAmount: true },
+      });
+
+      const todayRevenue = paidOrdersToday.reduce(
+        (sum, o) => sum + (o.totalAmount || 0),
+        0,
+      );
+
+      return {
+        branch,
+        kpi: {
+          showtimes: {
+            todayCount: showtimesToday.length,
+            activeRoomsWithShowtimes,
+          },
+          rooms: {
+            totalRooms,
+            activeRooms,
+            totalSeats,
+          },
+          staff: {
+            activeStaffCount,
+            todayAssignedStaffCount: todayAssignmentsCount,
+            todayShiftsCount: branchShiftsCount,
+          },
+          revenue: {
+            todayRevenue,
+            paidOrdersCount: paidOrdersToday.length,
+          },
+        },
+      };
+    });
+  }
+
   async getRoomDetail(
     managerUserId: string | undefined,
     roomId: string,
@@ -136,14 +254,139 @@ export class BranchRoomService {
         },
       });
 
-      const rows = input.rowCount ?? 6;
-      const cols = input.columnsPerRow ?? 10;
-      await this.generateDefaultSeatsForRoom(created.id, rows, cols);
+      if (input.customSeats && input.customSeats.length > 0) {
+        const seatDocs = input.customSeats.map((s) => ({
+          roomId: created.id,
+          rowPosition: s.rowPosition.trim().toUpperCase(),
+          columnPosition: s.columnPosition,
+          seatType: s.seatType,
+          status: s.status ?? SeatStatus.AVAILABLE,
+        }));
+        await this.prisma.seat.createMany({ data: seatDocs });
+      } else {
+        const rows = input.rowCount ?? 6;
+        const cols = input.columnsPerRow ?? 10;
+        await this.generateDefaultSeatsForRoom(created.id, rows, cols);
+      }
 
       const [summary] = await this.buildRoomSummaries([created]);
 
       return {
         message: ROOM_MESSAGES.MSG04_ROOM_CREATED,
+        room: summary,
+      };
+    });
+  }
+
+  /**
+   * Thay đổi toàn bộ bố trí sơ đồ ghế (Layout) của phòng chiếu.
+   * Nếu phòng đang có suất chiếu sắp tới đã bán vé, chặn không cho thay đổi.
+   */
+  async replaceRoomLayout(
+    managerUserId: string | undefined,
+    roomId: string,
+    input: ReplaceRoomLayoutDto,
+  ): Promise<BranchRoomMutationResponseDto> {
+    return this.guard(async () => {
+      const branch = await this.resolveManagerBranch(managerUserId);
+      if (branch.branchStatus !== BranchStatus.ACTIVE) {
+        throw new BadRequestException(ROOM_MESSAGES.BRANCH_NOT_ACTIVE);
+      }
+
+      const room = await this.prisma.room.findFirst({
+        where: { id: roomId, branchId: branch.branchId },
+      });
+
+      if (!room) {
+        throw new NotFoundException(ROOM_MESSAGES.ROOM_NOT_FOUND);
+      }
+
+      const upcomingShowtimes = await this.prisma.showtime.findMany({
+        where: {
+          roomId: room.id,
+          endTime: { gt: new Date() },
+        },
+        select: { id: true },
+      });
+
+      const upcomingShowtimeIds = upcomingShowtimes.map((s) => s.id);
+
+      if (upcomingShowtimeIds.length > 0) {
+        const soldCount = await this.prisma.seatShowtime.count({
+          where: {
+            showtimeId: { in: upcomingShowtimeIds },
+            seatStatus: {
+              in: [SeatShowtimeStatus.BOOKED, SeatShowtimeStatus.RESERVED],
+            },
+          },
+        });
+
+        if (soldCount > 0) {
+          throw new ConflictException({
+            statusCode: 409,
+            error: 'Conflict',
+            message:
+              ROOM_MESSAGES.MSG07_CANNOT_CHANGE_LAYOUT_WITH_BOOKED_TICKETS,
+          });
+        }
+
+        // Suất chiếu chưa có vé nào bán -> Xóa các SeatShowtime cũ
+        await this.prisma.seatShowtime.deleteMany({
+          where: {
+            showtimeId: { in: upcomingShowtimeIds },
+          },
+        });
+      }
+
+      // Xóa toàn bộ ghế cũ của phòng
+      await this.prisma.seat.deleteMany({ where: { roomId: room.id } });
+
+      // Chèn danh sách ghế mới
+      const seatDocs = input.seats.map((s) => ({
+        roomId: room.id,
+        rowPosition: s.rowPosition.trim().toUpperCase(),
+        columnPosition: s.columnPosition,
+        seatType: s.seatType,
+        status: s.status ?? SeatStatus.AVAILABLE,
+      }));
+
+      await this.prisma.seat.createMany({
+        data: seatDocs,
+      });
+
+      // Tái tạo lại SeatShowtime cho các suất chiếu tương lai chưa bán vé
+      if (upcomingShowtimeIds.length > 0) {
+        const insertedSeats = await this.prisma.seat.findMany({
+          where: { roomId: room.id },
+          select: { id: true },
+        });
+
+        const seatShowtimesToInsert: {
+          showtimeId: string;
+          seatId: string;
+          seatStatus: SeatShowtimeStatus;
+        }[] = [];
+
+        for (const stId of upcomingShowtimeIds) {
+          for (const s of insertedSeats) {
+            seatShowtimesToInsert.push({
+              showtimeId: stId,
+              seatId: s.id,
+              seatStatus: SeatShowtimeStatus.EMPTY,
+            });
+          }
+        }
+        if (seatShowtimesToInsert.length > 0) {
+          await this.prisma.seatShowtime.createMany({
+            data: seatShowtimesToInsert,
+          });
+        }
+      }
+
+      const [summary] = await this.buildRoomSummaries([room]);
+
+      return {
+        message: ROOM_MESSAGES.MSG08_LAYOUT_REPLACED,
         room: summary,
       };
     });

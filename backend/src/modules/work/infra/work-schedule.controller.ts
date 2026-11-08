@@ -23,7 +23,7 @@ import { Role } from '../../user/domain/enums/role.enum';
 import { WorkScheduleService } from '../application/work-schedule.service';
 import { CreateWorkScheduleDto } from '../application/dto/create-work-schedule.dto';
 import { AssignWorkScheduleDto } from '../application/dto/assign-work-schedule.dto';
-import { AuthUser, AuthenticatedRequest } from '../../auth/domain/auth-user';
+import { AuthenticatedRequest } from '../../auth/domain/auth-user';
 
 @Controller('admin/work-schedules')
 @UseGuards(JwtGuard, RoleGuard)

@@ -16,8 +16,12 @@ import {
   ShieldAlert,
   CheckSquare,
   RotateCcw,
+  Layers,
 } from 'lucide-react';
 import { getFriendlyErrorMessage } from '@/lib/utils/error-handler';
+import RoomLayoutDesignerModal, {
+  CustomSeatData,
+} from './RoomLayoutDesignerModal';
 
 interface BranchInfo {
   branchId: string;
@@ -125,6 +129,14 @@ export default function ManageRoomSeatPage() {
   const [newRoomCols, setNewRoomCols] = useState<number>(10);
   const [createError, setCreateError] = useState<string>('');
   const [creatingRoom, setCreatingRoom] = useState<boolean>(false);
+
+  // Layout Designer Modal
+  const [isDesignerOpen, setIsDesignerOpen] = useState<boolean>(false);
+  const [designerMode, setDesignerMode] = useState<'CREATE' | 'EDIT'>('CREATE');
+  const [customSeatsForCreate, setCustomSeatsForCreate] = useState<
+    CustomSeatData[] | null
+  >(null);
+  const [isSavingLayout, setIsSavingLayout] = useState<boolean>(false);
 
   const getAuthHeaders = useCallback((): HeadersInit => {
     const token =
@@ -378,14 +390,26 @@ export default function ManageRoomSeatPage() {
 
     setCreatingRoom(true);
     try {
+      const payload: {
+        roomName: string;
+        rowCount?: number;
+        columnsPerRow?: number;
+        customSeats?: CustomSeatData[];
+      } = {
+        roomName: newRoomName.trim(),
+      };
+
+      if (customSeatsForCreate && customSeatsForCreate.length > 0) {
+        payload.customSeats = customSeatsForCreate;
+      } else {
+        payload.rowCount = newRoomRows;
+        payload.columnsPerRow = newRoomCols;
+      }
+
       const res = await fetch(`${API_BASE_URL}/manager/rooms`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          roomName: newRoomName.trim(),
-          rowCount: newRoomRows,
-          columnsPerRow: newRoomCols,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -400,6 +424,7 @@ export default function ManageRoomSeatPage() {
 
       setIsCreateModalOpen(false);
       setNewRoomName('');
+      setCustomSeatsForCreate(null);
       showToast(
         'success',
         data?.message ?? 'Tạo phòng chiếu mới thành công.',
@@ -412,6 +437,63 @@ export default function ManageRoomSeatPage() {
     } finally {
       setCreatingRoom(false);
     }
+  };
+
+  // Save layout for existing room
+  const handleSaveExistingRoomLayout = async (newSeats: CustomSeatData[]) => {
+    if (!selectedRoomId) return;
+    setIsSavingLayout(true);
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/manager/rooms/${selectedRoomId}/layout`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ seats: newSeats }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          setBlockedPopup({
+            title: 'Không thể thay đổi Layout phòng',
+            message:
+              data?.message ??
+              'Phòng chiếu đang có vé đã bán trong các suất chiếu sắp diễn ra.',
+          });
+          return;
+        }
+        throw new Error(
+          data?.message ?? 'Không thể cập nhật layout sơ đồ phòng chiếu.',
+        );
+      }
+
+      showToast(
+        'success',
+        data?.message ?? 'Cập nhật sơ đồ layout phòng chiếu thành công.',
+      );
+      setIsDesignerOpen(false);
+      await fetchRoomDetail(selectedRoomId);
+      await fetchRoomsList(selectedRoomId);
+    } catch (error) {
+      showToast(
+        'error',
+        getFriendlyErrorMessage(error, 'Lỗi khi lưu layout phòng chiếu.'),
+      );
+    } finally {
+      setIsSavingLayout(false);
+    }
+  };
+
+  // Save layout for new room creation
+  const handleSaveNewRoomLayout = async (newSeats: CustomSeatData[]) => {
+    setCustomSeatsForCreate(newSeats);
+    setIsDesignerOpen(false);
+    showToast(
+      'success',
+      `Đã áp dụng sơ đồ tùy biến (${newSeats.length} ghế) cho phòng mới.`,
+    );
   };
 
   // Filtered rooms list
@@ -433,6 +515,23 @@ export default function ManageRoomSeatPage() {
       seats: rowSeats.sort((a, b) => a.columnPosition - b.columnPosition),
     }));
   }, [seats]);
+
+  const maxColumnsInRoom = useMemo(() => {
+    if (seats.length === 0) return 10;
+    return Math.max(...seats.map((s) => s.columnPosition), 1);
+  }, [seats]);
+
+  const designerInitialSeats = useMemo(() => {
+    if (designerMode === 'EDIT') {
+      return seats.map((s) => ({
+        rowPosition: s.rowPosition,
+        columnPosition: s.columnPosition,
+        seatType: s.seatType,
+        status: s.status,
+      }));
+    }
+    return customSeatsForCreate ?? [];
+  }, [designerMode, seats, customSeatsForCreate]);
 
   // Summary metrics across branch
   const totalActiveRooms = useMemo(
@@ -773,6 +872,18 @@ export default function ManageRoomSeatPage() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => {
+                        setDesignerMode('EDIT');
+                        setIsDesignerOpen(true);
+                      }}
+                      className="inline-flex h-[36px] items-center gap-1.5 px-3.5 text-[12px] font-bold border border-[#da291c] bg-[#da291c] text-white hover:bg-[#b82116] transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Layers className="h-3.5 w-3.5" />
+                      Vẽ / Đổi Layout Phòng
+                    </button>
+
+                    <button
+                      type="button"
                       disabled={updatingRoom}
                       onClick={() =>
                         void handleToggleRoomStatus(selectedRoomDetail)
@@ -990,86 +1101,111 @@ export default function ManageRoomSeatPage() {
 
                               {/* Seats in Row */}
                               <div className="flex flex-1 items-center justify-center gap-1.5">
-                                {rowSeats.map((seat) => {
-                                  const isSelected = selectedSeatIds.includes(
-                                    seat.seatId,
+                                {(() => {
+                                  const rowSeatMap = new Map(
+                                    rowSeats.map((s) => [s.columnPosition, s]),
                                   );
+                                  return Array.from(
+                                    { length: maxColumnsInRoom },
+                                    (_, idx) => idx + 1,
+                                  ).map((colNum) => {
+                                    const seat = rowSeatMap.get(colNum);
+                                    if (!seat) {
+                                      return (
+                                        <div
+                                          key={`aisle-${rowLabel}-${colNum}`}
+                                          className="flex h-9 w-11 items-center justify-center border border-dashed border-[#dad2b4]/50 bg-[#efebdb]/20 select-none"
+                                          title={`Lối đi / Ô trống [${rowLabel}${colNum}]`}
+                                        >
+                                          <span className="text-[10px] text-[#c1b687]/50 font-mono">
+                                            ·
+                                          </span>
+                                        </div>
+                                      );
+                                    }
 
-                                  let seatInlineStyle: React.CSSProperties = {
-                                    borderColor: '#9d9580',
-                                    backgroundColor: '#ffffff',
-                                    color: '#231f20',
-                                  };
-                                  if (seat.seatType === 'VIP') {
-                                    seatInlineStyle = {
-                                      borderColor: '#b49b57',
-                                      backgroundColor: '#efebdb',
+                                    const isSelected = selectedSeatIds.includes(
+                                      seat.seatId,
+                                    );
+
+                                    let seatInlineStyle: React.CSSProperties = {
+                                      borderColor: '#9d9580',
+                                      backgroundColor: '#ffffff',
                                       color: '#231f20',
                                     };
-                                  } else if (seat.seatType === 'COUPLE') {
-                                    seatInlineStyle = {
-                                      borderColor: '#e11d48',
-                                      backgroundColor: '#ffe4e6',
-                                      color: '#9f1239',
-                                    };
-                                  }
+                                    if (seat.seatType === 'VIP') {
+                                      seatInlineStyle = {
+                                        borderColor: '#b49b57',
+                                        backgroundColor: '#efebdb',
+                                        color: '#231f20',
+                                      };
+                                    } else if (seat.seatType === 'COUPLE') {
+                                      seatInlineStyle = {
+                                        borderColor: '#e11d48',
+                                        backgroundColor: '#ffe4e6',
+                                        color: '#9f1239',
+                                      };
+                                    }
 
-                                  if (seat.isBroken) {
-                                    seatInlineStyle = {
-                                      borderColor: '#231f20',
-                                      backgroundColor: '#231f20',
-                                      color: '#c1b687',
-                                    };
-                                  }
+                                    if (seat.isBroken) {
+                                      seatInlineStyle = {
+                                        borderColor: '#231f20',
+                                        backgroundColor: '#231f20',
+                                        color: '#c1b687',
+                                      };
+                                    }
 
-                                  if (isSelected) {
-                                    seatInlineStyle = {
-                                      borderColor: '#231f20',
-                                      backgroundColor: '#da291c',
-                                      color: '#ffffff',
-                                    };
-                                  }
+                                    if (isSelected) {
+                                      seatInlineStyle = {
+                                        borderColor: '#231f20',
+                                        backgroundColor: '#da291c',
+                                        color: '#ffffff',
+                                      };
+                                    }
 
-                                  return (
-                                    <button
-                                      key={seat.seatId}
-                                      type="button"
-                                      onClick={() =>
-                                        handleToggleSeatSelect(seat.seatId)
-                                      }
-                                      style={seatInlineStyle}
-                                      title={`Ghế ${seat.seatLabel} (${seat.seatType}) - ${
-                                        seat.isBroken
-                                          ? 'Đang khóa / báo hỏng'
-                                          : 'Khả dụng'
-                                      }${
-                                        seat.hasUpcomingBookedTicket
-                                          ? ' • Đã có khách đặt vé ở suất sắp chiếu'
-                                          : ''
-                                      }`}
-                                      className={`relative flex h-9 w-11 flex-col items-center justify-center border-2 text-[11px] font-bold transition-all cursor-pointer select-none ${
-                                        isSelected ? 'scale-105 shadow-md' : 'hover:opacity-85'
-                                      }`}
-                                    >
-                                      <span>{seat.seatLabel}</span>
-                                      {seat.isBroken && (
-                                        <span
-                                          className="text-[8px] uppercase font-bold leading-none"
-                                          style={{ color: '#f87171' }}
-                                        >
-                                          Hỏng
-                                        </span>
-                                      )}
-                                      {seat.hasUpcomingBookedTicket &&
-                                        !seat.isBroken && (
+                                    return (
+                                      <button
+                                        key={seat.seatId}
+                                        type="button"
+                                        onClick={() =>
+                                          handleToggleSeatSelect(seat.seatId)
+                                        }
+                                        style={seatInlineStyle}
+                                        title={`Ghế ${seat.seatLabel} (${seat.seatType}) - ${
+                                          seat.isBroken
+                                            ? 'Đang khóa / báo hỏng'
+                                            : 'Khả dụng'
+                                        }${
+                                          seat.hasUpcomingBookedTicket
+                                            ? ' • Đã có khách đặt vé ở suất sắp chiếu'
+                                            : ''
+                                        }`}
+                                        className={`relative flex h-9 w-11 flex-col items-center justify-center border-2 text-[11px] font-bold transition-all cursor-pointer select-none ${
+                                          isSelected
+                                            ? 'scale-105 shadow-md'
+                                            : 'hover:opacity-85'
+                                        }`}
+                                      >
+                                        <span>{seat.seatLabel}</span>
+                                        {seat.isBroken && (
                                           <span
-                                            className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-[#da291c]"
-                                            title="Ghế đã có vé bán ở suất sắp chiếu"
-                                          />
+                                            className="text-[8px] uppercase font-bold leading-none"
+                                            style={{ color: '#f87171' }}
+                                          >
+                                            Hỏng
+                                          </span>
                                         )}
-                                    </button>
-                                  );
-                                })}
+                                        {seat.hasUpcomingBookedTicket &&
+                                          !seat.isBroken && (
+                                            <span
+                                              className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-[#da291c]"
+                                              title="Ghế đã có vé bán ở suất sắp chiếu"
+                                            />
+                                          )}
+                                      </button>
+                                    );
+                                  });
+                                })()}
                               </div>
 
                               {/* Right Row Label */}
@@ -1208,14 +1344,41 @@ export default function ManageRoomSeatPage() {
                 </div>
               </div>
 
-              <div className="border border-[#dad2b4] bg-[#efebdb] p-3 text-[12px] text-[#6f6247] flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5">
-                  <Armchair className="h-4 w-4 text-[#da291c]" />
-                  Tổng số ghế tự động khởi tạo:
-                </span>
-                <strong className="text-[14px] text-[#231f20]">
-                  {(newRoomRows || 0) * (newRoomCols || 0)} ghế
-                </strong>
+              <div className="border border-[#dad2b4] bg-[#efebdb] p-3 text-[12px] text-[#6f6247] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 font-semibold">
+                    <Armchair className="h-4 w-4 text-[#da291c]" />
+                    {customSeatsForCreate && customSeatsForCreate.length > 0
+                      ? 'Sơ đồ ghế tùy biến đã vẽ:'
+                      : 'Tổng số ghế dự kiến (mặc định):'}
+                  </span>
+                  <strong className="text-[14px] text-[#231f20]">
+                    {customSeatsForCreate && customSeatsForCreate.length > 0
+                      ? `${customSeatsForCreate.length} ghế`
+                      : `${(newRoomRows || 0) * (newRoomCols || 0)} ghế`}
+                  </strong>
+                </div>
+
+                <div className="pt-2 border-t border-[#dad2b4] flex items-center justify-between">
+                  <span className="text-[11px] text-[#8c8269]">
+                    {customSeatsForCreate && customSeatsForCreate.length > 0
+                      ? 'Đã áp dụng sơ đồ từ Trình vẽ layout.'
+                      : 'Tự vẽ layout thêm lối đi, hàng VIP, ghế đôi.'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDesignerMode('CREATE');
+                      setIsDesignerOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#231f20] text-[#c1b687] hover:text-white text-[11px] font-bold cursor-pointer transition-colors"
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    {customSeatsForCreate && customSeatsForCreate.length > 0
+                      ? 'Sửa Layout'
+                      : 'Vẽ Layout Sơ Đồ'}
+                  </button>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-[#e3e1d6] flex items-center justify-end gap-3">
@@ -1311,6 +1474,36 @@ export default function ManageRoomSeatPage() {
           </div>
         </div>
       )}
+      {/* =================================================================== */}
+      {/* MODAL 3: ROOM LAYOUT DESIGNER                                       */}
+      {/* =================================================================== */}
+      <RoomLayoutDesignerModal
+        isOpen={isDesignerOpen}
+        onClose={() => setIsDesignerOpen(false)}
+        roomName={
+          designerMode === 'EDIT'
+            ? selectedRoomDetail?.roomName ?? ''
+            : newRoomName || 'Phòng chiếu mới'
+        }
+        initialRows={
+          designerMode === 'EDIT'
+            ? seatRows.length || 8
+            : newRoomRows
+        }
+        initialCols={
+          designerMode === 'EDIT'
+            ? maxColumnsInRoom || 12
+            : newRoomCols
+        }
+        initialSeats={designerInitialSeats}
+        onSaveLayout={
+          designerMode === 'EDIT'
+            ? handleSaveExistingRoomLayout
+            : handleSaveNewRoomLayout
+        }
+        isSaving={isSavingLayout}
+        isExistingRoom={designerMode === 'EDIT'}
+      />
     </div>
   );
 }

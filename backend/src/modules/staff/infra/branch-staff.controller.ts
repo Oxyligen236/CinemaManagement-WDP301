@@ -26,30 +26,73 @@ import {
 } from '../application/dto/branch-staff.dto';
 import { STAFF_MESSAGES } from '../domain/staff.rules';
 
-const flatten = (errors: ValidationError[], parent = ''): string[] =>
-  errors.flatMap((error) => {
-    const path = parent ? `${parent}.${error.property}` : error.property;
-    return [
-      ...Object.values(error.constraints ?? {}),
-      ...flatten(error.children ?? [], path),
-    ];
-  });
+/**
+ * Thứ tự ưu tiên khi một trường vi phạm nhiều ràng buộc cùng lúc.
+ *
+ * `error.constraints` của class-validator không theo thứ tự khai báo decorator,
+ * nên nếu lấy bừa một message thì ô email bỏ trống có thể nhận câu "Email
+ * không đúng định dạng" thay vì "Vui lòng nhập email". Báo thiếu dữ liệu trước,
+ * rồi tới sai độ dài, cuối cùng mới tới sai định dạng / ngoài danh mục.
+ */
+const CONSTRAINT_PRIORITY = [
+  ['isNotEmpty', 'isDefined', 'isString'],
+  ['maxLength', 'minLength', 'length'],
+];
+
+const pickMessage = (
+  constraints: Record<string, string>,
+): string | undefined => {
+  for (const group of CONSTRAINT_PRIORITY) {
+    const key = group.find((name) => constraints[name]);
+    if (key) return constraints[key];
+  }
+  return Object.values(constraints)[0];
+};
 
 /**
- * AF-1 / AF-2: mọi lỗi validate trả về MSG01, kèm chi tiết ở `errors`
- * để giao diện có thể chỉ ra trường bị sai.
+ * Gom lỗi validate thành map `đường dẫn trường -> thông báo`.
+ *
+ * Mỗi trường chỉ giữ MỘT thông báo vì giao diện hiển thị một dòng lỗi dưới mỗi
+ * ô nhập. Đệ quy xuống `children` để DTO lồng nhau cũng có đường dẫn đầy đủ
+ * (vd. `profile.firstName`) chứ không mất tên trường.
  */
-const staffValidationPipe = new ValidationPipe({
+const collectFieldErrors = (
+  errors: ValidationError[],
+  parent = '',
+  target: Record<string, string> = {},
+): Record<string, string> => {
+  for (const error of errors) {
+    const path = parent ? `${parent}.${error.property}` : error.property;
+    const message = pickMessage(error.constraints ?? {});
+    if (message && !target[path]) {
+      target[path] = message;
+    }
+    collectFieldErrors(error.children ?? [], path, target);
+  }
+  return target;
+};
+
+/**
+ * AF-1 / AF-2: lỗi validate trả về thông báo của đúng trường bị sai qua
+ * `fieldErrors` để giao diện gắn câu lỗi vào đúng ô nhập. `message` lấy luôn
+ * câu của trường đầu tiên khi chỉ sai một trường, để nơi nào chỉ hiển thị
+ * banner chung cũng nêu được lý do cụ thể thay vì MSG01 chung chung.
+ */
+export const staffValidationPipe = new ValidationPipe({
   whitelist: true,
   transform: true,
-  exceptionFactory: (errors) =>
-    new BadRequestException({
+  exceptionFactory: (errors) => {
+    const fieldErrors = collectFieldErrors(errors);
+    const messages = Object.values(fieldErrors);
+    return new BadRequestException({
       statusCode: 400,
       error: 'Bad Request',
-      message: STAFF_MESSAGES.MSG01,
-      errors: flatten(errors),
-      fields: errors.map((error) => error.property),
-    }),
+      message: messages.length === 1 ? messages[0] : STAFF_MESSAGES.MSG01,
+      errors: messages,
+      fields: Object.keys(fieldErrors),
+      fieldErrors,
+    });
+  },
 });
 
 /** UC19 - Manage Branch Staff */

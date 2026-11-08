@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -12,7 +12,6 @@ import {
   Users,
 } from "lucide-react";
 import {
-  ApiError,
   Branch,
   EmploymentStatus,
   INPUT_CLASS,
@@ -23,13 +22,17 @@ import {
   STATUS_LABELS,
   Staff,
   StaffOptions,
+  pickFieldErrors,
   useManagerApi,
 } from "./_lib/staff-api";
 import {
   ErrorBanner,
+  FieldError,
   LockedBranchField,
   SuccessBanner,
 } from "./_lib/feedback";
+import { NAME_MAX_LENGTH, validateName } from "@/lib/utils/auth-validation";
+import { FieldErrors, useFormErrors } from "@/lib/utils/use-form-errors";
 
 type EditForm = {
   firstName: string;
@@ -41,6 +44,14 @@ type EditForm = {
 const ALL_POSITIONS = Object.keys(POSITION_LABELS) as JobPosition[];
 const ALL_STATUSES = Object.keys(STATUS_LABELS) as EmploymentStatus[];
 
+/** Các trường có mặt trên form, dùng để nhận lỗi backend trả theo tên trường. */
+const EDIT_FIELDS = [
+  "firstName",
+  "lastName",
+  "jobPosition",
+  "employmentStatus",
+] as const;
+
 function toForm(staff: Staff): EditForm {
   return {
     firstName: staff.firstName,
@@ -48,6 +59,29 @@ function toForm(staff: Staff): EditForm {
     jobPosition: staff.jobPosition ?? "",
     employmentStatus: staff.employmentStatus,
   };
+}
+
+/**
+ * AF-1: kiểm tra các trường bắt buộc khi cập nhật hồ sơ nhân viên.
+ *
+ * Dùng chung `validateName` với form tạo mới để cùng một ô nhập không có hai
+ * quy tắc khác nhau giữa hai màn hình (trước đây màn cập nhật bỏ qua giới hạn
+ * 100 ký tự nên lỗi chỉ lộ ra khi backend từ chối).
+ */
+function validateEditForm(form: EditForm): FieldErrors<EditForm> {
+  const errors: FieldErrors<EditForm> = {};
+
+  const lastName = validateName(form.lastName, "Họ");
+  if (lastName) errors.lastName = lastName;
+
+  const firstName = validateName(form.firstName, "Tên");
+  if (firstName) errors.firstName = firstName;
+
+  if (!form.jobPosition) {
+    errors.jobPosition = "Vui lòng chọn vị trí công việc.";
+  }
+
+  return errors;
 }
 
 function BranchStaffContent() {
@@ -69,6 +103,15 @@ function BranchStaffContent() {
   const [listError, setListError] = useState<unknown>(null);
   const [formError, setFormError] = useState<unknown>(null);
   const [message, setMessage] = useState(searchParams.get("created") ?? "");
+  const {
+    fieldErrors,
+    setFieldErrors,
+    clearFieldError,
+    validateField,
+    validateAll,
+  } = useFormErrors<EditForm>(
+    useCallback((values: EditForm) => validateEditForm(values), []),
+  );
 
   async function loadStaff(event?: FormEvent) {
     event?.preventDefault();
@@ -116,6 +159,8 @@ function BranchStaffContent() {
     setSelected(item);
     setForm(toForm(item));
     setFormError(null);
+    // Lỗi của nhân viên vừa xem không còn ý nghĩa với hồ sơ mới được chọn.
+    setFieldErrors({});
     setMessage("");
   }
 
@@ -127,21 +172,10 @@ function BranchStaffContent() {
     // nếu không nó sẽ hiển thị cạnh lỗi validate của lần này.
     setMessage("");
 
-    // AF-1: kiểm tra phía client trước khi gửi (máy chủ vẫn kiểm tra lại)
-    const missing = [
-      !form.lastName.trim() && "lastName",
-      !form.firstName.trim() && "firstName",
-      !form.jobPosition && "jobPosition",
-    ].filter(Boolean) as string[];
-    if (missing.length > 0) {
-      setFormError(
-        new ApiError(
-          "Thông tin không hợp lệ hoặc thiếu trường bắt buộc.",
-          400,
-          [],
-          missing,
-        ),
-      );
+    // AF-1: kiểm tra phía client trước khi gửi (máy chủ vẫn kiểm tra lại).
+    // Lỗi hiện ngay dưới từng trường nên không cần banner chung.
+    if (!validateAll(form)) {
+      setFormError(null);
       return;
     }
 
@@ -169,7 +203,16 @@ function BranchStaffContent() {
       setForm(toForm(updated));
       setMessage(result.message); // MSG26
     } catch (error) {
-      setFormError(error);
+      // AF-2: ưu tiên gắn câu lỗi của backend vào đúng ô nhập; banner chung
+      // chỉ dùng cho lỗi không thuộc trường nào (hết quyền, không tìm thấy
+      // nhân viên, mất kết nối).
+      const serverFieldErrors = pickFieldErrors(error, EDIT_FIELDS);
+      if (Object.keys(serverFieldErrors).length > 0) {
+        setFieldErrors((current) => ({ ...current, ...serverFieldErrors }));
+        setFormError(null);
+      } else {
+        setFormError(error);
+      }
     } finally {
       setSaving(false);
     }
@@ -182,8 +225,6 @@ function BranchStaffContent() {
     !!selected &&
     form.employmentStatus !== "ACTIVE" &&
     form.employmentStatus !== selected.employmentStatus;
-  const invalidFields =
-    formError instanceof ApiError ? formError.fields : [];
 
   return (
     <div className="space-y-6 font-['Arial',sans-serif]">
@@ -438,13 +479,29 @@ function BranchStaffContent() {
                   <input
                     id="staff-edit-lastname"
                     required
-                    maxLength={100}
+                    maxLength={NAME_MAX_LENGTH}
                     value={form.lastName}
-                    aria-invalid={invalidFields.includes("lastName")}
-                    onChange={(event) =>
-                      setForm({ ...form, lastName: event.target.value })
+                    aria-invalid={!!fieldErrors.lastName}
+                    aria-describedby={
+                      fieldErrors.lastName
+                        ? "staff-edit-lastname-error"
+                        : undefined
+                    }
+                    onChange={(event) => {
+                      setForm({ ...form, lastName: event.target.value });
+                      clearFieldError("lastName");
+                    }}
+                    onBlur={(event) =>
+                      validateField(
+                        { ...form, lastName: event.target.value },
+                        "lastName",
+                      )
                     }
                     className={INPUT_CLASS}
+                  />
+                  <FieldError
+                    id="staff-edit-lastname-error"
+                    message={fieldErrors.lastName}
                   />
                 </div>
                 <div>
@@ -454,13 +511,29 @@ function BranchStaffContent() {
                   <input
                     id="staff-edit-firstname"
                     required
-                    maxLength={100}
+                    maxLength={NAME_MAX_LENGTH}
                     value={form.firstName}
-                    aria-invalid={invalidFields.includes("firstName")}
-                    onChange={(event) =>
-                      setForm({ ...form, firstName: event.target.value })
+                    aria-invalid={!!fieldErrors.firstName}
+                    aria-describedby={
+                      fieldErrors.firstName
+                        ? "staff-edit-firstname-error"
+                        : undefined
+                    }
+                    onChange={(event) => {
+                      setForm({ ...form, firstName: event.target.value });
+                      clearFieldError("firstName");
+                    }}
+                    onBlur={(event) =>
+                      validateField(
+                        { ...form, firstName: event.target.value },
+                        "firstName",
+                      )
                     }
                     className={INPUT_CLASS}
+                  />
+                  <FieldError
+                    id="staff-edit-firstname-error"
+                    message={fieldErrors.firstName}
                   />
                 </div>
               </div>
@@ -475,13 +548,19 @@ function BranchStaffContent() {
                   id="staff-edit-position"
                   required
                   value={form.jobPosition}
-                  aria-invalid={invalidFields.includes("jobPosition")}
-                  onChange={(event) =>
+                  aria-invalid={!!fieldErrors.jobPosition}
+                  aria-describedby={
+                    fieldErrors.jobPosition
+                      ? "staff-edit-position-error"
+                      : undefined
+                  }
+                  onChange={(event) => {
                     setForm({
                       ...form,
                       jobPosition: event.target.value as JobPosition,
-                    })
-                  }
+                    });
+                    clearFieldError("jobPosition");
+                  }}
                   className={INPUT_CLASS}
                 >
                   <option value="">Chọn vị trí</option>
@@ -491,6 +570,10 @@ function BranchStaffContent() {
                     </option>
                   ))}
                 </select>
+                <FieldError
+                  id="staff-edit-position-error"
+                  message={fieldErrors.jobPosition}
+                />
               </div>
 
               <div>
@@ -500,13 +583,19 @@ function BranchStaffContent() {
                 <select
                   id="staff-edit-status"
                   value={form.employmentStatus}
-                  aria-invalid={invalidFields.includes("employmentStatus")}
-                  onChange={(event) =>
+                  aria-invalid={!!fieldErrors.employmentStatus}
+                  aria-describedby={
+                    fieldErrors.employmentStatus
+                      ? "staff-edit-status-error"
+                      : undefined
+                  }
+                  onChange={(event) => {
                     setForm({
                       ...form,
                       employmentStatus: event.target.value as EmploymentStatus,
-                    })
-                  }
+                    });
+                    clearFieldError("employmentStatus");
+                  }}
                   className={INPUT_CLASS}
                 >
                   {statuses.map((status) => (
@@ -515,6 +604,10 @@ function BranchStaffContent() {
                     </option>
                   ))}
                 </select>
+                <FieldError
+                  id="staff-edit-status-error"
+                  message={fieldErrors.employmentStatus}
+                />
                 {leaving && (
                   <p
                     role="status"

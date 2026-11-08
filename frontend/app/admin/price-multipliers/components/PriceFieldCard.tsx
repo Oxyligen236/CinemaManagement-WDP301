@@ -167,50 +167,65 @@ export default function PriceFieldCard({
     <section
       ref={sectionRef}
       aria-labelledby={`${fieldId}-title`}
-      className="rounded-xl border border-border-main bg-surface p-4 shadow-card sm:p-6"
+      className="border border-[#e3e1d6] bg-white shadow-sm"
     >
-      <h3 id={`${fieldId}-title`} className="text-base font-bold text-text-main">
-        {field.label}
-      </h3>
+      <div className="flex items-center justify-between border-b border-[#e3e1d6] bg-[#efebdb] px-5 py-3">
+        <h3
+          id={`${fieldId}-title`}
+          className="text-[13px] font-bold uppercase text-[#231f20]"
+        >
+          {field.label}
+        </h3>
+        <span className="text-[11px] font-bold uppercase text-[#6f6247]">
+          {field.values.length} giá trị
+        </span>
+      </div>
 
-      {banner && (
-        <div className="mt-3">
-          <ErrorBanner message={banner} />
-        </div>
-      )}
+      <div className="p-5">
+        {banner && (
+          <div className="mb-4">
+            <ErrorBanner message={banner} />
+          </div>
+        )}
 
-      {field.values.length === 0 ? (
-        <p className="mt-3 rounded-lg border border-dashed border-border-main px-3 py-4 text-sm text-text-sub">
-          Chưa có giá trị nào. Suất chiếu sẽ dùng hệ số 1.0x cho trường này.
-        </p>
-      ) : (
-        <ul aria-label={`Danh sách hệ số ${field.label}`} className="mt-3 space-y-2">
-          {field.values.map((value) => (
-            <PriceValueRow
-              key={value.ruleId}
-              value={value}
-              fieldLabel={field.label}
-              existing={existing}
-              disabled={busy}
-              saving={pending?.kind === "edit" && pending.ruleId === value.ruleId}
-              onSave={(multiplier) => handleUpdate(value.ruleId, multiplier)}
-              onDelete={() => {
-                setDeleteError("");
-                setDeleteTarget(value);
-              }}
-            />
-          ))}
-        </ul>
-      )}
+        {field.values.length === 0 ? (
+          <p className="border border-dashed border-[#dad2b4] bg-[#fcfbfa] px-4 py-4 text-[13px] text-[#666]">
+            Chưa có giá trị nào. Suất chiếu sẽ dùng hệ số 1.0x cho trường này.
+          </p>
+        ) : (
+          <ul
+            aria-label={`Danh sách hệ số ${field.label}`}
+            className="space-y-2"
+          >
+            {field.values.map((value) => (
+              <PriceValueRow
+                key={value.ruleId}
+                value={value}
+                fieldLabel={field.label}
+                existing={existing}
+                disabled={busy}
+                saving={
+                  pending?.kind === "edit" && pending.ruleId === value.ruleId
+                }
+                onSave={(multiplier) => handleUpdate(value.ruleId, multiplier)}
+                onDelete={() => {
+                  setDeleteError("");
+                  setDeleteTarget(value);
+                }}
+              />
+            ))}
+          </ul>
+        )}
 
-      <AddPriceValueForm
-        inputId={`add-${fieldId}`}
-        fieldLabel={field.label}
-        existing={existing}
-        disabled={busy}
-        submitting={pending?.kind === "add"}
-        onSubmit={handleAdd}
-      />
+        <AddPriceValueForm
+          inputId={`add-${fieldId}`}
+          fieldLabel={field.label}
+          existing={existing}
+          disabled={busy}
+          submitting={pending?.kind === "add"}
+          onSubmit={handleAdd}
+        />
+      </div>
 
       {deleteTarget && (
         <DeletePriceValueDialog

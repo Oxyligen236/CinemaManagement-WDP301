@@ -1,4 +1,4 @@
-import { ConflictException, HttpException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRegistrationService } from './user-registration.service';
 import { PendingRegistrationService } from './pending-registration.service';
@@ -126,15 +126,47 @@ describe('UserRegistrationService (email verification flow)', () => {
       ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
     });
 
-    it('rejects a genuine resend within the cooldown window', async () => {
+    it('returns the pending challenge when the same email registers again', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      const first = await harness.service.register(REGISTER_INPUT);
+      const firstCode = sendMail.mock.calls[0][0].context as { code: string };
+
+      const again = await harness.service.register(REGISTER_INPUT);
+
+      // Không gửi mã mới, cooldown và TTL tiếp tục chạy từ lần gửi đầu tiên.
+      expect(sendMail).toHaveBeenCalledTimes(1);
+      expect(again.alreadyPending).toBe(true);
+      expect(again.email).toBe('new.user@cinema.local');
+      expect(again.resendsRemaining).toBe(first.resendsRemaining);
+      expect(again.resendAvailableInSeconds).toBeGreaterThan(0);
+      expect(again.resendAvailableInSeconds).toBeLessThanOrEqual(60);
+      expect(again.verificationExpiresInSeconds).toBeLessThanOrEqual(
+        first.verificationExpiresInSeconds,
+      );
+
+      // Mã cũ vẫn xác thực được.
+      await expect(
+        harness.service.verifyEmail(REGISTER_INPUT.email, firstCode.code),
+      ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
+    });
+
+    it('issues a fresh code once the pending registration has expired', async () => {
       sendMail = createSendMailMock();
       harness = await buildHarness(sendMail);
 
       await harness.service.register(REGISTER_INPUT);
 
-      await expect(harness.service.register(REGISTER_INPUT)).rejects.toThrow(
-        HttpException,
-      );
+      const pending = harness.pending.get('new.user@cinema.local');
+      if (!pending) throw new Error('expected a pending registration');
+      pending.expiresAt = Date.now() - 1;
+
+      const result = await harness.service.register(REGISTER_INPUT);
+
+      expect(sendMail).toHaveBeenCalledTimes(2);
+      expect(result.alreadyPending).toBe(false);
+      expect(result.resendsRemaining).toBe(3);
     });
   });
 

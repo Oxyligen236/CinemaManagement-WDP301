@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   DragEvent,
@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import {
-  ApiError,
   createMovie,
   Genre,
   MSG02,
@@ -21,6 +20,7 @@ import {
   POSTER_MAX_SIZE,
   uploadMovieAsset,
 } from "../api";
+import { X } from "lucide-react";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 
 interface Props {
@@ -41,10 +41,8 @@ function isValidTrailerUrl(value: string): boolean {
 }
 
 const inputClass = (invalid: boolean) =>
-  `h-10 w-full rounded-lg border bg-white px-3 text-sm text-text-main placeholder:text-text-muted focus:outline-none focus:ring-1 ${
-    invalid
-      ? "border-primary-600 focus:border-primary-600 focus:ring-primary-600"
-      : "border-border-main focus:border-primary-600 focus:ring-primary-600"
+  `h-[40px] w-full border bg-[#fcfbfa] px-3 text-[13px] text-[#231f20] placeholder:text-[#9d9580] focus:outline-none focus:ring-1 focus:border-[#da291c] focus:ring-[#da291c] ${
+    invalid ? "border-[#da291c]" : "border-[#dad2b4]"
   }`;
 
 export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
@@ -204,14 +202,28 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
       <form
         noValidate
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl rounded-xl bg-surface p-4 shadow-card sm:p-6"
+        className="w-full max-w-2xl border border-[#dad2b4] bg-white font-['Arial',sans-serif] shadow-xl"
       >
-        <h2 id="create-film-title" className="text-lg font-bold text-text-main">
-          Tạo phim mới
-        </h2>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex items-center justify-between border-b border-[#dad2b4] bg-[#efebdb] px-5 py-3">
+          <h2
+            id="create-film-title"
+            className="text-[14px] font-bold uppercase text-[#231f20]"
+          >
+            Tạo phim mới
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            aria-label="Đóng"
+            className="cursor-pointer text-[#6f6247] hover:text-[#231f20]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-text-sub">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]">
               Tên phim *
             </span>
             <input
@@ -222,13 +234,13 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
               className={inputClass(!!errors.movieName)}
             />
             {errors.movieName && (
-              <p id="err-name" className="mt-1 text-xs text-status-danger">
+              <p id="err-name" className="mt-1 text-xs text-[#da291c]">
                 {errors.movieName}
               </p>
             )}
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-text-sub">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]">
               Thời lượng (phút) *
             </span>
             <input
@@ -241,43 +253,43 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
               className={inputClass(!!errors.duration)}
             />
             {errors.duration && (
-              <p id="err-duration" className="mt-1 text-xs text-status-danger">
+              <p id="err-duration" className="mt-1 text-xs text-[#da291c]">
                 {errors.duration}
               </p>
             )}
           </label>
           <fieldset className="sm:col-span-2">
-            <legend className="mb-1 text-sm font-medium text-text-sub">
+            <legend className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#6f6247]">
               Thể loại *
             </legend>
             <div
-              className={`flex flex-wrap gap-2 rounded-lg border p-2 ${
-                errors.genreIds ? "border-primary-600" : "border-border-main"
+              className={`flex flex-wrap gap-2 border bg-[#fcfbfa] p-2 ${
+                errors.genreIds ? "border-[#da291c]" : "border-[#dad2b4]"
               }`}
             >
               {genres.map((genre) => (
                 <label
                   key={genre.genreId}
-                  className="flex items-center gap-1.5 rounded-lg bg-surface-muted px-2.5 py-1 text-sm text-text-main"
+                  className="flex cursor-pointer items-center gap-1.5 border border-[#dad2b4] bg-white px-2.5 py-1 text-[13px] text-[#231f20]"
                 >
                   <input
                     type="checkbox"
                     checked={genreIds.includes(genre.genreId)}
                     onChange={() => toggleGenre(genre.genreId)}
-                    className="accent-primary-600"
+                    className="accent-[#da291c]"
                   />
                   {genre.genreName}
                 </label>
               ))}
             </div>
             {errors.genreIds && (
-              <p className="mt-1 text-xs text-status-danger">
+              <p className="mt-1 text-xs text-[#da291c]">
                 {errors.genreIds}
               </p>
             )}
           </fieldset>
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-text-sub">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]">
               Ngày công chiếu
             </span>
             <input
@@ -290,7 +302,7 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
           <div className="sm:col-span-2">
             <span
               id="poster-label"
-              className="mb-1 block text-sm font-medium text-text-sub"
+              className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]"
             >
               Poster (JPG, PNG, WEBP, tối đa 5MB)
             </span>
@@ -310,7 +322,7 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
                   <div
                     role="img"
                     aria-label="Không thể hiển thị ảnh xem trước"
-                    className="flex h-40 w-28 items-center justify-center rounded-lg border border-border-main bg-surface-muted px-2 text-center text-xs text-text-muted"
+                    className="flex h-40 w-28 items-center justify-center border border-[#dad2b4] bg-[#efebdb] px-2 text-center text-xs text-[#6f6247]"
                   >
                     Không thể hiển thị ảnh
                   </div>
@@ -320,17 +332,17 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
                     src={posterPreview}
                     alt="Xem trước poster"
                     onError={() => setPreviewFailed(true)}
-                    className="h-40 w-28 rounded-lg border border-border-main object-cover"
+                    className="h-40 w-28 border border-[#dad2b4] object-cover"
                   />
                 )}
                 <div className="flex flex-col items-start gap-2">
                   {posterUploading && (
-                    <p className="text-sm text-text-sub" role="status">
+                    <p className="text-[13px] text-[#666]" role="status">
                       Đang tải ảnh lên...
                     </p>
                   )}
                   {!posterUploading && posterKey && (
-                    <p className="text-sm text-status-success" role="status">
+                    <p className="text-[13px] text-[#15803d]" role="status">
                       Đã tải ảnh lên.
                     </p>
                   )}
@@ -339,7 +351,7 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
                       <button
                         type="button"
                         onClick={() => void uploadPoster(posterFile)}
-                        className="h-9 rounded-lg border border-border-main bg-white px-3 text-sm font-medium text-text-main hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary-600"
+                        className="h-9 cursor-pointer border border-[#dad2b4] bg-white px-3 text-[12px] font-bold text-[#6f6247] hover:bg-[#dad2b4] hover:text-[#231f20]"
                       >
                         Thử lại
                       </button>
@@ -348,14 +360,14 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
                       type="button"
                       disabled={posterUploading}
                       onClick={() => fileInputRef.current?.click()}
-                      className="h-9 rounded-lg border border-border-main bg-white px-3 text-sm font-medium text-text-main hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="h-9 cursor-pointer border border-[#dad2b4] bg-white px-3 text-[12px] font-bold text-[#6f6247] hover:bg-[#dad2b4] hover:text-[#231f20] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Thay đổi ảnh
                     </button>
                     <button
                       type="button"
                       onClick={removePoster}
-                      className="h-9 rounded-lg border border-red-200 bg-white px-3 text-sm font-medium text-status-danger hover:bg-primary-50 focus-visible:ring-2 focus-visible:ring-primary-600"
+                      className="h-9 cursor-pointer border border-[#fecaca] bg-white px-3 text-[12px] font-bold text-[#da291c] hover:bg-[#fef2f2]"
                     >
                       Xóa ảnh
                     </button>
@@ -374,16 +386,16 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
                 }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
-                className={`flex h-32 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-3 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-primary-600 motion-reduce:transition-none ${
+                className={`flex h-32 w-full flex-col items-center justify-center gap-1 border-2 border-dashed px-3 text-[13px] transition-colors motion-reduce:transition-none ${
                   dragging
-                    ? "border-primary-600 bg-primary-50"
-                    : "border-border-main bg-white hover:bg-surface-muted"
+                    ? "border-[#da291c] bg-[#efebdb]"
+                    : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-[#efebdb]"
                 }`}
               >
-                <span className="font-medium text-text-main">
+                <span className="font-bold text-[#231f20]">
                   Kéo thả ảnh vào đây hoặc bấm để chọn file
                 </span>
-                <span id="poster-hint" className="text-xs text-text-muted">
+                <span id="poster-hint" className="text-xs text-[#9d9580]">
                   JPG, PNG hoặc WEBP, tối đa 5MB
                 </span>
               </button>
@@ -391,14 +403,14 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
             <p
               aria-live="polite"
               className={
-                posterError ? "mt-1 text-xs text-status-danger" : "sr-only"
+                posterError ? "mt-1 text-xs text-[#da291c]" : "sr-only"
               }
             >
               {posterError}
             </p>
           </div>
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-text-sub">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]">
               Link trailer
             </span>
             <input
@@ -411,41 +423,41 @@ export default function CreateFilmModal({ genres, onClose, onCreated }: Props) {
               className={inputClass(!!errors.trailerUrl)}
             />
             {errors.trailerUrl && (
-              <p id="err-trailer" className="mt-1 text-xs text-status-danger">
+              <p id="err-trailer" className="mt-1 text-xs text-[#da291c]">
                 {errors.trailerUrl}
               </p>
             )}
           </label>
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-text-sub">
+            <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]">
               Mô tả
             </span>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-lg border border-border-main bg-white px-3 py-2 text-sm text-text-main focus:border-primary-600 focus:outline-none focus:ring-1 focus:ring-primary-600"
+              className="w-full border border-[#dad2b4] bg-[#fcfbfa] px-3 py-2 text-[13px] text-[#231f20] focus:border-[#da291c] focus:outline-none focus:ring-1 focus:ring-[#da291c]"
             />
           </label>
         </div>
         {submitError && (
-          <p role="alert" className="mt-4 text-sm text-status-danger">
+          <p role="alert" className="mt-4 text-[13px] text-[#da291c]">
             {submitError}
           </p>
         )}
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="flex justify-end gap-3 border-t border-[#dad2b4] bg-[#efebdb] px-5 py-3">
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="h-10 rounded-lg border border-border-main bg-white px-4 text-sm font-medium text-text-main hover:bg-surface-muted"
+            className="inline-flex h-[38px] cursor-pointer items-center border border-[#dad2b4] bg-white px-4 text-[13px] font-bold text-[#6f6247] transition-colors hover:bg-[#dad2b4] hover:text-[#231f20]"
           >
             Hủy
           </button>
           <button
             type="submit"
             disabled={submitting || posterUploading}
-            className="h-10 rounded-lg bg-primary-600 px-4 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:ring-2 focus-visible:ring-primary-600 disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transition-none"
+            className="inline-flex h-[38px] cursor-pointer items-center bg-[#da291c] px-5 text-[13px] font-bold text-white transition-colors hover:bg-[#b82116] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? "Đang lưu..." : "Lưu"}
           </button>

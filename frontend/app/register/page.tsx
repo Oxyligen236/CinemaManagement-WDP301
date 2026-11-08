@@ -16,6 +16,7 @@ import {
   NAME_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
+  validateConfirmPassword,
   validateEmail,
   validateName,
   validatePassword,
@@ -26,6 +27,11 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8010";
 type RegisterResponse = {
   email?: string;
   message?: string;
+  /**
+   * Backend trả `true` khi email này đã có đăng ký đang chờ xác thực: mã cũ vẫn
+   * còn hiệu lực nên không có mã mới được gửi.
+   */
+  alreadyPending?: boolean;
 };
 
 type RegisterForm = {
@@ -33,9 +39,13 @@ type RegisterForm = {
   lastName: string;
   email: string;
   password: string;
+  confirmPassword: string;
 };
 
-/** Khớp với ràng buộc `RegisterDto` của backend. */
+/**
+ * Khớp với ràng buộc `RegisterDto` của backend.
+ *
+ */
 function validateRegisterForm(form: RegisterForm): FieldErrors<RegisterForm> {
   const errors: FieldErrors<RegisterForm> = {};
 
@@ -51,6 +61,12 @@ function validateRegisterForm(form: RegisterForm): FieldErrors<RegisterForm> {
   const password = validatePassword(form.password);
   if (password) errors.password = password;
 
+  const confirmPassword = validateConfirmPassword(
+    form.confirmPassword,
+    form.password,
+  );
+  if (confirmPassword) errors.confirmPassword = confirmPassword;
+
   return errors;
 }
 
@@ -61,6 +77,7 @@ export default function RegisterPage() {
     lastName: "",
     email: "",
     password: "",
+    confirmPassword: "",
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -72,6 +89,7 @@ export default function RegisterPage() {
   function updateField(field: keyof RegisterForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
     clearFieldError(field);
+    if (field === "password") clearFieldError("confirmPassword");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -110,8 +128,14 @@ export default function RegisterPage() {
         return;
       }
 
+      // Cả hai trường hợp (mã vừa gửi, hoặc email đang chờ xác thực từ lần đăng
+      // ký trước) đều dẫn sang màn hình xác thực; trang đó tự đọc thời gian còn
+      // lại thật từ API nên không cần truyền countdown qua URL.
       const email = data.email ?? form.email.trim();
-      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+      const pendingFlag = data.alreadyPending ? "&pending=1" : "";
+      router.push(
+        `/verify-email?email=${encodeURIComponent(email)}${pendingFlag}`,
+      );
     } catch {
       setError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
     } finally {
@@ -186,6 +210,19 @@ export default function RegisterPage() {
           autoComplete="new-password"
           hint={`Tối thiểu ${PASSWORD_MIN_LENGTH} ký tự`}
           error={fieldErrors.password}
+        />
+
+        <AuthField
+          id="register-confirm-password"
+          label="Xác nhận mật khẩu"
+          type="password"
+          value={form.confirmPassword}
+          onChange={(value) => updateField("confirmPassword", value)}
+          onBlur={() => validateField(form, "confirmPassword")}
+          maxLength={PASSWORD_MAX_LENGTH}
+          autoComplete="new-password"
+          placeholder="Nhập lại mật khẩu"
+          error={fieldErrors.confirmPassword}
         />
 
         {error && <AuthErrorBanner message={error} />}

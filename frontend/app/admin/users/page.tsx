@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -13,6 +13,13 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
+import {
+  NAME_MAX_LENGTH,
+  validateEmail,
+  validateName,
+  validatePassword,
+} from "@/lib/utils/auth-validation";
+import { FieldErrors, useFormErrors } from "@/lib/utils/use-form-errors";
 
 const TOKEN_KEY = "cinema_access_token";
 const USER_KEY = "cinema_user";
@@ -54,8 +61,98 @@ const INPUT_CLASS =
 const LABEL_CLASS =
   "block text-[12px] font-bold uppercase tracking-wide text-[#6f6247]";
 
+/**
+ * Giữ lại HTTP status của response để nơi gọi phân loại được lỗi.
+ *
+ * `Error` thuần chỉ còn chuỗi message, nên không phân biệt được 409 (email
+ * trùng, cần gắn vào trường email) với các lỗi chung khác.
+ */
+class RequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "RequestError";
+  }
+}
+
 function getErrorMessage(error: unknown) {
   return getFriendlyErrorMessage(error, "Không thể hoàn tất thao tác.");
+}
+
+/**
+ * Chuyển lỗi 409 từ backend thành lỗi của trường email.
+ *
+ * Email trùng là lỗi gắn với một trường cụ thể, nên phải hiện ngay dưới ô
+ * nhập thay vì ở banner chung phía trên — người dùng mới biết cần sửa gì.
+ *
+ * @returns `true` nếu đã xử lý như lỗi trường, `false` để nơi gọi hiện banner.
+ */
+function isDuplicateEmailError(error: unknown): boolean {
+  return error instanceof RequestError && error.status === 409;
+}
+
+/** Thông báo lỗi hiển thị ngay dưới trường nhập, theo mục 3.2 của `design.md`. */
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p
+      id={id}
+      role="alert"
+      className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b82116]"
+    >
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      {message}
+    </p>
+  );
+}
+
+/** Gộp viền đỏ vào class input khi trường đang có lỗi. */
+function inputClass(hasError: boolean) {
+  return hasError ? `${INPUT_CLASS} border-[#b82116]` : INPUT_CLASS;
+}
+
+/**
+ * Kiểm tra toàn bộ biểu mẫu, khớp với `CreateUserDto` / `UpdateUserDto`
+ * phía backend để người dùng thấy lỗi ngay tại trường thay vì nhận một
+ * thông báo 400 chung chung sau khi gửi request.
+ *
+ * Backend `@Transform(trim)` nên khoảng trắng thừa được chấp nhận; các
+ * hàm kiểm tra dùng chung với màn hình auth để thống nhất thông báo.
+ *
+ * @param creating - Chỉ khi tạo mới mới có trường mật khẩu tạm thời
+ *   (`UpdateUserDto` không nhận `password`), nên không kiểm tra khi sửa.
+ */
+function validateUserForm(
+  form: UserForm,
+  creating: boolean,
+): FieldErrors<UserForm> {
+  const errors: FieldErrors<UserForm> = {};
+
+  const email = validateEmail(form.email);
+  if (email) errors.email = email;
+
+  const firstName = validateName(form.firstName, "Tên");
+  if (firstName) errors.firstName = firstName;
+
+  const lastName = validateName(form.lastName, "Họ");
+  if (lastName) errors.lastName = lastName;
+
+  if (creating) {
+    const password = validatePassword(form.password, {
+      label: "Mật khẩu tạm thời",
+    });
+    if (password) errors.password = password;
+
+    // Backend chỉ chấp nhận `branchId` cho MANAGER / STAFF, và biểu mẫu
+    // cũng đánh dấu bắt buộc với hai vai trò này.
+    if ((form.role === "MANAGER" || form.role === "STAFF") && !form.branchId) {
+      errors.branchId = "Vui lòng chọn chi nhánh cho vai trò này.";
+    }
+  }
+
+  return errors;
 }
 
 export default function ManageUsersPage() {
@@ -73,6 +170,18 @@ export default function ManageUsersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const {
+    fieldErrors,
+    setFieldErrors,
+    clearFieldError,
+    validateField,
+    validateAll,
+  } = useFormErrors<UserForm>(
+    useCallback(
+      (values: UserForm) => validateUserForm(values, creating),
+      [creating],
+    ),
+  );
 
   function clearSession() {
     localStorage.removeItem(TOKEN_KEY);
@@ -110,21 +219,27 @@ export default function ManageUsersPage() {
       const responseMessage = Array.isArray(result.message)
         ? result.message.join(", ")
         : result.message;
-      throw new Error(
+      throw new RequestError(
         getFriendlyErrorMessage(
           { status: response.status, message: responseMessage },
           "Không thể hoàn tất thao tác.",
         ),
+        response.status,
       );
     }
     return result;
   }
 
-  async function loadUsers(event?: FormEvent) {
-    event?.preventDefault();
+  /**
+   * Tải lại danh sách người dùng.
+   *
+   * Hàm này cố tình KHÔNG đụng tới `error` / `message`: nó được gọi cả sau
+   * khi tạo người dùng thành công, nếu tự xóa thông báo thì banner báo
+   * thành công sẽ bị xóa ngay trong cùng lượt render. Nơi gọi tự quyết
+   * định thông báo nào cần giữ hay xóa.
+   */
+  async function loadUsers() {
     setLoading(true);
-    setError("");
-    setMessage("");
 
     try {
       const params = new URLSearchParams();
@@ -141,6 +256,14 @@ export default function ManageUsersPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  /** Tìm kiếm là thao tác mới, nên xóa thông báo của thao tác trước đó. */
+  async function searchUsers(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    await loadUsers();
   }
 
   useEffect(() => {
@@ -200,6 +323,7 @@ export default function ManageUsersPage() {
     setCreating(false);
     setError("");
     setMessage("");
+    setFieldErrors({});
   }
 
   function startCreating() {
@@ -216,11 +340,13 @@ export default function ManageUsersPage() {
     });
     setError("");
     setMessage("");
+    setFieldErrors({});
   }
 
   async function saveUser(event: FormEvent) {
     event.preventDefault();
     if (!selectedUser || !form) return;
+    if (!validateAll(form)) return;
 
     setSaving(true);
     setError("");
@@ -231,6 +357,7 @@ export default function ManageUsersPage() {
         method: "PATCH",
         body: JSON.stringify({
           ...profile,
+          email: profile.email.trim(),
           role:
             editingSelf || !selectedUser.isActive
               ? selectedUser.role
@@ -281,7 +408,12 @@ export default function ManageUsersPage() {
           : "Cập nhật người dùng thành công.",
       );
     } catch (saveError) {
-      setError(getErrorMessage(saveError));
+      const saveMessage = getErrorMessage(saveError);
+      if (isDuplicateEmailError(saveError)) {
+        setFieldErrors((current) => ({ ...current, email: saveMessage }));
+      } else {
+        setError(saveMessage);
+      }
     } finally {
       setSaving(false);
     }
@@ -290,6 +422,7 @@ export default function ManageUsersPage() {
   async function createUser(event: FormEvent) {
     event.preventDefault();
     if (!form) return;
+    if (!validateAll(form)) return;
 
     setSaving(true);
     setError("");
@@ -297,18 +430,25 @@ export default function ManageUsersPage() {
     try {
       const result = await request("/admin/users", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, email: form.email.trim() }),
       });
+      setCreating(false);
+      setForm(null);
+      await loadUsers();
+      // Đặt thông báo SAU khi tải xong: `loadUsers` reset `selectedUser` /
+      // `form`, nên nếu đặt trước thì banner bị cuốn theo lượt render đó.
       setMessage(
         typeof result.message === "string"
           ? result.message
           : "Tạo người dùng thành công.",
       );
-      setCreating(false);
-      setForm(null);
-      await loadUsers();
     } catch (createError) {
-      setError(getErrorMessage(createError));
+      const createMessage = getErrorMessage(createError);
+      if (isDuplicateEmailError(createError)) {
+        setFieldErrors((current) => ({ ...current, email: createMessage }));
+      } else {
+        setError(createMessage);
+      }
     } finally {
       setSaving(false);
     }
@@ -363,7 +503,7 @@ export default function ManageUsersPage() {
         </div>
 
         <form
-          onSubmit={loadUsers}
+          onSubmit={searchUsers}
           className="grid gap-4 p-5 md:grid-cols-[1fr_200px_200px_auto]"
         >
           <div>
@@ -539,7 +679,7 @@ export default function ManageUsersPage() {
               {creating ? "Tạo Tài khoản Mới" : "Chi tiết Tài khoản"}
             </span>
             <span className="text-[12px] text-[#6f6247]">
-              {creating ? "Biểu mẫu khởi tạo" : "Thông tin & Phân quyền"}
+              {creating ? "" : "Thông tin & Phân quyền"}
             </span>
           </div>
 
@@ -568,44 +708,6 @@ export default function ManageUsersPage() {
                 </p>
               )}
 
-              {editingSelf && (
-                <p
-                  role="status"
-                  className="flex items-start gap-2 border border-[#f5d9a8] bg-[#fdf8ee] px-3 py-2.5 text-[12px] font-semibold text-[#b45309]"
-                >
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  Tài khoản quản trị viên không thể tự thay đổi vai trò, tự gán
-                  chi nhánh hoặc tự vô hiệu hóa tài khoản.
-                </p>
-              )}
-
-              {creating && (
-                <div>
-                  <label htmlFor="admin-form-password" className={LABEL_CLASS}>
-                    Mật khẩu tạm thời
-                  </label>
-                  <input
-                    id="admin-form-password"
-                    type="password"
-                    required
-                    minLength={8}
-                    value={form.password}
-                    onChange={(event) =>
-                      setForm({ ...form, password: event.target.value })
-                    }
-                    aria-describedby="admin-form-password-hint"
-                    className={INPUT_CLASS}
-                  />
-                  <p
-                    id="admin-form-password-hint"
-                    className="mt-1 text-[11px] text-[#777]"
-                  >
-                    Tối thiểu 8 ký tự. Người dùng nên đổi mật khẩu sau khi đăng
-                    nhập lần đầu.
-                  </p>
-                </div>
-              )}
-
               <div>
                 <label htmlFor="admin-form-email" className={LABEL_CLASS}>
                   Email
@@ -615,13 +717,67 @@ export default function ManageUsersPage() {
                   type="email"
                   required
                   value={form.email}
-                  onChange={(event) =>
-                    setForm({ ...form, email: event.target.value })
+                  onChange={(event) => {
+                    setForm({ ...form, email: event.target.value });
+                    clearFieldError("email");
+                  }}
+                  onBlur={(event) =>
+                    validateField(
+                      { ...form, email: event.target.value },
+                      "email",
+                    )
                   }
-                  className={INPUT_CLASS}
+                  aria-invalid={!!fieldErrors.email}
+                  aria-describedby={
+                    fieldErrors.email ? "admin-form-email-error" : undefined
+                  }
+                  className={inputClass(!!fieldErrors.email)}
+                />
+                <FieldError
+                  id="admin-form-email-error"
+                  message={fieldErrors.email}
                 />
               </div>
-
+              {creating && (
+                <div>
+                  <label htmlFor="admin-form-password" className={LABEL_CLASS}>
+                    Mật khẩu tạm thời
+                  </label>
+                  <input
+                    id="admin-form-password"
+                    type="password"
+                    minLength={8}
+                    value={form.password}
+                    onChange={(event) => {
+                      setForm({ ...form, password: event.target.value });
+                      clearFieldError("password");
+                    }}
+                    onBlur={(event) =>
+                      validateField(
+                        { ...form, password: event.target.value },
+                        "password",
+                      )
+                    }
+                    aria-invalid={!!fieldErrors.password}
+                    aria-describedby={
+                      fieldErrors.password
+                        ? "admin-form-password-error"
+                        : "admin-form-password-hint"
+                    }
+                    className={inputClass(!!fieldErrors.password)}
+                  />
+                  <FieldError
+                    id="admin-form-password-error"
+                    message={fieldErrors.password}
+                  />
+                  <p
+                    id="admin-form-password-hint"
+                    className="mt-1 text-[11px] text-[#777]"
+                  >
+                    Tối thiểu 8 ký tự.
+                  </p>
+                </div>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="admin-form-firstname" className={LABEL_CLASS}>
@@ -630,11 +786,29 @@ export default function ManageUsersPage() {
                   <input
                     id="admin-form-firstname"
                     required
+                    maxLength={NAME_MAX_LENGTH}
                     value={form.firstName}
-                    onChange={(event) =>
-                      setForm({ ...form, firstName: event.target.value })
+                    onChange={(event) => {
+                      setForm({ ...form, firstName: event.target.value });
+                      clearFieldError("firstName");
+                    }}
+                    onBlur={(event) =>
+                      validateField(
+                        { ...form, firstName: event.target.value },
+                        "firstName",
+                      )
                     }
-                    className={INPUT_CLASS}
+                    aria-invalid={!!fieldErrors.firstName}
+                    aria-describedby={
+                      fieldErrors.firstName
+                        ? "admin-form-firstname-error"
+                        : undefined
+                    }
+                    className={inputClass(!!fieldErrors.firstName)}
+                  />
+                  <FieldError
+                    id="admin-form-firstname-error"
+                    message={fieldErrors.firstName}
                   />
                 </div>
                 <div>
@@ -644,11 +818,29 @@ export default function ManageUsersPage() {
                   <input
                     id="admin-form-lastname"
                     required
+                    maxLength={NAME_MAX_LENGTH}
                     value={form.lastName}
-                    onChange={(event) =>
-                      setForm({ ...form, lastName: event.target.value })
+                    onChange={(event) => {
+                      setForm({ ...form, lastName: event.target.value });
+                      clearFieldError("lastName");
+                    }}
+                    onBlur={(event) =>
+                      validateField(
+                        { ...form, lastName: event.target.value },
+                        "lastName",
+                      )
                     }
-                    className={INPUT_CLASS}
+                    aria-invalid={!!fieldErrors.lastName}
+                    aria-describedby={
+                      fieldErrors.lastName
+                        ? "admin-form-lastname-error"
+                        : undefined
+                    }
+                    className={inputClass(!!fieldErrors.lastName)}
+                  />
+                  <FieldError
+                    id="admin-form-lastname-error"
+                    message={fieldErrors.lastName}
                   />
                 </div>
               </div>
@@ -669,13 +861,18 @@ export default function ManageUsersPage() {
                     (!creating &&
                       (editingSelf || selectedUser?.isActive === false))
                   }
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setForm({
                       ...form,
                       branchId: event.target.value,
-                    })
+                    });
+                    clearFieldError("branchId");
+                  }}
+                  aria-invalid={!!fieldErrors.branchId}
+                  aria-describedby={
+                    fieldErrors.branchId ? "admin-form-branch-error" : undefined
                   }
-                  className={INPUT_CLASS}
+                  className={inputClass(!!fieldErrors.branchId)}
                 >
                   <option value="">Chọn chi nhánh đang hoạt động</option>
                   {branches.map((branch) => (
@@ -684,6 +881,10 @@ export default function ManageUsersPage() {
                     </option>
                   ))}
                 </select>
+                <FieldError
+                  id="admin-form-branch-error"
+                  message={fieldErrors.branchId}
+                />
 
                 {editingSelf ? (
                   <p
@@ -728,6 +929,9 @@ export default function ManageUsersPage() {
                           ? form.branchId
                           : "",
                     });
+                    // Vai trò quyết định chi nhánh có bắt buộc hay không,
+                    // nên lỗi cũ của trường chi nhánh không còn đúng nữa.
+                    clearFieldError("branchId");
                   }}
                   className={INPUT_CLASS}
                 >

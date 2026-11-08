@@ -6,8 +6,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { CreateWorkScheduleDto } from './dto/create-work-schedule.dto';
-import { Role, ShiftAttendanceStatus, OrderStatus } from '@prisma/client';
+import { Role, ShiftAttendanceStatus, OrderStatus, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
+import { VietnamTime } from '../domain/vietnam-time.helper';
 
 @Injectable()
 export class WorkScheduleService {
@@ -70,7 +71,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: userId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -81,7 +82,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -116,7 +117,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -206,7 +207,7 @@ export class WorkScheduleService {
   }
 
   async dailyAssignments(managerId: string, date: string) {
-    await this.assertDate(date);
+    this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
     const [schedules, assignments, attendance] = await Promise.all([
       this.prisma.workSchedule.findMany({
@@ -254,7 +255,7 @@ export class WorkScheduleService {
     date: string,
     userId: string,
   ) {
-    await this.assertDate(date);
+    this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
     const [schedule, staff] = await Promise.all([
       this.prisma.workSchedule.findFirst({
@@ -266,6 +267,14 @@ export class WorkScheduleService {
     ]);
     if (!schedule) throw new NotFoundException('Không tìm thấy ca làm');
     if (!staff) throw new BadRequestException('Nhân viên không hợp lệ');
+
+    // Business Rule: Cannot assign staff if the shift has already ended
+    if (VietnamTime.isShiftExpired(date, schedule.startTime, schedule.endTime)) {
+      throw new BadRequestException(
+        'Ca làm việc này đã kết thúc, không thể phân công nhân viên.',
+      );
+    }
+
     const existing = await this.prisma.shiftAssignment.findMany({
       where: { userId, date, branchId },
     });
@@ -278,14 +287,24 @@ export class WorkScheduleService {
       throw new ConflictException(
         'Nhân viên đã có ca trùng giờ trong ngày này',
       );
-    return this.prisma.shiftAssignment.create({
-      data: {
-        scheduleId,
-        userId,
-        date,
-        branchId: schedule.branchId ?? branchId,
-      },
-    });
+    try {
+      return await this.prisma.shiftAssignment.create({
+        data: {
+          scheduleId,
+          userId,
+          date,
+          branchId: schedule.branchId ?? branchId,
+        },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('Nhân viên đã được phân vào ca này');
+      }
+      throw e;
+    }
   }
 
   async unassignDay(
@@ -303,8 +322,20 @@ export class WorkScheduleService {
   }
 
   async closeDayShift(managerId: string, scheduleId: string, date: string) {
-    await this.assertDate(date);
+    this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
+    const schedule = await this.prisma.workSchedule.findFirst({
+      where: { id: scheduleId, branchId, isActive: true },
+    });
+    if (!schedule) throw new NotFoundException('Không tìm thấy ca làm');
+
+    // Shift cannot be closed before its scheduled end time
+    if (!VietnamTime.isShiftExpired(date, schedule.startTime, schedule.endTime)) {
+      throw new BadRequestException(
+        'Ca làm chưa kết thúc, không thể đóng ca sớm.',
+      );
+    }
+
     const assignments = await this.prisma.shiftAssignment.findMany({
       where: { scheduleId, date, branchId },
     });
@@ -333,7 +364,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -342,7 +373,7 @@ export class WorkScheduleService {
     return manager.branchId;
   }
 
-  private async assertDate(date: string) {
+  private assertDate(date: string) {
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
       Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())
@@ -350,10 +381,13 @@ export class WorkScheduleService {
       throw new BadRequestException('Ngày không hợp lệ');
   }
 
-  private overlaps(a: any, b: any) {
+  private overlaps(
+    a: { startTime: string; endTime: string },
+    b: { startTime: string; endTime: string },
+  ) {
     const minutes = (x: string) =>
       Number(x.slice(0, 2)) * 60 + Number(x.slice(3));
-    const ranges = (x: any) => {
+    const ranges = (x: { startTime: string; endTime: string }) => {
       const start = minutes(x.startTime),
         end = minutes(x.endTime);
       return end > start
@@ -391,7 +425,7 @@ export class WorkScheduleService {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
-        role: { in: [Role.MANAGER, 'BRANCHMANAGER' as any] },
+        role: Role.MANAGER,
       },
       select: { branchId: true },
     });
@@ -405,7 +439,11 @@ export class WorkScheduleService {
     const header = sheet.getRow(1);
     const col = (name: string) => {
       for (let i = 1; i <= header.cellCount; i++)
-        if (String(header.getCell(i).value).trim().toLowerCase() === name)
+        if (
+          String(header.getCell(i).text || '')
+            .trim()
+            .toLowerCase() === name
+        )
           return i;
       return -1;
     };
@@ -534,7 +572,7 @@ export class WorkScheduleService {
 
   async myShifts(userId: string, requestedDate?: string) {
     const date = requestedDate ?? this.vnDate();
-    await this.assertDate(date);
+    this.assertDate(date);
     const assignments = await this.prisma.shiftAssignment.findMany({
       where: { userId, date },
     });
@@ -556,30 +594,15 @@ export class WorkScheduleService {
     }));
   }
   private vnDate(now = new Date()) {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now);
+    return VietnamTime.today(now);
   }
   private shiftWindow(date: string, startTime: string, endTime: string) {
-    const [year, month, day] = date.split('-').map(Number);
-    const toDate = (time: string) =>
-      new Date(
-        Date.UTC(
-          year,
-          month - 1,
-          day,
-          Number(time.slice(0, 2)),
-          Number(time.slice(3)),
-        ) -
-          7 * 60 * 60 * 1000,
-      );
-    const start = toDate(startTime);
-    const end = toDate(endTime);
-    if (end <= start) end.setUTCDate(end.getUTCDate() + 1);
-    return { start, end };
+    const { startAt, endAt } = VietnamTime.getShiftRange(
+      date,
+      startTime,
+      endTime,
+    );
+    return { start: startAt, end: endAt };
   }
 
   async stats(userId: string) {

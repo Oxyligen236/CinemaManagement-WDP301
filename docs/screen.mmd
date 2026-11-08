@@ -13,10 +13,11 @@ flowchart TD
     Login -->|Quên mật khẩu| ForgotPassword
     Login -->|Về Trang chủ| Home
     Register -->|Đăng ký thành công| VerifyEmail
-    Register -->|"Sai định dạng / mật khẩu < 8 ký tự / email đã đăng ký (hiện lỗi, ở lại trang)"| Register
+    Register -->|"Đăng ký lại email đang chờ xác thực (giữ mã cũ, giữ countdown còn lại)"| VerifyEmail
+    Register -->|"Sai định dạng / mật khẩu < 8 ký tự / xác nhận mật khẩu không khớp / email đã có tài khoản (hiện lỗi, ở lại trang)"| Register
     Register -->|Đã có tài khoản| Login
     VerifyEmail -->|Xác thực thành công| Login
-    VerifyEmail -->|"Gửi lại mã (hết cooldown 60s, ở lại trang)"| VerifyEmail
+    VerifyEmail -->|"Gửi lại mã (hết cooldown 60s theo trạng thái server, ở lại trang)"| VerifyEmail
     VerifyEmail -->|"Mã sai hoặc hết hạn (hiện lỗi, ở lại trang)"| VerifyEmail
     ForgotPassword -->|Đặt lại mật khẩu thành công| Login
     ForgotPassword -->|"Mã sai / mật khẩu mới không hợp lệ (hiện lỗi, ở lại trang)"| ForgotPassword

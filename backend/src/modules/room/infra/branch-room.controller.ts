@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UsePipes,
@@ -19,6 +20,7 @@ import { BranchRoomService } from '../application/branch-room.service';
 import {
   BranchRoomQueryDto,
   CreateBranchRoomDto,
+  ReplaceRoomLayoutDto,
   UpdateBranchRoomDto,
   UpdateRoomSeatsDto,
 } from '../application/dto/req.dto';
@@ -103,6 +105,32 @@ export class BranchRoomController {
     @Body() input: UpdateRoomSeatsDto,
   ) {
     return this.branchRoomService.updateSeats(
+      this.extractUserId(req),
+      roomId,
+      input,
+    );
+  }
+
+  @Put(':roomId/layout')
+  replaceRoomLayout(
+    @Req() req: Request,
+    @Param('roomId') roomId: string,
+    @Body() input: ReplaceRoomLayoutDto,
+  ) {
+    return this.branchRoomService.replaceRoomLayout(
+      this.extractUserId(req),
+      roomId,
+      input,
+    );
+  }
+
+  @Patch(':roomId/layout')
+  patchRoomLayout(
+    @Req() req: Request,
+    @Param('roomId') roomId: string,
+    @Body() input: ReplaceRoomLayoutDto,
+  ) {
+    return this.branchRoomService.replaceRoomLayout(
       this.extractUserId(req),
       roomId,
       input,

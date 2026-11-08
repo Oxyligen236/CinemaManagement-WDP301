@@ -51,6 +51,14 @@ export class ResendVerificationDto {
   email!: string;
 }
 
+/** Query tra cứu trạng thái đăng ký đang chờ xác thực của một email. */
+export class VerificationStatusQueryReq {
+  @Transform(trim)
+  @IsEmail({}, { message: MSG.EMAIL_INVALID })
+  @IsNotEmpty({ message: MSG.EMAIL_REQUIRED })
+  email!: string;
+}
+
 export class VerifyEmailDto {
   @Transform(trim)
   @IsEmail({}, { message: MSG.EMAIL_INVALID })

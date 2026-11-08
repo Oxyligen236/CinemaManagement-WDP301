@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { R2_PUBLIC_URL } from "@/lib/constants/r2";
 import "./globals.css";
 
 const inter = Inter({
@@ -11,6 +12,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Latte Cinema - Hệ thống rạp chiếu phim Latte Cinema",
   description: "Đặt vé xem phim trực tuyến tại Latte Cinema Vietnam",
+  icons: {
+    icon: `${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo_bar.png`,
+    shortcut: `${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo_bar.png`,
+    apple: `${R2_PUBLIC_URL}/sites/lottecinemavn/ui/logo_bar.png`,
+  },
 };
 
 export default function RootLayout({

@@ -5,6 +5,7 @@ import { MovieModule } from '../movie/movie.module';
 import { ShowtimeModule } from '../showtime/showtime.module';
 import { RoomOptionQueryService } from './application/services/room-option-query.service';
 import { BranchRoomController } from './infra/branch-room.controller';
+import { ManagerDashboardController } from './infra/manager-dashboard.controller';
 import { BranchRoomService } from './application/branch-room.service';
 
 @Module({
@@ -14,7 +15,7 @@ import { BranchRoomService } from './application/branch-room.service';
     forwardRef(() => MovieModule),
     forwardRef(() => ShowtimeModule),
   ],
-  controllers: [BranchRoomController],
+  controllers: [BranchRoomController, ManagerDashboardController],
   providers: [BranchRoomService, RoomOptionQueryService],
   exports: [BranchRoomService, RoomOptionQueryService],
 })

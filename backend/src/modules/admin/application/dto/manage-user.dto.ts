@@ -11,6 +11,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Role } from '../../../user/domain/enums/role.enum';
+import { AUTH_VALIDATION_MESSAGES as MSG } from '../../../user/domain/constants/auth-message.constants';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -39,7 +40,7 @@ export class ManageUsersQueryDto {
 export class UpdateUserDto {
   @IsOptional()
   @Transform(trim)
-  @IsEmail()
+  @IsEmail({}, { message: MSG.EMAIL_INVALID })
   email?: string;
 
   @IsOptional()
@@ -67,7 +68,7 @@ export class UpdateUserDto {
 
 export class CreateUserDto {
   @Transform(trim)
-  @IsEmail()
+  @IsEmail({}, { message: MSG.EMAIL_INVALID })
   email!: string;
 
   @IsString()

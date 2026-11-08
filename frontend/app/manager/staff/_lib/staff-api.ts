@@ -62,16 +62,45 @@ export const INPUT_CLASS =
 export const LABEL_CLASS =
   "block text-[12px] font-bold uppercase tracking-wide text-[#6f6247]";
 
-/** Lỗi từ API, giữ lại danh sách trường bị sai (AF-1 / AF-2). */
+/**
+ * Lỗi từ API, giữ lại danh sách trường bị sai (AF-1 / AF-2).
+ *
+ * `fieldErrors` là map `tên trường -> thông báo` do backend trả về, dùng để
+ * hiển thị câu lỗi ngay dưới đúng ô nhập. `fields` chỉ còn để tô viền đỏ cho
+ * các màn hình chưa có thông báo riêng từng trường.
+ */
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly details: string[] = [],
     readonly fields: string[] = [],
+    readonly fieldErrors: Record<string, string> = {},
   ) {
     super(message);
   }
+}
+
+/**
+ * Lấy lỗi theo trường từ response của backend.
+ *
+ * Chỉ nhận các khóa nằm trong `allowed` để một trường lạ (hoặc trường chỉ
+ * backend biết) không tạo ra lỗi treo vĩnh viễn mà người dùng không sửa được
+ * trên form. Những lỗi bị loại vẫn hiện ở banner chung.
+ *
+ * @returns Map lỗi của các trường có trên form, rỗng nếu không khớp trường nào.
+ */
+export function pickFieldErrors<T extends string>(
+  error: unknown,
+  allowed: readonly T[],
+): Partial<Record<T, string>> {
+  if (!(error instanceof ApiError)) return {};
+  const picked: Partial<Record<T, string>> = {};
+  for (const field of allowed) {
+    const message = error.fieldErrors[field];
+    if (message) picked[field] = message;
+  }
+  return picked;
 }
 
 export function getErrorMessage(error: unknown) {
@@ -140,6 +169,7 @@ export function useManagerApi() {
         message?: string | string[];
         errors?: string[];
         fields?: string[];
+        fieldErrors?: Record<string, string>;
       } & T;
 
       if (!response.ok) {
@@ -152,11 +182,13 @@ export function useManagerApi() {
             ? "Hệ thống đang bận, vui lòng thử lại sau."
             : "Không thể hoàn tất thao tác.",
         );
+        const fieldErrors = result.fieldErrors ?? {};
         throw new ApiError(
           message,
           response.status,
           result.errors ?? [],
-          result.fields ?? [],
+          result.fields ?? Object.keys(fieldErrors),
+          fieldErrors,
         );
       }
       return result;
