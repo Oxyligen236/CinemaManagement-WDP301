@@ -9,8 +9,6 @@ import { ProductService } from './application/services/product.service';
 import { ItemManagerController } from './infra/controllers/item-manager.controller';
 import { ComboManagerController } from './infra/controllers/combo-manager.controller';
 import { StaffProductController } from './infra/controllers/staff-product.controller';
-import { PRODUCT_CONTRACT } from './contracts/product.contract';
-import { ProductContractImpl } from './contracts/product-contract.impl';
 
 @Module({
   imports: [AuthModule, BranchModule, UserModule, StorageModule],
@@ -19,15 +17,7 @@ import { ProductContractImpl } from './contracts/product-contract.impl';
     ComboManagerController,
     StaffProductController,
   ],
-  providers: [
-    ItemService,
-    ComboService,
-    ProductService,
-    {
-      provide: PRODUCT_CONTRACT,
-      useClass: ProductContractImpl,
-    },
-  ],
-  exports: [ProductService, ItemService, ComboService, PRODUCT_CONTRACT],
+  providers: [ItemService, ComboService, ProductService],
+  exports: [ProductService, ItemService, ComboService],
 })
 export class ProductModule {}

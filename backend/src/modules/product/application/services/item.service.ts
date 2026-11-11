@@ -38,35 +38,14 @@ import {
   ImportItemsExcelRes,
   ItemMutationRes,
   ItemRes,
+  ManagerBranchRes,
   ProductSummaryRes,
   StockAdjustmentRes,
 } from '../dto/res.dto';
 import { Page } from '../../../../common/dto/page.dto';
-import { CreateItemUsecase } from '../usecase/create-item.usecase';
-import { UpdateItemUsecase } from '../usecase/update-item.usecase';
-import { QueryBranchItemsUsecase } from '../usecase/query-branch-items.usecase';
-import { GetItemDetailUsecase } from '../usecase/get-item-detail.usecase';
-import { AdjustItemStockUsecase } from '../usecase/adjust-item-stock.usecase';
-import { ChangeItemStatusUsecase } from '../usecase/change-item-status.usecase';
-import { DeleteItemUsecase } from '../usecase/delete-item.usecase';
-import { ImportItemsExcelUsecase } from '../usecase/import-items-excel.usecase';
-import { GetItemExcelTemplateUsecase } from '../usecase/get-item-excel-template.usecase';
-import { GetConcessionOptionsUsecase } from '../usecase/get-concession-options.usecase';
 
 @Injectable()
-export class ItemService
-  implements
-    CreateItemUsecase,
-    UpdateItemUsecase,
-    QueryBranchItemsUsecase,
-    GetItemDetailUsecase,
-    AdjustItemStockUsecase,
-    ChangeItemStatusUsecase,
-    DeleteItemUsecase,
-    ImportItemsExcelUsecase,
-    GetItemExcelTemplateUsecase,
-    GetConcessionOptionsUsecase
-{
+export class ItemService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async validateManagerBranch(managerUserId: string) {
@@ -92,7 +71,7 @@ export class ItemService
     const isLowStock =
       item.stockQuantity <= item.lowStockThreshold &&
       item.status !== ItemStatus.INACTIVE;
-    return {
+    return ItemRes.of({
       itemId: item.id,
       branchId: item.branchId,
       name: item.name,
@@ -112,7 +91,7 @@ export class ItemService
       updatedAt: item.updatedAt
         ? new Date(item.updatedAt).toISOString()
         : undefined,
-    };
+    });
   }
 
   async createItem(
@@ -159,10 +138,10 @@ export class ItemService
       },
     });
 
-    return {
-      message: CONCESSION_MESSAGES.CREATE_ITEM_SUCCESS,
-      item: this.mapToItemRes(item),
-    };
+    return ItemMutationRes.of(
+      CONCESSION_MESSAGES.CREATE_ITEM_SUCCESS,
+      this.mapToItemRes(item),
+    );
   }
 
   async updateItem(
@@ -223,10 +202,10 @@ export class ItemService
       data,
     });
 
-    return {
-      message: CONCESSION_MESSAGES.UPDATE_ITEM_SUCCESS,
-      item: this.mapToItemRes(updated),
-    };
+    return ItemMutationRes.of(
+      CONCESSION_MESSAGES.UPDATE_ITEM_SUCCESS,
+      this.mapToItemRes(updated),
+    );
   }
 
   async queryBranchItems(
@@ -336,13 +315,13 @@ export class ItemService
       },
     });
 
-    return {
-      message: CONCESSION_MESSAGES.STOCK_UPDATE_SUCCESS,
-      itemId: item.id,
+    return StockAdjustmentRes.of(
+      CONCESSION_MESSAGES.STOCK_UPDATE_SUCCESS,
+      item.id,
       previousStock,
-      currentStock: nextStock,
-      status: status as any,
-    };
+      nextStock,
+      status as any,
+    );
   }
 
   async changeItemStatus(
@@ -367,10 +346,10 @@ export class ItemService
       data: { status },
     });
 
-    return {
-      message: CONCESSION_MESSAGES.STATUS_UPDATE_SUCCESS,
-      item: this.mapToItemRes(saved),
-    };
+    return ItemMutationRes.of(
+      CONCESSION_MESSAGES.STATUS_UPDATE_SUCCESS,
+      this.mapToItemRes(saved),
+    );
   }
 
   async deleteItem(
@@ -387,10 +366,7 @@ export class ItemService
 
     await this.prisma.item.delete({ where: { id: itemId } });
 
-    return {
-      message: CONCESSION_MESSAGES.DELETE_SUCCESS,
-      id: itemId,
-    };
+    return DeleteMutationRes.of(CONCESSION_MESSAGES.DELETE_SUCCESS, itemId);
   }
 
   async getItemExcelTemplate(): Promise<Buffer> {
@@ -473,26 +449,29 @@ export class ItemService
       totalRows++;
 
       if (!nameVal) {
-        errors.push({
-          rowNumber,
-          reason: CONCESSION_MESSAGES.ITEM_NAME_REQUIRED,
-        });
+        errors.push(
+          ExcelRowErrorRes.of(
+            rowNumber,
+            CONCESSION_MESSAGES.ITEM_NAME_REQUIRED,
+          ),
+        );
         continue;
       }
 
       const parsedCategory = parseExcelCategory(catVal);
       if (!parsedCategory) {
-        errors.push({
-          rowNumber,
-          reason: CONCESSION_MESSAGES.INVALID_CATEGORY,
-        });
+        errors.push(
+          ExcelRowErrorRes.of(rowNumber, CONCESSION_MESSAGES.INVALID_CATEGORY),
+        );
         continue;
       }
 
       const parsedSize = parseExcelSize(sizeVal);
       const parsedPrice = Number(priceVal);
       if (isNaN(parsedPrice) || parsedPrice <= 0) {
-        errors.push({ rowNumber, reason: CONCESSION_MESSAGES.PRICE_POSITIVE });
+        errors.push(
+          ExcelRowErrorRes.of(rowNumber, CONCESSION_MESSAGES.PRICE_POSITIVE),
+        );
         continue;
       }
 
@@ -502,10 +481,12 @@ export class ItemService
         parsedStock < 0 ||
         !Number.isInteger(parsedStock)
       ) {
-        errors.push({
-          rowNumber,
-          reason: CONCESSION_MESSAGES.STOCK_POSITIVE_INT,
-        });
+        errors.push(
+          ExcelRowErrorRes.of(
+            rowNumber,
+            CONCESSION_MESSAGES.STOCK_POSITIVE_INT,
+          ),
+        );
         continue;
       }
 
@@ -576,15 +557,15 @@ export class ItemService
       successCount++;
     }
 
-    return {
-      message: CONCESSION_MESSAGES.IMPORT_EXCEL_SUCCESS,
+    return ImportItemsExcelRes.of(
+      CONCESSION_MESSAGES.IMPORT_EXCEL_SUCCESS,
       totalRows,
       successCount,
-      errorCount: errors.length,
+      errors.length,
       createdCount,
       updatedCount,
       errors,
-    };
+    );
   }
 
   async getConcessionOptions(
@@ -609,17 +590,13 @@ export class ItemService
       orderBy: { name: 'asc' },
     });
 
-    return {
-      branch: {
-        branchId,
-        branchName: branch.branchName,
-        address: branch.address,
-      },
-      categories: Object.values(ItemCategory) as any,
-      sizes: Object.values(ItemSize) as any,
-      itemStatuses: Object.values(ItemStatus) as any,
-      comboStatuses: Object.values(ComboStatus) as any,
-      availableItemsForCombo: items.map((i) => ({
+    return ConcessionOptionsRes.of(
+      ManagerBranchRes.of(branchId, branch.branchName, branch.address),
+      Object.values(ItemCategory) as any,
+      Object.values(ItemSize) as any,
+      Object.values(ItemStatus) as any,
+      Object.values(ComboStatus) as any,
+      items.map((i) => ({
         itemId: i.id,
         name: i.name,
         category: i.category as any,
@@ -627,7 +604,7 @@ export class ItemService
         price: i.price,
         stockQuantity: i.stockQuantity,
       })),
-    };
+    );
   }
 
   private resolveImageUrl(
@@ -656,13 +633,16 @@ export class ItemService
     });
 
     for (const item of items) {
-      map.set(item.id, {
-        productId: item.id,
-        productName: item.name,
-        imageUrl: this.resolveImageUrl(item.imageKey),
-        unitPrice: item.price,
-        branchId: item.branchId,
-      });
+      map.set(
+        item.id,
+        ProductSummaryRes.of(
+          item.id,
+          item.name,
+          item.price,
+          this.resolveImageUrl(item.imageKey),
+          item.branchId,
+        ),
+      );
     }
 
     const remainingIds = productIds.filter((id) => !map.has(id));
@@ -672,13 +652,16 @@ export class ItemService
       });
 
       for (const combo of combos) {
-        map.set(combo.id, {
-          productId: combo.id,
-          productName: combo.name,
-          imageUrl: this.resolveImageUrl(combo.imageKey),
-          unitPrice: combo.price,
-          branchId: combo.branchId,
-        });
+        map.set(
+          combo.id,
+          ProductSummaryRes.of(
+            combo.id,
+            combo.name,
+            combo.price,
+            this.resolveImageUrl(combo.imageKey),
+            combo.branchId,
+          ),
+        );
       }
     }
 

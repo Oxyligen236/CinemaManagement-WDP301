@@ -11,7 +11,11 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 describe('ProductService', () => {
   let service: ProductService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    branch: { findFirst: jest.Mock };
+    item: { findMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
+    combo: { findMany: jest.Mock; findUnique: jest.Mock };
+  };
   let mockItemService: {
     getProductsByIds: jest.Mock;
   };
@@ -37,7 +41,7 @@ describe('ProductService', () => {
     };
 
     service = new ProductService(
-      mockPrisma,
+      mockPrisma as unknown as PrismaService,
       mockItemService as unknown as ItemService,
     );
   });
@@ -313,6 +317,42 @@ describe('ProductService', () => {
         service.deductConcessionStock([{ productId: 'ITEM-1', quantity: 5 }]),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('sử dụng prismaTx thay cho this.prisma khi được truyền vào', async () => {
+      const mockTx = {
+        item: {
+          findUnique: jest
+            .fn()
+            .mockResolvedValueOnce({
+              id: 'ITEM-1',
+              name: 'Bắp rang',
+              stockQuantity: 5,
+              status: ItemStatus.AVAILABLE,
+            })
+            .mockResolvedValueOnce({
+              id: 'ITEM-1',
+              name: 'Bắp rang',
+              stockQuantity: 5,
+              status: ItemStatus.AVAILABLE,
+            }),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        combo: {
+          findUnique: jest.fn(),
+        },
+      };
+
+      await service.deductConcessionStock(
+        [{ productId: 'ITEM-1', quantity: 2 }],
+        mockTx,
+      );
+
+      expect(mockTx.item.update).toHaveBeenCalledWith({
+        where: { id: 'ITEM-1' },
+        data: { stockQuantity: 3 },
+      });
+      expect(mockPrisma.item.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   describe('getProductsByIds', () => {
@@ -323,6 +363,32 @@ describe('ProductService', () => {
       const result = await service.getProductsByIds(['ITEM-1']);
       expect(mockItemService.getProductsByIds).toHaveBeenCalledWith(['ITEM-1']);
       expect(result).toBe(mockResult);
+    });
+
+    it('trả về map sản phẩm đầy đủ các trường ProductSummaryRes theo danh sách id', async () => {
+      const mockMap = new Map([
+        [
+          'p-1',
+          {
+            productId: 'p-1',
+            productName: 'Bắp rang bơ',
+            imageUrl: 'bap.jpg',
+            unitPrice: 50000,
+            branchId: 'b-1',
+          },
+        ],
+      ]);
+      mockItemService.getProductsByIds.mockResolvedValue(mockMap);
+
+      const result = await service.getProductsByIds(['p-1']);
+      expect(result.size).toBe(1);
+      expect(result.get('p-1')).toEqual({
+        productId: 'p-1',
+        productName: 'Bắp rang bơ',
+        imageUrl: 'bap.jpg',
+        unitPrice: 50000,
+        branchId: 'b-1',
+      });
     });
   });
 });
