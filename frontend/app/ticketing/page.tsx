@@ -348,6 +348,11 @@ function TicketingContent() {
   };
 
   const handleSelectSlot = (showtimeId: string) => {
+    const target = showtimes.find((item) => item.showtimeId === showtimeId);
+    if (target) {
+      const startMs = new Date(target.startTime).getTime();
+      if (!isNaN(startMs) && startMs <= new Date().getTime()) return;
+    }
     router.push(`/booking/${showtimeId}`);
   };
 
@@ -743,6 +748,7 @@ function TicketingContent() {
                 <div className="grid grid-cols-2 gap-2.5">
                   {showtimes.map((st) => {
                     const sDate = new Date(st.startTime);
+                    const isPast = !isNaN(sDate.getTime()) && sDate.getTime() <= new Date().getTime();
                     const timeFormatted = !isNaN(sDate.getTime())
                       ? sDate.toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
@@ -755,16 +761,37 @@ function TicketingContent() {
                       <button
                         key={st.showtimeId}
                         type="button"
-                        onClick={() => handleSelectSlot(st.showtimeId)}
-                        className="group p-2.5 border border-[#dad2b4] bg-white hover:border-[#da291c] hover:bg-[#fef2f2] transition-all text-left cursor-pointer rounded-xs shadow-xs"
+                        disabled={isPast}
+                        title={isPast ? 'Suất chiếu đã bắt đầu hoặc đã kết thúc' : undefined}
+                        onClick={() => {
+                          if (isPast) return;
+                          handleSelectSlot(st.showtimeId);
+                        }}
+                        className={
+                          isPast
+                            ? 'p-2.5 border border-[#e5e7eb] bg-[#f3f4f6] text-left rounded-xs opacity-60 cursor-not-allowed'
+                            : 'group p-2.5 border border-[#dad2b4] bg-white hover:border-[#da291c] hover:bg-[#fef2f2] transition-all text-left cursor-pointer rounded-xs shadow-xs'
+                        }
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[17px] font-black text-[#231f20] group-hover:text-[#da291c]">
+                        <div className="flex items-center justify-between gap-1">
+                          <span
+                            className={`text-[17px] font-black ${
+                              isPast
+                                ? 'line-through text-[#6b7280]'
+                                : 'text-[#231f20] group-hover:text-[#da291c]'
+                            }`}
+                          >
                             {timeFormatted}
                           </span>
-                          <span className="text-[10px] font-bold text-[#da291c] bg-[#fee2e2] px-1.5 py-0.5 rounded-xs">
-                            2D
-                          </span>
+                          {isPast ? (
+                            <span className="text-[10px] font-bold text-[#6b7280] bg-[#e5e7eb] px-1.5 py-0.5 rounded-xs">
+                              Đã qua giờ
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-[#da291c] bg-[#fee2e2] px-1.5 py-0.5 rounded-xs">
+                              2D
+                            </span>
+                          )}
                         </div>
                         <p className="mt-1 text-[11px] font-bold text-[#6f6247] uppercase truncate">
                           {st.roomName || 'Cinema 01'}
@@ -776,11 +803,13 @@ function TicketingContent() {
                         )}
                         <div className="mt-2 pt-1.5 border-t border-[#f0eee4] flex items-center justify-between text-[11px]">
                           <span className="text-[#888]">
-                            {typeof st.availableSeats === 'number'
-                              ? `${st.availableSeats} ghế trống`
-                              : 'Còn ghế'}
+                            {isPast
+                              ? 'Đã qua giờ'
+                              : typeof st.availableSeats === 'number'
+                                ? `${st.availableSeats} ghế trống`
+                                : 'Còn ghế'}
                           </span>
-                          <span className="font-bold text-[#da291c]">
+                          <span className={`font-bold ${isPast ? 'text-[#6b7280]' : 'text-[#da291c]'}`}>
                             {formatCurrency(st.basePrice)}
                           </span>
                         </div>

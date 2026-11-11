@@ -227,6 +227,13 @@ export default function StaffPosPage() {
   }, []);
 
   const handleSelectShowtime = (st: PosShowtime) => {
+    const startMs = new Date(st.startTime).getTime();
+    if (!isNaN(startMs) && startMs <= new Date().getTime()) {
+      setErrorBanner(
+        "Suất chiếu này đã bắt đầu hoặc đã qua giờ, không thể chọn.",
+      );
+      return;
+    }
     if (pendingOrder) {
       setErrorBanner(
         "Bạn đang có đơn hàng giữ chỗ chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước.",
@@ -928,6 +935,8 @@ export default function StaffPosPage() {
                     {filteredShowtimes.map((st) => {
                       const isSelected =
                         selectedShowtime?.showtimeId === st.showtimeId;
+                      const startMs = new Date(st.startTime).getTime();
+                      const isPast = !isNaN(startMs) && startMs <= new Date().getTime();
                       const timeStr = new Date(st.startTime).toLocaleTimeString(
                         "vi-VN",
                         {
@@ -936,13 +945,22 @@ export default function StaffPosPage() {
                         },
                       );
                       return (
-                        <div
+                        <button
                           key={st.showtimeId}
+                          type="button"
+                          disabled={isPast}
                           onClick={() => handleSelectShowtime(st)}
-                          className={`p-4 border transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm"
-                              : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687]"
+                          title={
+                            isPast
+                              ? "Suất chiếu đã bắt đầu hoặc đã kết thúc"
+                              : undefined
+                          }
+                          className={`w-full text-left p-4 border transition-all ${
+                            isPast
+                              ? "border-[#e5e7eb] bg-[#f3f4f6] opacity-60 cursor-not-allowed"
+                              : isSelected
+                                ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm cursor-pointer"
+                                : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687] cursor-pointer"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -957,14 +975,27 @@ export default function StaffPosPage() {
                                 </strong>
                               </p>
                             </div>
-                            <span className="text-[11px] font-bold px-2 py-0.5 bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
-                              {st.format || "2D"}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isPast && (
+                                <span className="text-[11px] font-bold px-2 py-0.5 bg-[#e5e7eb] text-[#6b7280] border border-[#d1d5db]">
+                                  Đã qua giờ
+                                </span>
+                              )}
+                              <span className="text-[11px] font-bold px-2 py-0.5 bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
+                                {st.format || "2D"}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="mt-3.5 flex items-center justify-between pt-2.5 border-t border-[#efebdb]">
                             <div className="flex items-center gap-2">
-                              <span className="text-[16px] font-black text-[#da291c] font-mono">
+                              <span
+                                className={`text-[16px] font-black font-mono ${
+                                  isPast
+                                    ? "line-through text-[#6b7280]"
+                                    : "text-[#da291c]"
+                                }`}
+                              >
                                 {timeStr}
                               </span>
                               <span className="text-[11px] text-[#888]">
@@ -975,11 +1006,15 @@ export default function StaffPosPage() {
                                 )
                               </span>
                             </div>
-                            <span className="text-[13px] font-bold text-[#15803d]">
+                            <span
+                              className={`text-[13px] font-bold ${
+                                isPast ? "text-[#6b7280]" : "text-[#15803d]"
+                              }`}
+                            >
                               {formatCurrency(st.basePrice || 75000)}
                             </span>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>

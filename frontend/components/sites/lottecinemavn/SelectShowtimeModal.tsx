@@ -134,6 +134,11 @@ export function SelectShowtimeModal({
   if (!isOpen || !movie) return null;
 
   const handleSelectShowtime = (showtimeId: string) => {
+    const target = showtimes.find((item) => item.showtimeId === showtimeId);
+    if (target) {
+      const startMs = new Date(target.startTime).getTime();
+      if (!isNaN(startMs) && startMs <= new Date().getTime()) return;
+    }
     onClose();
     router.push(`/booking/${showtimeId}`);
   };
@@ -239,30 +244,56 @@ export function SelectShowtimeModal({
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {showtimes.map((st) => (
-                <button
-                  key={st.showtimeId}
-                  type="button"
-                  onClick={() => handleSelectShowtime(st.showtimeId)}
-                  className="group relative p-3 border border-[#dad2b4] bg-white hover:border-[#da291c] hover:bg-[#fef2f2] transition-all text-left cursor-pointer shadow-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[18px] font-black text-[#231f20] group-hover:text-[#da291c]">
-                      {st.timeFormatted}
-                    </span>
-                    <ChevronRight className="h-4 w-4 text-[#dad2b4] group-hover:text-[#da291c] transition-colors" />
-                  </div>
-                  <p className="mt-1 text-[11px] font-bold text-[#6f6247] uppercase truncate">
-                    {st.roomName}
-                  </p>
-                  <div className="mt-2 pt-2 border-t border-[#f0eee4] flex items-center justify-between text-[11px]">
-                    <span className="text-[#888]">{st.format}</span>
-                    <span className="font-bold text-[#da291c]">
-                      {formatCurrency(st.price)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {showtimes.map((st) => {
+                const startMs = new Date(st.startTime).getTime();
+                const isPast = !isNaN(startMs) && startMs <= new Date().getTime();
+
+                return (
+                  <button
+                    key={st.showtimeId}
+                    type="button"
+                    disabled={isPast}
+                    title={isPast ? 'Suất chiếu đã bắt đầu hoặc đã kết thúc' : undefined}
+                    onClick={() => {
+                      if (isPast) return;
+                      handleSelectShowtime(st.showtimeId);
+                    }}
+                    className={
+                      isPast
+                        ? 'relative p-3 border border-[#e5e7eb] bg-[#f3f4f6] text-left opacity-60 cursor-not-allowed'
+                        : 'group relative p-3 border border-[#dad2b4] bg-white hover:border-[#da291c] hover:bg-[#fef2f2] transition-all text-left cursor-pointer shadow-xs'
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span
+                        className={`text-[18px] font-black ${
+                          isPast
+                            ? 'line-through text-[#6b7280]'
+                            : 'text-[#231f20] group-hover:text-[#da291c]'
+                        }`}
+                      >
+                        {st.timeFormatted}
+                      </span>
+                      {isPast ? (
+                        <span className="text-[10px] font-bold text-[#6b7280] bg-[#e5e7eb] px-1.5 py-0.5">
+                          Đã qua giờ
+                        </span>
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-[#dad2b4] group-hover:text-[#da291c] transition-colors" />
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] font-bold text-[#6f6247] uppercase truncate">
+                      {st.roomName}
+                    </p>
+                    <div className="mt-2 pt-2 border-t border-[#f0eee4] flex items-center justify-between text-[11px]">
+                      <span className="text-[#888]">{st.format}</span>
+                      <span className={`font-bold ${isPast ? 'text-[#6b7280]' : 'text-[#da291c]'}`}>
+                        {formatCurrency(st.price)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

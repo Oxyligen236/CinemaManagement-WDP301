@@ -126,8 +126,14 @@ export default function BookingSeatPage({
     return Math.max(...seats.map((s) => s.columnPosition), 1);
   }, [seats]);
 
+  const isShowtimeStarted = Boolean(
+    showtime?.startTime &&
+      !isNaN(new Date(showtime.startTime).getTime()) &&
+      new Date(showtime.startTime).getTime() <= new Date().getTime(),
+  );
+
   const toggleSeat = (seat: SeatShowtime) => {
-    if (seat.seatStatus !== 'EMPTY') return;
+    if (isShowtimeStarted || seat.seatStatus !== 'EMPTY') return;
     setSelectedSeatIds((prev) => {
       if (prev.includes(seat.seatShowtimeId)) {
         return prev.filter((id) => id !== seat.seatShowtimeId);
@@ -145,6 +151,15 @@ export default function BookingSeatPage({
   const estimatedTotal = hasValidPrice ? selectedSeatIds.length * unitPrice : null;
 
   const handleBooking = async () => {
+    const startedNow = Boolean(
+      showtime?.startTime &&
+        !isNaN(new Date(showtime.startTime).getTime()) &&
+        new Date(showtime.startTime).getTime() <= new Date().getTime(),
+    );
+    if (isShowtimeStarted || startedNow) {
+      setError('Suất chiếu này đã bắt đầu hoặc đã kết thúc, không thể đặt vé.');
+      return;
+    }
     if (selectedSeatIds.length === 0 || !hasValidPrice) return;
     setSubmitting(true);
     setError(null);
@@ -242,7 +257,30 @@ export default function BookingSeatPage({
         </div>
       </div>
 
-      {/* 3. Error Alert */}
+      {/* 3. Showtime Started Alert & Error Alert */}
+      {isShowtimeStarted && (
+        <div
+          role="alert"
+          className="border-l-4 border-[#da291c] bg-[#fff5f5] p-4 text-[13px] text-[#b91c1c] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-[#da291c] shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Suất chiếu không khả dụng</p>
+              <p className="mt-0.5 text-[#555]">
+                Suất chiếu này đã bắt đầu hoặc đã kết thúc, không thể đặt vé.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/showtimes"
+            className="shrink-0 inline-flex items-center justify-center px-4 py-2 bg-[#da291c] hover:bg-[#b91c1c] text-white text-[12px] font-bold uppercase tracking-wider transition-colors"
+          >
+            Quay về lịch chiếu
+          </Link>
+        </div>
+      )}
+
       {error && (
         <div
           role="alert"
@@ -310,10 +348,13 @@ export default function BookingSeatPage({
                         const isBooked = seat.seatStatus === 'BOOKED';
                         const isEmpty = seat.seatStatus === 'EMPTY';
 
-                        let seatClasses =
-                          'bg-white border-[#dad2b4] text-[#444] hover:border-[#da291c] hover:text-[#da291c] hover:bg-[#fff9f9]';
+                        let seatClasses = isShowtimeStarted
+                          ? 'bg-[#f3f4f6] border-[#e5e7eb] text-[#9ca3af] cursor-not-allowed opacity-60'
+                          : 'bg-white border-[#dad2b4] text-[#444] hover:border-[#da291c] hover:text-[#da291c] hover:bg-[#fff9f9] cursor-pointer';
                         if (isSelected) {
-                          seatClasses = 'bg-[#da291c] border-[#da291c] text-white font-bold shadow-xs';
+                          seatClasses = isShowtimeStarted
+                            ? 'bg-[#da291c]/60 border-[#da291c]/60 text-white font-bold shadow-xs cursor-not-allowed opacity-60'
+                            : 'bg-[#da291c] border-[#da291c] text-white font-bold shadow-xs cursor-pointer';
                         } else if (isReserved) {
                           seatClasses = 'bg-[#fef3c7] border-[#f59e0b] text-[#b45309] cursor-not-allowed';
                         } else if (isBooked) {
@@ -324,10 +365,10 @@ export default function BookingSeatPage({
                           <button
                             key={seat.seatShowtimeId}
                             type="button"
-                            disabled={!isEmpty || submitting}
+                            disabled={!isEmpty || submitting || isShowtimeStarted}
                             onClick={() => toggleSeat(seat)}
                             aria-label={`Ghế ${seat.rowPosition}${seat.columnPosition} - ${seat.seatStatus}`}
-                            className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center border text-[11px] sm:text-[12px] font-semibold transition-all cursor-pointer ${seatClasses}`}
+                            className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center border text-[11px] sm:text-[12px] font-semibold transition-all ${seatClasses}`}
                             title={`Ghế ${seat.rowPosition}${seat.columnPosition}`}
                           >
                             {seat.columnPosition}
@@ -415,7 +456,7 @@ export default function BookingSeatPage({
 
             <button
               type="button"
-              disabled={selectedSeatIds.length === 0 || submitting || !hasValidPrice}
+              disabled={selectedSeatIds.length === 0 || submitting || !hasValidPrice || isShowtimeStarted}
               onClick={handleBooking}
               className="h-11 sm:h-12 px-8 bg-[#da291c] hover:bg-[#b91c1c] text-white font-bold text-[14px] uppercase tracking-wide shadow-sm transition-colors disabled:cursor-not-allowed disabled:bg-[#ccc] cursor-pointer flex items-center justify-center gap-2"
             >
