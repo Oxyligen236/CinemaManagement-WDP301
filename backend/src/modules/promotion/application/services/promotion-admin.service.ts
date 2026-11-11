@@ -21,19 +21,9 @@ import { PromotionResponseDto } from '../dto/res.dto';
 import { PromotionCreatedEvent } from '../../domain/events/promotion-created.event';
 import { PromotionUpdatedEvent } from '../../domain/events/promotion-updated.event';
 import { PromotionStatusChangedEvent } from '../../domain/events/promotion-status-changed.event';
-import { CreatePromotionUsecase } from '../usecase/create-promotion.usecase';
-import { UpdatePromotionUsecase } from '../usecase/update-promotion.usecase';
-import { ChangePromotionStatusUsecase } from '../usecase/change-promotion-status.usecase';
-import { QueryPromotionUsecase } from '../usecase/query-promotion.usecase';
 
 @Injectable()
-export class PromotionAdminService
-  implements
-    CreatePromotionUsecase,
-    UpdatePromotionUsecase,
-    ChangePromotionStatusUsecase,
-    QueryPromotionUsecase
-{
+export class PromotionAdminService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(INTERNAL_EVENT_BUS)

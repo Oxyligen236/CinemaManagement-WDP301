@@ -4,7 +4,17 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 
 describe('PromotionPublicService', () => {
   let service: PromotionPublicService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    promotion: {
+      findFirst: jest.Mock;
+      findUnique: jest.Mock;
+      update: jest.Mock;
+    };
+    promotionUsage: {
+      findFirst: jest.Mock;
+      create: jest.Mock;
+    };
+  };
 
   const defaultPromotion = {
     id: 'promo-1',
@@ -33,7 +43,9 @@ describe('PromotionPublicService', () => {
       },
     };
 
-    service = new PromotionPublicService(mockPrisma);
+    service = new PromotionPublicService(
+      mockPrisma as unknown as PrismaService,
+    );
   });
 
   describe('validatePromotionCode', () => {
@@ -155,7 +167,7 @@ describe('PromotionPublicService', () => {
           promotionId: 'promo-1',
           userId: 'user-1',
           orderId: 'order-1',
-        }),
+        }) as unknown,
       });
 
       expect(mockPrisma.promotion.update).toHaveBeenCalledWith({
@@ -176,6 +188,46 @@ describe('PromotionPublicService', () => {
           orderId: 'order-1',
         }),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('getPromotionById', () => {
+    it('lấy chi tiết khuyến mãi theo ID', async () => {
+      const createdAt = new Date('2026-01-01T00:00:00.000Z');
+      const updatedAt = new Date('2026-01-02T00:00:00.000Z');
+      mockPrisma.promotion.findUnique.mockResolvedValue({
+        ...defaultPromotion,
+        createdAt,
+        updatedAt,
+      });
+
+      const result = await service.getPromotionById('promo-1');
+
+      expect(mockPrisma.promotion.findUnique).toHaveBeenCalledWith({
+        where: { id: 'promo-1' },
+      });
+      expect(result).toEqual({
+        promotionId: 'promo-1',
+        promotionCode: 'DISCOUNT10',
+        discountValue: 10,
+        discountType: DiscountType.PERCENTAGE,
+        startDate: defaultPromotion.startDate,
+        endDate: defaultPromotion.endDate,
+        isActive: true,
+        createdAt,
+        updatedAt,
+      });
+    });
+
+    it('trả về null khi không tìm thấy promotion', async () => {
+      mockPrisma.promotion.findUnique.mockResolvedValue(null);
+
+      const result = await service.getPromotionById('not-found');
+
+      expect(mockPrisma.promotion.findUnique).toHaveBeenCalledWith({
+        where: { id: 'not-found' },
+      });
+      expect(result).toBeNull();
     });
   });
 });

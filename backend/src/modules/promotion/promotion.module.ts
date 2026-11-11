@@ -5,22 +5,11 @@ import { PromotionAdminController } from './infra/controllers/promotion-admin.co
 import { PromotionAdminService } from './application/services/promotion-admin.service';
 import { PromotionPublicService } from './application/services/promotion-public.service';
 import { PromotionListener } from './infra/listeners/promotion.listener';
-import { PROMOTION_CONTRACT } from './contracts/promotion.contract';
-import { PromotionContractImpl } from './contracts/promotion-contract.impl';
 
 @Module({
   imports: [AuthModule, EventModule],
   controllers: [PromotionAdminController],
-  providers: [
-    PromotionAdminService,
-    PromotionPublicService,
-    PromotionContractImpl,
-    PromotionListener,
-    {
-      provide: PROMOTION_CONTRACT,
-      useClass: PromotionContractImpl,
-    },
-  ],
-  exports: [PromotionPublicService, PromotionAdminService, PROMOTION_CONTRACT],
+  providers: [PromotionAdminService, PromotionPublicService, PromotionListener],
+  exports: [PromotionPublicService, PromotionAdminService],
 })
 export class PromotionModule {}
