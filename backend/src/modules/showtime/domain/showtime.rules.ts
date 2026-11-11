@@ -51,6 +51,8 @@ export const SEAT_BOOKING_MESSAGES = {
     'Một số ghế bạn chọn vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.',
   SEAT_NO_LONGER_AVAILABLE:
     'Ghế này vừa có người giữ hoặc đã được đặt, vui lòng chọn ghế khác.',
+  PAST_SHOWTIME_BOOKING:
+    'Suất chiếu đã bắt đầu hoặc đã kết thúc, không thể đặt vé.',
 } as const;
 
 /**

@@ -1,16 +1,20 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
-import { SeatShowtimeStatus } from '@prisma/client';
-import { SeatBookingDetail } from '../../contract/seat-booking-detail';
-import { ConfirmShowtimeSeatsUsecase } from '../usecase/confirm-showtime-seats.usecase';
+import { Prisma, SeatShowtimeStatus } from '@prisma/client';
+import {
+  SeatBookingDetail,
+  SeatBookingDetailDto,
+  SeatShowtimeDetailDto,
+} from '../dto/res.dto';
 import { SEAT_BOOKING_MESSAGES } from '../../domain/showtime.rules';
 
 @Injectable()
-export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
+export class ShowtimeBookingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async reserveSeats(seatShowtimeIds: string[]): Promise<SeatBookingDetail[]> {
@@ -23,13 +27,32 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
 
     const seats = await this.prisma.seatShowtime.findMany({
       where: { id: { in: seatShowtimeIds } },
+      include: {
+        showtime: {
+          select: {
+            startTime: true,
+          },
+        },
+      },
     });
 
     if (
       seats.length !== seatShowtimeIds.length ||
-      seats.some((seat) => seat.seatStatus !== SeatShowtimeStatus.EMPTY) ||
       new Set(seats.map((seat) => seat.showtimeId)).size !== 1
     ) {
+      throw new ConflictException(SEAT_BOOKING_MESSAGES.SEATS_UNAVAILABLE);
+    }
+
+    if (
+      seats[0]?.showtime?.startTime &&
+      new Date(seats[0].showtime.startTime).getTime() <= Date.now()
+    ) {
+      throw new BadRequestException(
+        SEAT_BOOKING_MESSAGES.PAST_SHOWTIME_BOOKING,
+      );
+    }
+
+    if (seats.some((seat) => seat.seatStatus !== SeatShowtimeStatus.EMPTY)) {
       throw new ConflictException(SEAT_BOOKING_MESSAGES.SEATS_UNAVAILABLE);
     }
 
@@ -84,7 +107,7 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
 
   async confirmSeats(
     seatShowtimeIds: string[],
-    prismaTx?: any,
+    prismaTx?: Prisma.TransactionClient,
   ): Promise<number> {
     if (!seatShowtimeIds.length) return 0;
     const client = prismaTx ?? this.prisma;
@@ -133,12 +156,12 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
         throw new NotFoundException('Seat showtime reference not found');
       }
 
-      return {
+      return SeatBookingDetailDto.of({
         seatShowtimeId: item.id,
         showtimeId: item.showtimeId,
         seatId: item.seatId,
-        seatStatus: item.seatStatus as any,
-        seatType: physicalSeat.seatType as any,
+        seatStatus: item.seatStatus,
+        seatType: physicalSeat.seatType,
         rowPosition: physicalSeat.rowPosition,
         columnPosition: physicalSeat.columnPosition,
         roomId: room.id,
@@ -150,7 +173,52 @@ export class ShowtimeBookingService implements ConfirmShowtimeSeatsUsecase {
         startTime: showtime.startTime,
         endTime: showtime.endTime,
         basePrice: showtime.basePrice,
-      };
+      });
+    });
+  }
+
+  async getSeatShowtimeDetail(
+    seatShowtimeId: string,
+  ): Promise<SeatShowtimeDetailDto | null> {
+    const seatShowtime = await this.prisma.seatShowtime.findUnique({
+      where: { id: seatShowtimeId },
+      include: {
+        showtime: {
+          include: {
+            movie: true,
+            room: {
+              include: {
+                branch: true,
+              },
+            },
+          },
+        },
+        seat: true,
+      },
+    });
+
+    if (!seatShowtime || !seatShowtime.showtime || !seatShowtime.seat)
+      return null;
+    const { showtime, seat } = seatShowtime;
+    const { movie, room } = showtime;
+    if (!movie || !room) return null;
+
+    return SeatShowtimeDetailDto.of({
+      seatShowtimeId: seatShowtime.id,
+      showtimeId: showtime.id,
+      movieId: showtime.movieId,
+      movieTitle: movie.movieName,
+      roomId: room.id,
+      roomName: room.roomName,
+      seatId: seat.id,
+      rowPosition: seat.rowPosition,
+      columnPosition: seat.columnPosition,
+      price: showtime.basePrice,
+      startTime: showtime.startTime,
+      endTime: showtime.endTime,
+      branchId: room.branchId,
+      branchName: room.branch?.branchName ?? '',
+      branchAddress: room.branch?.address,
     });
   }
 }

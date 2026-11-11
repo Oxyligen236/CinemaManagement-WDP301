@@ -1,26 +1,34 @@
-import { ShowtimeResDto } from '../dto/res.dto';
+import {
+  ShowtimeDayPriceSelectionResDto,
+  ShowtimeResDto,
+  ShowtimeSeatPriceSelectionResDto,
+} from '../dto/res.dto';
 
 export function toShowtimeResDto(doc: any): ShowtimeResDto {
-  const dto = new ShowtimeResDto();
-  dto.showtimeId = doc.id;
-  dto.movieId = doc.movieId;
-  dto.roomId = doc.roomId;
-  dto.startTime = doc.startTime;
-  dto.endTime = doc.endTime;
-  dto.basePrice = doc.basePrice;
-  dto.dayPriceRuleId = doc.dayPriceRuleId ?? undefined;
-  dto.seatPriceRuleId = doc.seatPriceRuleId ?? undefined;
-  dto.seatPriceSelections = (doc.seatPriceSelections ?? []).map((s: any) => ({
-    seatType: s.seatType,
-    ruleId: s.ruleId ?? null,
-    multiplier: s.multiplier,
-  }));
-  dto.dayPriceSelections = (doc.dayPriceSelections ?? []).map((s: any) => ({
-    dayType: s.dayType,
-    ruleId: s.ruleId ?? null,
-    multiplier: s.multiplier,
-  }));
-  dto.createdAt = doc.createdAt;
-  dto.updatedAt = doc.updatedAt;
-  return dto;
+  return ShowtimeResDto.of({
+    showtimeId: doc.id,
+    movieId: doc.movieId,
+    roomId: doc.roomId,
+    startTime: doc.startTime,
+    endTime: doc.endTime,
+    basePrice: doc.basePrice,
+    dayPriceRuleId: doc.dayPriceRuleId ?? undefined,
+    seatPriceRuleId: doc.seatPriceRuleId ?? undefined,
+    seatPriceSelections: (doc.seatPriceSelections ?? []).map((s: any) =>
+      ShowtimeSeatPriceSelectionResDto.of(
+        s.seatType,
+        s.ruleId ?? null,
+        s.multiplier,
+      ),
+    ),
+    dayPriceSelections: (doc.dayPriceSelections ?? []).map((s: any) =>
+      ShowtimeDayPriceSelectionResDto.of(
+        s.dayType,
+        s.ruleId ?? null,
+        s.multiplier,
+      ),
+    ),
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  });
 }

@@ -3,10 +3,9 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RoomStatus, SeatStatus, SeatShowtimeStatus } from '@prisma/client';
 import { GetPublicShowtimesReqDto } from '../dto/req.dto';
 import { PublicShowtimeItemResDto } from '../dto/res.dto';
-import { GetPublicShowtimesUsecase } from '../usecase/get-public-showtimes.usecase';
 
 @Injectable()
-export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
+export class PublicShowtimeQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getPublicShowtimes(
@@ -164,41 +163,45 @@ export class PublicShowtimeQueryService implements GetPublicShowtimesUsecase {
       }
     }
 
+    const pubStorageUrl =
+      process.env.STORAGE_PUBLIC_URL?.replace(/\/+$/, '') || '';
+
     return showtimes.map((st) => {
       const movie = movieMap.get(st.movieId);
       const stats = seatShowtimeStatsByShowtime.get(st.id) ||
         roomSeatStats.get(st.roomId) || { total: 0, available: 0 };
       const roomInfo = roomMap.get(st.roomId);
 
-      const item = new PublicShowtimeItemResDto();
-      item.showtimeId = st.id;
-      item.movieId = st.movieId;
-      item.movieName = movie?.movieName || 'Unknown';
-      item.duration = movie?.duration || 120;
       const rawPoster = movie?.posterKey;
-      const pubStorageUrl =
-        process.env.STORAGE_PUBLIC_URL?.replace(/\/+$/, '') || '';
-      item.posterUrl = rawPoster
+      const posterUrl = rawPoster
         ? rawPoster.startsWith('http') || rawPoster.startsWith('/')
           ? rawPoster
           : `${pubStorageUrl}/${rawPoster}`
         : undefined;
-      item.genreNames =
+      const genreNames =
         movie?.genreIds
           ?.map((gid) => genreMap.get(gid))
           .filter((name): name is string => Boolean(name)) || [];
-      item.roomId = st.roomId;
-      item.roomName = roomInfo?.roomName || 'Cinema';
-      item.branchId = roomInfo?.branchId;
-      item.branchName = roomInfo?.branchId
-        ? branchMap.get(roomInfo.branchId)
-        : undefined;
-      item.startTime = st.startTime;
-      item.endTime = st.endTime;
-      item.basePrice = st.basePrice;
-      item.availableSeats = stats.available;
-      item.totalSeats = stats.total;
-      return item;
+
+      return PublicShowtimeItemResDto.of({
+        showtimeId: st.id,
+        movieId: st.movieId,
+        movieName: movie?.movieName || 'Unknown',
+        duration: movie?.duration || 120,
+        posterUrl,
+        genreNames,
+        roomId: st.roomId,
+        roomName: roomInfo?.roomName || 'Cinema',
+        branchId: roomInfo?.branchId,
+        branchName: roomInfo?.branchId
+          ? branchMap.get(roomInfo.branchId)
+          : undefined,
+        startTime: st.startTime,
+        endTime: st.endTime,
+        basePrice: st.basePrice,
+        availableSeats: stats.available,
+        totalSeats: stats.total,
+      });
     });
   }
 }

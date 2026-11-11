@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { SeatShowtimeResDto } from '../dto/res.dto';
-import { GetShowtimeSeatsUsecase } from '../usecase/get-showtime-seats.usecase';
 
 @Injectable()
-export class SeatShowtimeQueryService implements GetShowtimeSeatsUsecase {
+export class SeatShowtimeQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getShowtimeSeats(showtimeId: string): Promise<SeatShowtimeResDto[]> {
@@ -24,15 +23,17 @@ export class SeatShowtimeQueryService implements GetShowtimeSeatsUsecase {
     return seatShowtimes
       .flatMap((item) => {
         if (!item.seat) return [];
-        const dto = new SeatShowtimeResDto();
-        dto.seatShowtimeId = item.id;
-        dto.showtimeId = item.showtimeId;
-        dto.seatId = item.seatId;
-        dto.seatStatus = item.seatStatus as any;
-        dto.rowPosition = item.seat.rowPosition;
-        dto.columnPosition = item.seat.columnPosition;
-        dto.seatType = item.seat.seatType as any;
-        return [dto];
+        return [
+          SeatShowtimeResDto.of(
+            item.id,
+            item.showtimeId,
+            item.seatId,
+            item.seatStatus as any,
+            item.seat.rowPosition,
+            item.seat.columnPosition,
+            item.seat.seatType as any,
+          ),
+        ];
       })
       .sort(
         (a, b) =>
