@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
-import { GetUserBranchUsecase } from '../usecase/get-user-branch.usecase';
 
 @Injectable()
-export class UserBranchQueryService implements GetUserBranchUsecase {
+export class UserBranchQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getBranchIdOfUser(userId: string): Promise<string | null> {

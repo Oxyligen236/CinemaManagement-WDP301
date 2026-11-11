@@ -1,14 +1,40 @@
 export class UserProfileRes {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: string;
+  id!: string;
+  email!: string;
+  firstName!: string;
+  lastName!: string;
+  role!: string;
   branchId?: string | null;
   jobPosition?: string | null;
   employmentStatus?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt!: Date;
+  updatedAt!: Date;
+
+  static of(
+    id: string,
+    email: string,
+    firstName: string,
+    lastName: string,
+    role: string,
+    branchId?: string | null,
+    jobPosition?: string | null,
+    employmentStatus?: string | null,
+    createdAt?: Date,
+    updatedAt?: Date,
+  ): UserProfileRes {
+    const res = new UserProfileRes();
+    res.id = id;
+    res.email = email;
+    res.firstName = firstName;
+    res.lastName = lastName;
+    res.role = role;
+    res.branchId = branchId ?? null;
+    res.jobPosition = jobPosition ?? null;
+    res.employmentStatus = employmentStatus ?? null;
+    res.createdAt = createdAt ?? new Date();
+    res.updatedAt = updatedAt ?? new Date();
+    return res;
+  }
 
   static fromEntity(entity: {
     id: string;
@@ -22,18 +48,18 @@ export class UserProfileRes {
     createdAt: Date;
     updatedAt: Date;
   }): UserProfileRes {
-    const res = new UserProfileRes();
-    res.id = entity.id;
-    res.email = entity.email;
-    res.firstName = entity.firstName;
-    res.lastName = entity.lastName;
-    res.role = entity.role;
-    res.branchId = entity.branchId ?? null;
-    res.jobPosition = entity.jobPosition ?? null;
-    res.employmentStatus = entity.employmentStatus ?? null;
-    res.createdAt = entity.createdAt;
-    res.updatedAt = entity.updatedAt;
-    return res;
+    return UserProfileRes.of(
+      entity.id,
+      entity.email,
+      entity.firstName,
+      entity.lastName,
+      entity.role,
+      entity.branchId,
+      entity.jobPosition,
+      entity.employmentStatus,
+      entity.createdAt,
+      entity.updatedAt,
+    );
   }
 }
 
@@ -57,6 +83,26 @@ export class VerificationChallengeRes {
 
   /** Số lần gửi lại mã còn được phép cho đăng ký này. */
   resendsRemaining!: number;
+
+  static of(
+    message: string,
+    email: string,
+    alreadyPending: boolean,
+    verificationExpiresInSeconds: number,
+    resendAvailableInSeconds: number,
+    resendsRemaining: number,
+  ): VerificationChallengeRes {
+    const res = new VerificationChallengeRes();
+    Object.assign(res, {
+      message,
+      email,
+      alreadyPending,
+      verificationExpiresInSeconds,
+      resendAvailableInSeconds,
+      resendsRemaining,
+    });
+    return res;
+  }
 }
 
 /** Trạng thái đăng ký đang chờ xác thực của một email. */
@@ -69,4 +115,55 @@ export class VerificationStatusRes {
   verificationExpiresInSeconds!: number;
   resendAvailableInSeconds!: number;
   resendsRemaining!: number;
+
+  static of(
+    email: string,
+    pending: boolean,
+    verificationExpiresInSeconds: number,
+    resendAvailableInSeconds: number,
+    resendsRemaining: number,
+  ): VerificationStatusRes {
+    const res = new VerificationStatusRes();
+    Object.assign(res, {
+      email,
+      pending,
+      verificationExpiresInSeconds,
+      resendAvailableInSeconds,
+      resendsRemaining,
+    });
+    return res;
+  }
+}
+
+export class AuthUserPayloadRes {
+  userId!: string;
+  email!: string;
+  firstName!: string;
+  lastName!: string;
+  role!: string;
+  branchId?: string;
+
+  static of(
+    userId: string,
+    email: string,
+    firstName: string,
+    lastName: string,
+    role: string,
+    branchId?: string,
+  ): AuthUserPayloadRes {
+    const res = new AuthUserPayloadRes();
+    Object.assign(res, { userId, email, firstName, lastName, role, branchId });
+    return res;
+  }
+}
+
+export class LoginSuccessRes {
+  accessToken!: string;
+  user!: AuthUserPayloadRes;
+
+  static of(accessToken: string, user: AuthUserPayloadRes): LoginSuccessRes {
+    const res = new LoginSuccessRes();
+    Object.assign(res, { accessToken, user });
+    return res;
+  }
 }
