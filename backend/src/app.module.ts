@@ -4,7 +4,6 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './modules/user/user.module';
-import { TempModule } from './modules/temp/temp.module';
 import { DatabaseModule } from './modules/infra/database/database.module';
 import { EventModule } from './modules/infra/event/event.module';
 import { MailModule } from './modules/infra/mail/mail.module';
@@ -55,7 +54,6 @@ import { StatisticsModule } from './modules/statistics/statistics.module';
     AuthModule,
     UserModule,
     AdminModule,
-    TempModule,
     PaymentModule,
     BranchModule,
     RoomModule,

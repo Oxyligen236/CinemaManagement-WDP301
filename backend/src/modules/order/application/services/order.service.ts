@@ -7,6 +7,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { Page } from '../../../../common/dto/page.dto';
@@ -14,6 +15,7 @@ import { OrderStatus } from '@prisma/client';
 import { TicketStatus } from '../../domain/enums/ticket-status.enum';
 import { TicketScannedEvent } from '../../domain/events/ticket-scanned.event';
 import {
+  ORDER_BOOKING_MESSAGES,
   ORDER_EXPIRATION_QUEUE,
   ORDER_HOLD_TIMEOUT_MS,
 } from '../../domain/constants/order.constant';
@@ -23,28 +25,11 @@ import { OrderPaidEvent } from '../../domain/events/order-paid.event';
 import { OrderCancelledEvent } from '../../domain/events/order-cancelled.event';
 import { Role } from '../../../auth/infra/decorators/role.decorator';
 import { BranchQueryService } from '../../../branch/application/services/branch-query.service';
-import {
-  PaymentContract,
-  PAYMENT_CONTRACT,
-  PaymentStatus,
-} from '../../contracts/payment.contract';
-import {
-  SHOWTIME_CONTRACT,
-  ShowtimeContract,
-} from '../../../showtime/contracts/showtime.contract';
-import {
-  ProductContract,
-  PRODUCT_CONTRACT,
-  ProductSummaryDto,
-} from '../../contracts/product.contract';
-import {
-  PromotionContract,
-  PROMOTION_CONTRACT,
-} from '../../contracts/promotion.contract';
-import {
-  SHOWTIME_BOOKING,
-  ShowtimeBookingContract,
-} from '../../contracts/showtime-booking.contract';
+import { PaymentService } from '../../../payment/application/services/payment.service';
+import { ShowtimeBookingService } from '../../../showtime/application/services/showtime-booking.service';
+import { ProductService } from '../../../product/application/services/product.service';
+import { ProductSummaryRes } from '../../../product/application/dto/res.dto';
+import { PromotionPublicService } from '../../../promotion/application/services/promotion-public.service';
 import {
   QUEUE_SERVICE,
   QueueService,
@@ -58,8 +43,6 @@ import {
   CancelPosOrderReq,
   CreateBookingOrderReq,
   CreatePosOrderReq,
-  InitiatePosQrPaymentReq,
-  ProcessPosCashPaymentReq,
   QueryAdminOrdersReq,
   QueryMyOrdersReq,
   QueryStaffOrdersReq,
@@ -67,6 +50,7 @@ import {
   StaffScanContextReq,
 } from '../dto/req.dto';
 import {
+  ApplyPromotionRes,
   BookingProductRes,
   BookingSeatRes,
   BookingSummaryRes,
@@ -74,69 +58,30 @@ import {
   OrderDetailRes,
   OrderItemProductRes,
   OrderItemTicketRes,
+  OrderPaymentInfoDto,
+  OrderPaymentTicketDto,
   OrderSummaryRes,
   PosBookingSummaryRes,
-  PosCashPaymentResultRes,
-  PosQrPaymentRes,
+  PosReceiptItemRes,
   PosReceiptRes,
+  PosReceiptSeatRes,
+  PosReceiptTicketRes,
   PromotionSummaryRes,
   ScanTicketResultRes,
   TicketDetailRes,
   TicketItemSummaryRes,
 } from '../dto/res.dto';
-import { CreateBookingOrderUsecase } from '../usecase/create-booking-order.usecase';
-import { GetBookingSummaryUsecase } from '../usecase/get-booking-summary.usecase';
-import { ExpireOrderUsecase } from '../usecase/expire-order.usecase';
-import { ApplyPromotionUsecase } from '../usecase/apply-promotion.usecase';
-import { GetMyOrderHistoryUsecase } from '../usecase/get-my-order-history.usecase';
-import { GetOrderDetailUsecase } from '../usecase/get-order-detail.usecase';
-import { QueryStaffOrdersUsecase } from '../usecase/query-staff-orders.usecase';
-import { QueryAdminOrdersUsecase } from '../usecase/query-admin-orders.usecase';
-import { CancelOrderUsecase } from '../usecase/cancel-order.usecase';
-import { CreatePosBookingOrderUsecase } from '../usecase/create-pos-booking-order.usecase';
-import { ConfirmPosCashPaymentUsecase } from '../usecase/confirm-pos-cash-payment.usecase';
-import { InitiatePosQrPaymentUsecase } from '../usecase/initiate-pos-qr-payment.usecase';
-import { CheckPosPaymentStatusUsecase } from '../usecase/check-pos-payment-status.usecase';
-import { GetPosReceiptUsecase } from '../usecase/get-pos-receipt.usecase';
-import { ScanTicketUsecase } from '../usecase/scan-ticket.usecase';
-import { GetTicketDetailUsecase } from '../usecase/get-ticket-detail.usecase';
-import { CreateTicketsForOrderUsecase } from '../usecase/create-tickets-for-order.usecase';
-
 @Injectable()
-export class OrderService
-  implements
-    CreateBookingOrderUsecase,
-    GetBookingSummaryUsecase,
-    ExpireOrderUsecase,
-    ApplyPromotionUsecase,
-    GetMyOrderHistoryUsecase,
-    GetOrderDetailUsecase,
-    QueryStaffOrdersUsecase,
-    QueryAdminOrdersUsecase,
-    CancelOrderUsecase,
-    CreatePosBookingOrderUsecase,
-    ConfirmPosCashPaymentUsecase,
-    InitiatePosQrPaymentUsecase,
-    CheckPosPaymentStatusUsecase,
-    GetPosReceiptUsecase,
-    ScanTicketUsecase,
-    GetTicketDetailUsecase,
-    CreateTicketsForOrderUsecase
-{
+export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(PAYMENT_CONTRACT)
-    private readonly paymentContract: PaymentContract,
-    @Inject(SHOWTIME_CONTRACT)
-    private readonly showtimeContract: ShowtimeContract,
-    @Inject(PRODUCT_CONTRACT)
-    private readonly productContract: ProductContract,
-    @Inject(PROMOTION_CONTRACT)
-    private readonly promotionContract: PromotionContract,
-    @Inject(SHOWTIME_BOOKING)
-    private readonly showtimeBookingService: ShowtimeBookingContract,
+    @Inject(forwardRef(() => PaymentService))
+    private readonly paymentService: PaymentService,
+    private readonly showtimeBookingService: ShowtimeBookingService,
+    private readonly productService: ProductService,
+    private readonly promotionPublicService: PromotionPublicService,
     @Inject(QUEUE_SERVICE)
     private readonly queueService: QueueService,
     @Inject(INTERNAL_EVENT_BUS)
@@ -144,45 +89,67 @@ export class OrderService
     private readonly branchQueryService: BranchQueryService,
   ) {}
 
-  async createVnpayPayment(userId: string, orderId: string, ipAddr: string) {
+  async getOrderForOnlinePayment(
+    userId: string,
+    orderId: string,
+  ): Promise<{ orderId: string; totalAmount: number }> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
     });
-    if (!order)
+    if (!order) {
       throw new NotFoundException(`Order with ID ${orderId} not found`);
-    if (order.userId !== userId)
+    }
+    if (order.userId !== userId) {
       throw new ForbiddenException('You do not have access to this order');
-    if (order.status !== OrderStatus.PENDING)
+    }
+    if (order.status !== OrderStatus.PENDING) {
       throw new BadRequestException(
         'Đơn hàng không ở trạng thái chờ thanh toán',
       );
-    const returnUrl = process.env.VNPAY_RETURN_URL;
-    if (!returnUrl)
-      throw new BadRequestException('VNPAY_RETURN_URL chưa được cấu hình');
-    return this.paymentContract.createVnpayPayment({
-      orderId,
-      amount: order.totalAmount,
-      ipAddr,
-      returnUrl,
+    }
+    return { orderId: order.id, totalAmount: order.totalAmount };
+  }
+
+  async getOrderForPosPayment(
+    staffContext: { staffId: string; branchId: string },
+    orderId: string,
+  ): Promise<OrderPaymentInfoDto> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
     });
+    if (!order) {
+      throw new NotFoundException('Không tìm thấy đơn hàng');
+    }
+
+    await this.verifyOrderBranch(orderId, staffContext.branchId);
+
+    return {
+      orderId: order.id,
+      userId: order.userId,
+      branchId: order.branchId,
+      totalAmount: order.totalAmount,
+      status: order.status,
+      updatedAt: order.updatedAt,
+    };
   }
 
-  async handleVnpayReturn(query: Record<string, string | string[]>) {
-    const result = await this.paymentContract.verifyVnpayReturn(query);
-    if (!result.isSuccess) return result;
-    await this.fulfillVnpayOrder(result.orderId);
-    return result;
+  async getPaidOrderTickets(orderId: string): Promise<OrderPaymentTicketDto[]> {
+    return this.getTicketsByOrderId(orderId);
   }
 
-  async handleVnpayIpn(query: Record<string, string | string[]>) {
-    const result = await this.paymentContract.verifyVnpayIpn(query);
-    if (result.RspCode !== '00' || !result.isSuccess || !result.orderId)
-      return result;
-    await this.fulfillVnpayOrder(result.orderId);
-    return { RspCode: '00', Message: 'Confirm Success' };
+  async fulfillOrderPayment(
+    orderId: string,
+    paymentId?: string,
+    paymentContext?: {
+      paymentMethod?: string;
+      branchId?: string;
+      staffId?: string;
+    },
+  ): Promise<{ tickets: OrderPaymentTicketDto[]; paidAt: Date }> {
+    return this.fulfillOrder(orderId, paymentId, paymentContext);
   }
 
-  private async fulfillVnpayOrder(orderId: string) {
+  async fulfillVnpayOrder(orderId: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
     });
@@ -254,7 +221,7 @@ export class OrderService
         where: { orderId },
       });
       if (productsInTx.length) {
-        await this.productContract.deductConcessionStock(
+        await this.productService.deductConcessionStock(
           productsInTx.map(({ productId, quantity }) => ({
             productId,
             quantity,
@@ -319,6 +286,17 @@ export class OrderService
     );
 
     if (
+      reservedSeatDetails.some(
+        (s) => s.startTime && new Date(s.startTime).getTime() <= Date.now(),
+      )
+    ) {
+      await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds);
+      throw new BadRequestException(
+        ORDER_BOOKING_MESSAGES.PAST_SHOWTIME_BOOKING,
+      );
+    }
+
+    if (
       reservedSeatDetails.some((seat) => seat.showtimeId !== request.showtimeId)
     ) {
       await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds);
@@ -346,18 +324,20 @@ export class OrderService
     if (request.products?.length) {
       const productIds = request.products.map((p) => p.productId);
       const productInfoMap =
-        await this.productContract.getProductsByIds(productIds);
+        await this.productService.getProductsByIds(productIds);
 
       for (const prodItem of request.products) {
         const info = productInfoMap.get(prodItem.productId);
         const unitPrice = info?.unitPrice ?? 0;
         productSubtotal += unitPrice * prodItem.quantity;
-        bookingProducts.push({
-          productId: prodItem.productId,
-          productName: info?.productName ?? prodItem.productId,
-          quantity: prodItem.quantity,
-          unitPrice,
-        });
+        bookingProducts.push(
+          BookingProductRes.of(
+            prodItem.productId,
+            info?.productName ?? prodItem.productId,
+            prodItem.quantity,
+            unitPrice,
+          ),
+        );
         productOrdersData.push({
           productId: prodItem.productId,
           quantity: prodItem.quantity,
@@ -373,7 +353,7 @@ export class OrderService
     if (request.promotionCode) {
       const originalSubtotal = ticketSubtotal + productSubtotal;
       const validationResult =
-        await this.promotionContract.validatePromotionCode({
+        await this.promotionPublicService.validatePromotionCode({
           code: request.promotionCode,
           orderAmount: originalSubtotal,
           userId,
@@ -466,32 +446,34 @@ export class OrderService
       );
     }
 
-    const bookingSeats: BookingSeatRes[] = reservedSeatDetails.map((seat) => ({
-      seatShowtimeId: seat.seatShowtimeId,
-      seatId: seat.seatId,
-      rowPosition: seat.rowPosition,
-      columnPosition: seat.columnPosition,
-      seatType: String(seat.seatType),
-      price: seat.basePrice,
-    }));
+    const bookingSeats: BookingSeatRes[] = reservedSeatDetails.map((seat) =>
+      BookingSeatRes.of(
+        seat.seatShowtimeId,
+        seat.seatId,
+        seat.rowPosition,
+        seat.columnPosition,
+        String(seat.seatType),
+        seat.basePrice,
+      ),
+    );
 
     const remainingSeconds = Math.max(
       0,
       Math.floor((expiresAt.getTime() - Date.now()) / 1000),
     );
 
-    return {
+    return BookingSummaryRes.of(
       orderId,
       userId,
-      status: OrderStatus.PENDING as any,
+      OrderStatus.PENDING as any,
       totalAmount,
       createdAt,
       expiresAt,
       remainingSeconds,
-      seats: bookingSeats,
-      products: bookingProducts,
-      promotion: appliedPromotion,
-    };
+      bookingSeats,
+      bookingProducts,
+      appliedPromotion,
+    );
   }
 
   async getBookingSummary(
@@ -523,28 +505,29 @@ export class OrderService
       const matchedOrder = seatOrders.find(
         (so) => so.seatShowtimeId === seat.seatShowtimeId,
       );
-      return {
-        seatShowtimeId: seat.seatShowtimeId,
-        seatId: seat.seatId,
-        rowPosition: seat.rowPosition,
-        columnPosition: seat.columnPosition,
-        seatType: String(seat.seatType),
-        price: matchedOrder?.price ?? seat.basePrice,
-      };
+      return BookingSeatRes.of(
+        seat.seatShowtimeId,
+        seat.seatId,
+        seat.rowPosition,
+        seat.columnPosition,
+        String(seat.seatType),
+        matchedOrder?.price ?? seat.basePrice,
+      );
     });
 
     const productIds = productOrders.map((po) => po.productId);
     const productInfoMap = productIds.length
-      ? await this.productContract.getProductsByIds(productIds)
-      : new Map<string, ProductSummaryDto>();
+      ? await this.productService.getProductsByIds(productIds)
+      : new Map<string, ProductSummaryRes>();
 
-    const bookingProducts: BookingProductRes[] = productOrders.map((po) => ({
-      productId: po.productId,
-      productName:
+    const bookingProducts: BookingProductRes[] = productOrders.map((po) =>
+      BookingProductRes.of(
+        po.productId,
         productInfoMap.get(po.productId)?.productName ?? po.productId,
-      quantity: po.quantity,
-      unitPrice: po.unitPrice,
-    }));
+        po.quantity,
+        po.unitPrice,
+      ),
+    );
 
     const createdAt = order.createdAt ?? new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
@@ -556,7 +539,7 @@ export class OrderService
     let promotion: PromotionSummaryRes | undefined;
     if (order.promotionId) {
       try {
-        const promoInfo = await this.promotionContract.getPromotionById(
+        const promoInfo = await this.promotionPublicService.getPromotionById(
           order.promotionId,
         );
         if (promoInfo) {
@@ -584,25 +567,25 @@ export class OrderService
       }
     }
 
-    return {
-      orderId: order.id,
-      userId: order.userId,
-      status: order.status as any,
-      totalAmount: order.totalAmount,
+    return BookingSummaryRes.of(
+      order.id,
+      order.userId,
+      order.status as any,
+      order.totalAmount,
       createdAt,
       expiresAt,
       remainingSeconds,
-      seats: bookingSeats,
-      products: bookingProducts,
+      bookingSeats,
+      bookingProducts,
       promotion,
-    };
+    );
   }
 
   async applyPromotion(
     userId: string,
     orderId: string,
     request: ApplyPromotionReq,
-  ): Promise<BookingSummaryRes> {
+  ): Promise<ApplyPromotionRes> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
     });
@@ -640,13 +623,12 @@ export class OrderService
     const baseAmount =
       originalSubtotal > 0 ? originalSubtotal : order.totalAmount;
 
-    const validationResult = await this.promotionContract.validatePromotionCode(
-      {
+    const validationResult =
+      await this.promotionPublicService.validatePromotionCode({
         code: request.promotionCode,
         orderAmount: baseAmount,
         userId,
-      },
-    );
+      });
 
     if (!validationResult.isValid) {
       throw new BadRequestException(
@@ -674,28 +656,29 @@ export class OrderService
       const matchedOrder = seatOrders.find(
         (so) => so.seatShowtimeId === seat.seatShowtimeId,
       );
-      return {
-        seatShowtimeId: seat.seatShowtimeId,
-        seatId: seat.seatId,
-        rowPosition: seat.rowPosition,
-        columnPosition: seat.columnPosition,
-        seatType: String(seat.seatType),
-        price: matchedOrder?.price ?? seat.basePrice,
-      };
+      return BookingSeatRes.of(
+        seat.seatShowtimeId,
+        seat.seatId,
+        seat.rowPosition,
+        seat.columnPosition,
+        String(seat.seatType),
+        matchedOrder?.price ?? seat.basePrice,
+      );
     });
 
     const productIds = productOrders.map((po) => po.productId);
     const productInfoMap = productIds.length
-      ? await this.productContract.getProductsByIds(productIds)
-      : new Map<string, ProductSummaryDto>();
+      ? await this.productService.getProductsByIds(productIds)
+      : new Map<string, ProductSummaryRes>();
 
-    const bookingProducts: BookingProductRes[] = productOrders.map((po) => ({
-      productId: po.productId,
-      productName:
+    const bookingProducts: BookingProductRes[] = productOrders.map((po) =>
+      BookingProductRes.of(
+        po.productId,
         productInfoMap.get(po.productId)?.productName ?? po.productId,
-      quantity: po.quantity,
-      unitPrice: po.unitPrice,
-    }));
+        po.quantity,
+        po.unitPrice,
+      ),
+    );
 
     const remainingSeconds = Math.max(
       0,
@@ -710,18 +693,18 @@ export class OrderService
       discountAmount,
     );
 
-    return {
-      orderId: order.id,
-      userId: order.userId,
-      status: order.status as any,
-      totalAmount: finalAmount,
+    return ApplyPromotionRes.of(
+      order.id,
+      order.userId,
+      order.status as any,
+      finalAmount,
       createdAt,
       expiresAt,
       remainingSeconds,
-      seats: bookingSeats,
-      products: bookingProducts,
+      bookingSeats,
+      bookingProducts,
       promotion,
-    };
+    );
   }
 
   async expireOrder(orderId: string): Promise<boolean> {
@@ -833,12 +816,12 @@ export class OrderService
       throw new NotFoundException(`Order with ID ${orderId} not found`);
     }
 
-    const [ticketsFromContract, productOrders] = await Promise.all([
+    const [paidTickets, productOrders] = await Promise.all([
       this.getTicketsByOrderId(orderId),
       this.prisma.productOrder.findMany({ where: { orderId } }),
     ]);
 
-    let tickets: OrderItemTicketRes[] = ticketsFromContract.map((t) =>
+    let tickets: OrderItemTicketRes[] = paidTickets.map((t) =>
       OrderItemTicketRes.of(
         t.ticketId,
         t.ticketCode,
@@ -902,8 +885,8 @@ export class OrderService
     const productIds = productOrders.map((po) => po.productId);
     const productsMap =
       productIds.length > 0
-        ? await this.productContract.getProductsByIds(productIds)
-        : new Map<string, ProductSummaryDto>();
+        ? await this.productService.getProductsByIds(productIds)
+        : new Map<string, ProductSummaryRes>();
 
     const products: OrderItemProductRes[] = productOrders.map((po) => {
       const prodInfo = productsMap.get(po.productId);
@@ -919,7 +902,7 @@ export class OrderService
 
     let promotion: PromotionSummaryRes | undefined;
     if (order.promotionId) {
-      const promoInfo = await this.promotionContract.getPromotionById(
+      const promoInfo = await this.promotionPublicService.getPromotionById(
         order.promotionId,
       );
       if (promoInfo) {
@@ -1150,6 +1133,17 @@ export class OrderService
 
     if (
       reservedSeats.some(
+        (s) => s.startTime && new Date(s.startTime).getTime() <= Date.now(),
+      )
+    ) {
+      await this.showtimeBookingService.releaseSeats(request.seatShowtimeIds!);
+      throw new BadRequestException(
+        ORDER_BOOKING_MESSAGES.PAST_SHOWTIME_BOOKING,
+      );
+    }
+
+    if (
+      reservedSeats.some(
         (seat) => seat.branchId && seat.branchId !== staffContext.branchId,
       )
     ) {
@@ -1164,9 +1158,9 @@ export class OrderService
     }
 
     const productIds = request.products?.map((p) => p.productId) ?? [];
-    const productsMap: Map<string, ProductSummaryDto> = productIds.length
-      ? await this.productContract.getProductsByIds(productIds)
-      : new Map<string, ProductSummaryDto>();
+    const productsMap: Map<string, ProductSummaryRes> = productIds.length
+      ? await this.productService.getProductsByIds(productIds)
+      : new Map<string, ProductSummaryRes>();
 
     if (request.products?.length) {
       for (const item of request.products) {
@@ -1283,32 +1277,37 @@ export class OrderService
       );
     }
 
-    return {
+    const seats = reservedSeats.map((s) =>
+      BookingSeatRes.of(
+        s.seatShowtimeId,
+        s.seatId,
+        s.rowPosition,
+        s.columnPosition,
+        s.seatType,
+        s.basePrice,
+      ),
+    );
+    const products = (request.products ?? []).map((p) => {
+      const prod = productsMap.get(p.productId);
+      return BookingProductRes.of(
+        p.productId,
+        prod?.productName ?? p.productId,
+        p.quantity,
+        prod?.unitPrice ?? 0,
+      );
+    });
+
+    return PosBookingSummaryRes.of(
       orderId,
-      userId: staffContext.staffId,
-      status: OrderStatus.PENDING as any,
+      staffContext.staffId,
+      OrderStatus.PENDING as any,
       totalAmount,
       createdAt,
       expiresAt,
-      remainingSeconds: Math.floor(ORDER_HOLD_TIMEOUT_MS / 1000),
-      seats: reservedSeats.map((s) => ({
-        seatShowtimeId: s.seatShowtimeId,
-        seatId: s.seatId,
-        rowPosition: s.rowPosition,
-        columnPosition: s.columnPosition,
-        seatType: s.seatType,
-        price: s.basePrice,
-      })),
-      products: (request.products ?? []).map((p) => {
-        const prod = productsMap.get(p.productId);
-        return {
-          productId: p.productId,
-          productName: prod?.productName ?? p.productId,
-          quantity: p.quantity,
-          unitPrice: prod?.unitPrice ?? 0,
-        };
-      }),
-    };
+      Math.floor(ORDER_HOLD_TIMEOUT_MS / 1000),
+      seats,
+      products,
+    );
   }
 
   async applyPosPromotion(
@@ -1331,7 +1330,7 @@ export class OrderService
       );
     }
 
-    const validation = await this.promotionContract.validatePromotionCode({
+    const validation = await this.promotionPublicService.validatePromotionCode({
       code: request.promotionCode,
       orderAmount: order.totalAmount,
       userId: order.userId,
@@ -1376,169 +1375,6 @@ export class OrderService
     };
   }
 
-  async confirmPosCashPayment(
-    staffContext: { staffId: string; branchId: string },
-    orderId: string,
-    request: ProcessPosCashPaymentReq,
-  ): Promise<PosCashPaymentResultRes> {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-    });
-    if (!order) {
-      throw new NotFoundException('Không tìm thấy đơn hàng');
-    }
-
-    await this.verifyOrderBranch(orderId, staffContext.branchId);
-
-    if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException(
-        'Đơn hàng không ở trạng thái chờ thanh toán',
-      );
-    }
-
-    const amountToPay = order.totalAmount;
-    if (request.cashReceived < amountToPay) {
-      throw new BadRequestException('Số tiền nhận từ khách không đủ');
-    }
-
-    const cashPayment = await this.paymentContract.processCashPayment({
-      orderId,
-      totalAmount: amountToPay,
-      cashReceived: request.cashReceived,
-    });
-
-    const { tickets, paidAt } = await this.fulfillOrder(
-      orderId,
-      cashPayment.paymentId,
-      {
-        paymentMethod: 'CASH',
-        branchId: staffContext.branchId,
-        staffId: staffContext.staffId,
-      },
-    );
-
-    return {
-      orderId,
-      paymentId: cashPayment.paymentId,
-      status: OrderStatus.PAID as any,
-      totalAmount: amountToPay,
-      cashReceived: request.cashReceived,
-      changeAmount:
-        cashPayment.changeAmount ?? request.cashReceived - amountToPay,
-      paidAt,
-      tickets,
-    };
-  }
-
-  async initiatePosQrPayment(
-    staffContext: { staffId: string; branchId: string },
-    orderId: string,
-    request: InitiatePosQrPaymentReq,
-  ): Promise<PosQrPaymentRes> {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-    });
-    if (!order) {
-      throw new NotFoundException('Không tìm thấy đơn hàng');
-    }
-
-    await this.verifyOrderBranch(orderId, staffContext.branchId);
-
-    if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException(
-        'Đơn hàng không ở trạng thái chờ thanh toán',
-      );
-    }
-
-    const amountToPay = order.totalAmount;
-    const qrPayment = await this.paymentContract.generateQrPayment({
-      orderId,
-      amount: amountToPay,
-      method: request.paymentMethod,
-      description: `Thanh toan ve quay ${orderId}`,
-    });
-
-    return {
-      orderId,
-      paymentId: qrPayment.paymentId,
-      amount: amountToPay,
-      paymentMethod: request.paymentMethod,
-      paymentStatus: qrPayment.status,
-      qrCodeUrl: qrPayment.qrCodeUrl,
-      qrPayload: qrPayment.qrPayload,
-    };
-  }
-
-  async checkPosPaymentStatus(
-    staffContext: { staffId: string; branchId: string },
-    orderId: string,
-  ): Promise<PosCashPaymentResultRes | PosQrPaymentRes> {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-    });
-    if (!order) {
-      throw new NotFoundException('Không tìm thấy đơn hàng');
-    }
-
-    await this.verifyOrderBranch(orderId, staffContext.branchId);
-
-    const amountToPay = order.totalAmount;
-
-    if (order.status === OrderStatus.PAID) {
-      const tickets = await this.getTicketsByOrderId(orderId);
-      const paidAt = order.updatedAt ?? new Date();
-      return {
-        orderId,
-        paymentId: 'PAID',
-        status: OrderStatus.PAID as any,
-        totalAmount: amountToPay,
-        cashReceived: amountToPay,
-        changeAmount: 0,
-        paidAt,
-        tickets,
-      };
-    }
-
-    const statusSummary =
-      await this.paymentContract.checkPaymentStatus(orderId);
-
-    if (
-      statusSummary.status === PaymentStatus.SUCCESS ||
-      (statusSummary.status as string) === 'SUCCESS'
-    ) {
-      const { tickets, paidAt } = await this.fulfillOrder(
-        orderId,
-        statusSummary.paymentId,
-        {
-          paymentMethod: statusSummary.method || 'QR',
-          branchId: staffContext.branchId,
-          staffId: staffContext.staffId,
-        },
-      );
-
-      return {
-        orderId,
-        paymentId: statusSummary.paymentId,
-        status: OrderStatus.PAID as any,
-        totalAmount: amountToPay,
-        cashReceived: amountToPay,
-        changeAmount: 0,
-        paidAt,
-        tickets,
-      };
-    }
-
-    return {
-      orderId,
-      paymentId: statusSummary.paymentId,
-      amount: statusSummary.amount,
-      paymentMethod: statusSummary.method,
-      paymentStatus: statusSummary.status,
-      qrCodeUrl: '',
-      qrPayload: '',
-    };
-  }
-
   async getPosReceipt(
     staffContext: {
       staffId: string;
@@ -1567,7 +1403,7 @@ export class OrderService
     let paymentMethod = 'CASH';
     try {
       const paymentStatus =
-        await this.paymentContract.checkPaymentStatus(orderId);
+        await this.paymentService.checkPaymentStatus(orderId);
       if (paymentStatus?.method) {
         paymentMethod = paymentStatus.method;
       }
@@ -1622,9 +1458,9 @@ export class OrderService
       where: { orderId },
     });
     const productIds = productOrders.map((po) => po.productId);
-    const productsMap: Map<string, ProductSummaryDto> = productIds.length
-      ? await this.productContract.getProductsByIds(productIds)
-      : new Map<string, ProductSummaryDto>();
+    const productsMap: Map<string, ProductSummaryRes> = productIds.length
+      ? await this.productService.getProductsByIds(productIds)
+      : new Map<string, ProductSummaryRes>();
 
     let branchName =
       firstTicket?.branchName ||
@@ -1658,7 +1494,7 @@ export class OrderService
       }
     }
 
-    return {
+    return PosReceiptRes.of({
       orderId,
       orderCode: order.id.slice(-8).toUpperCase(),
       branchName,
@@ -1677,38 +1513,34 @@ export class OrderService
         const seatType =
           (t.seatShowtimeId && seatBookingMap.get(t.seatShowtimeId)) ||
           'Tiêu chuẩn';
-        return {
-          seatName: t.seatLabel,
-          seatType,
-          price: t.price,
-        };
+        return PosReceiptSeatRes.of(t.seatLabel, seatType, t.price);
       }),
       tickets: tickets.map((t) => {
         const seatType =
           (t.seatShowtimeId && seatBookingMap.get(t.seatShowtimeId)) ||
           'Tiêu chuẩn';
-        return {
-          ticketCode: t.ticketCode,
-          movieTitle: t.movieTitle,
-          roomName: t.roomName,
-          seatLabel: t.seatLabel,
-          seatName: t.seatLabel,
+        return PosReceiptTicketRes.of(
+          t.ticketCode,
+          t.movieTitle,
+          t.roomName,
+          t.seatLabel,
+          t.startTime,
+          t.endTime,
+          t.price,
+          t.seatLabel,
           seatType,
-          startTime: t.startTime,
-          endTime: t.endTime,
-          price: t.price,
-        };
+        );
       }),
       products: productOrders.map((po) => {
         const prod = productsMap.get(po.productId);
-        return {
-          productName: prod?.productName || po.productId,
-          quantity: po.quantity,
-          unitPrice: po.unitPrice,
-          subTotal: po.quantity * po.unitPrice,
-        };
+        return PosReceiptItemRes.of(
+          prod?.productName || po.productId,
+          po.quantity,
+          po.unitPrice,
+          po.quantity * po.unitPrice,
+        );
       }),
-    };
+    });
   }
 
   private async verifyOrderBranch(
@@ -1756,9 +1588,9 @@ export class OrderService
       where: { orderId: order.id },
     });
     const productIds = productOrders.map((po) => po.productId);
-    const productsMap: Map<string, ProductSummaryDto> = productIds.length
-      ? await this.productContract.getProductsByIds(productIds)
-      : new Map<string, ProductSummaryDto>();
+    const productsMap: Map<string, ProductSummaryRes> = productIds.length
+      ? await this.productService.getProductsByIds(productIds)
+      : new Map<string, ProductSummaryRes>();
 
     const createdAt = order.createdAt ?? new Date();
     const expiresAt = new Date(createdAt.getTime() + ORDER_HOLD_TIMEOUT_MS);
@@ -1767,32 +1599,37 @@ export class OrderService
       Math.floor((expiresAt.getTime() - Date.now()) / 1000),
     );
 
-    return {
-      orderId: order.id,
-      userId: order.userId,
-      status: order.status,
-      totalAmount: order.totalAmount,
+    const mappedSeats = seats.map((s) =>
+      BookingSeatRes.of(
+        s.seatShowtimeId,
+        s.seatId,
+        s.rowPosition,
+        s.columnPosition,
+        s.seatType,
+        s.basePrice,
+      ),
+    );
+    const mappedProducts = productOrders.map((po) => {
+      const prod = productsMap.get(po.productId);
+      return BookingProductRes.of(
+        po.productId,
+        prod?.productName || po.productId,
+        po.quantity,
+        po.unitPrice,
+      );
+    });
+
+    return PosBookingSummaryRes.of(
+      order.id,
+      order.userId,
+      order.status,
+      order.totalAmount,
       createdAt,
       expiresAt,
       remainingSeconds,
-      seats: seats.map((s) => ({
-        seatShowtimeId: s.seatShowtimeId,
-        seatId: s.seatId,
-        rowPosition: s.rowPosition,
-        columnPosition: s.columnPosition,
-        seatType: s.seatType,
-        price: s.basePrice,
-      })),
-      products: productOrders.map((po) => {
-        const prod = productsMap.get(po.productId);
-        return {
-          productId: po.productId,
-          productName: prod?.productName || po.productId,
-          quantity: po.quantity,
-          unitPrice: po.unitPrice,
-        };
-      }),
-    };
+      mappedSeats,
+      mappedProducts,
+    );
   }
 
   async scanTicket(
@@ -1834,9 +1671,10 @@ export class OrderService
       );
     }
 
-    const showtimeDetail = await this.showtimeContract.getSeatShowtimeDetail(
-      ticket.seatShowtimeId,
-    );
+    const showtimeDetail =
+      await this.showtimeBookingService.getSeatShowtimeDetail(
+        ticket.seatShowtimeId,
+      );
 
     if (!showtimeDetail) {
       throw new BadRequestException(
@@ -1939,9 +1777,10 @@ export class OrderService
       );
     }
 
-    const showtimeDetail = await this.showtimeContract.getSeatShowtimeDetail(
-      ticket.seatShowtimeId,
-    );
+    const showtimeDetail =
+      await this.showtimeBookingService.getSeatShowtimeDetail(
+        ticket.seatShowtimeId,
+      );
 
     const seatLabel = showtimeDetail
       ? `${showtimeDetail.rowPosition || ''}${showtimeDetail.columnPosition || ''}`
@@ -2025,7 +1864,7 @@ export class OrderService
 
     for (const seatShowtimeId of seatShowtimeIds) {
       const showtimeDetail =
-        await this.showtimeContract.getSeatShowtimeDetail(seatShowtimeId);
+        await this.showtimeBookingService.getSeatShowtimeDetail(seatShowtimeId);
       if (!showtimeDetail) {
         throw new BadRequestException(
           `Không tìm thấy thông tin suất chiếu cho ghế ${seatShowtimeId}`,
@@ -2063,29 +1902,32 @@ export class OrderService
 
     const results: TicketItemSummaryRes[] = [];
     for (const ticket of tickets) {
-      const showtimeDetail = await this.showtimeContract.getSeatShowtimeDetail(
-        ticket.seatShowtimeId,
-      );
+      const showtimeDetail =
+        await this.showtimeBookingService.getSeatShowtimeDetail(
+          ticket.seatShowtimeId,
+        );
       const seatLabel = showtimeDetail
         ? `${showtimeDetail.rowPosition || ''}${showtimeDetail.columnPosition || ''}`
         : '';
 
-      results.push({
-        ticketId: ticket.id,
-        ticketCode: ticket.ticketCode,
-        price: ticket.price,
-        ticketStatus: ticket.ticketStatus,
-        usedAt: ticket.usedAt ?? undefined,
-        seatShowtimeId: ticket.seatShowtimeId,
-        movieTitle: showtimeDetail?.movieTitle ?? '',
-        roomName: showtimeDetail?.roomName ?? '',
-        seatLabel,
-        startTime: showtimeDetail?.startTime ?? new Date(),
-        endTime: showtimeDetail?.endTime ?? new Date(),
-        branchId: showtimeDetail?.branchId,
-        branchName: showtimeDetail?.branchName,
-        branchAddress: showtimeDetail?.branchAddress,
-      });
+      results.push(
+        TicketItemSummaryRes.of(
+          ticket.id,
+          ticket.ticketCode,
+          ticket.price,
+          ticket.ticketStatus,
+          ticket.usedAt ?? undefined,
+          ticket.seatShowtimeId,
+          showtimeDetail?.movieTitle ?? '',
+          showtimeDetail?.roomName ?? '',
+          seatLabel,
+          showtimeDetail?.startTime ?? new Date(),
+          showtimeDetail?.endTime ?? new Date(),
+          showtimeDetail?.branchId,
+          showtimeDetail?.branchName,
+          showtimeDetail?.branchAddress,
+        ),
+      );
     }
 
     return results;
