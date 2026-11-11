@@ -30,10 +30,11 @@ export function resolvePriceField(
 export function toPriceValueDto(doc: {
   ruleId: string;
   adjustmentValue: number;
+  updatedAt?: Date;
 }): PriceValueResDto {
-  return {
-    ruleId: doc.ruleId,
-    multiplier: doc.adjustmentValue,
-    updatedAt: (doc as unknown as { updatedAt: Date }).updatedAt,
-  };
+  return PriceValueResDto.of(
+    doc.ruleId,
+    doc.adjustmentValue,
+    (doc as unknown as { updatedAt: Date }).updatedAt,
+  );
 }
