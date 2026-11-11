@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { PriceValue, SubmitResult, validateMultiplierInput } from "../api";
@@ -17,8 +17,9 @@ interface Props {
 }
 
 const numberFormat = new Intl.NumberFormat("vi-VN", {
-  minimumFractionDigits: 1,
+  minimumFractionDigits: 0,
   maximumFractionDigits: 2,
+  useGrouping: false,
 });
 
 const dateTimeFormat = new Intl.DateTimeFormat("vi-VN", {
@@ -32,7 +33,7 @@ export function formatMultiplier(multiplier: number): string {
 }
 
 const iconButtonClass =
-  "h-10 rounded-lg border border-border-main bg-white px-3 text-sm font-medium text-text-main transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-primary-600 disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transition-none";
+  "inline-flex h-[34px] cursor-pointer items-center justify-center border border-[#dad2b4] bg-white px-3 text-[12px] font-bold text-[#6f6247] transition-colors hover:bg-[#dad2b4] hover:text-[#231f20] focus-visible:ring-1 focus-visible:ring-[#da291c] disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none";
 
 export default function PriceValueRow({
   value,
@@ -103,7 +104,7 @@ export default function PriceValueRow({
   }
 
   return (
-    <li className="rounded-lg border border-border-main px-3 py-2.5">
+    <li className="border border-[#dad2b4] bg-[#fcfbfa] px-3 py-2.5">
       {editing ? (
         <form onSubmit={submit} noValidate>
           <div className="flex flex-wrap items-center gap-3">
@@ -124,15 +125,15 @@ export default function PriceValueRow({
                 aria-label={`Hệ số mới thay cho ${text} của ${fieldLabel}`}
                 aria-invalid={error ? "true" : "false"}
                 aria-describedby={error ? errorId : undefined}
-                className={`h-10 w-full rounded-lg border bg-white pl-3 pr-8 text-sm text-text-main focus:outline-none focus:ring-1 read-only:cursor-not-allowed read-only:opacity-70 ${
+                className={`h-[38px] w-full border bg-white pl-3 pr-8 text-[13px] text-[#231f20] focus:outline-none focus:ring-1 read-only:cursor-not-allowed read-only:opacity-70 ${
                   error
-                    ? "border-status-danger focus:border-status-danger focus:ring-status-danger"
-                    : "border-border-main focus:border-primary-600 focus:ring-primary-600"
+                    ? "border-[#da291c] focus:border-[#da291c] focus:ring-[#da291c]"
+                    : "border-[#dad2b4] focus:border-[#da291c] focus:ring-[#da291c]"
                 }`}
               />
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-text-muted"
+                className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] text-[#9d9580]"
               >
                 x
               </span>
@@ -141,7 +142,7 @@ export default function PriceValueRow({
               <button
                 type="submit"
                 aria-disabled={disabled}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary-600 px-3 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:ring-2 focus-visible:ring-primary-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-70 motion-reduce:transition-none"
+                className="inline-flex h-[34px] cursor-pointer items-center gap-2 bg-[#da291c] px-4 text-[12px] font-bold text-white transition-colors hover:bg-[#b82116] aria-disabled:cursor-not-allowed aria-disabled:opacity-70 motion-reduce:transition-none"
               >
                 {saving && (
                   <svg
@@ -179,7 +180,7 @@ export default function PriceValueRow({
             </div>
           </div>
           {error && (
-            <p id={errorId} className="mt-1 text-xs text-status-danger">
+            <p id={errorId} className="mt-1 text-xs font-bold text-[#da291c]">
               {error}
             </p>
           )}
@@ -187,8 +188,8 @@ export default function PriceValueRow({
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-base font-semibold text-text-main">{text}</p>
-            <p className="text-xs text-text-muted">
+            <p className="font-['Georgia',serif] text-[20px] font-bold text-[#231f20]">{text}</p>
+            <p className="text-[12px] text-[#666]">
               Cập nhật lần cuối:{" "}
               {value.updatedAt
                 ? dateTimeFormat.format(new Date(value.updatedAt))
@@ -212,7 +213,7 @@ export default function PriceValueRow({
               onClick={onDelete}
               disabled={disabled}
               aria-label={`Xóa hệ số ${text} của ${fieldLabel}`}
-              className="h-10 rounded-lg border border-red-200 bg-white px-3 text-sm font-medium text-status-danger transition-colors hover:bg-primary-50 focus-visible:ring-2 focus-visible:ring-primary-600 disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transition-none"
+              className="inline-flex h-[34px] cursor-pointer items-center justify-center border border-[#fecaca] bg-white px-3 text-[12px] font-bold text-[#da291c] transition-colors hover:bg-[#fef2f2] focus-visible:ring-1 focus-visible:ring-[#da291c] disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
             >
               Xóa
             </button>

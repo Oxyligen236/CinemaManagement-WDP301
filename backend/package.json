@@ -19,7 +19,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:users": "ts-node scripts/seed-users.ts",
-    "seed:movies": "ts-node scripts/seed-movies.ts"
+    "seed:movies": "ts-node scripts/seed-movies.ts",
+    "seed:lotte": "ts-node scripts/seed-lotte-data.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",
@@ -42,7 +43,6 @@
     "handlebars": "^4.7.9",
     "ioredis": "^5.11.1",
     "nodemailer": "^10.0.15",
-    "prisma": "6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "vnpay": "^2.5.0"
@@ -65,6 +65,7 @@
     "globals": "^17.0.0",
     "jest": "^30.0.0",
     "prettier": "^3.4.2",
+    "prisma": "6.19.3",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",

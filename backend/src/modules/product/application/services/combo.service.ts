@@ -279,7 +279,9 @@ export class ComboService
       throw new ForbiddenException('Không tìm thấy thông tin quản lý');
     }
 
-    const isManager = manager.role === Role.MANAGER;
+    const isManager =
+      manager.role === Role.MANAGER ||
+      (manager.role as any) === 'BRANCHMANAGER';
     if (!manager.isActive || !isManager) {
       throw new ForbiddenException(
         'Bạn không có quyền thực hiện chức năng quản lý bắp nước',

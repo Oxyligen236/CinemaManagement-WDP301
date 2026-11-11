@@ -8,6 +8,9 @@ import { MailModule } from '../infra/mail/mail.module';
 import { AuthModule } from '../auth/auth.module';
 import { PasswordResetService } from './application/services/password-reset.service';
 import { UserBranchQueryService } from './application/services/user-branch-query.service';
+import { UserProfileQueryService } from './application/services/user-profile-query.service';
+import { UserProfileCommandService } from './application/services/user-profile-command.service';
+import { ChangePasswordService } from './application/services/change-password.service';
 
 @Module({
   imports: [EventModule, MailModule, AuthModule],
@@ -18,7 +21,15 @@ import { UserBranchQueryService } from './application/services/user-branch-query
     UserAuthenticationService,
     PasswordResetService,
     UserBranchQueryService,
+    UserProfileQueryService,
+    UserProfileCommandService,
+    ChangePasswordService,
   ],
-  exports: [UserBranchQueryService],
+  exports: [
+    UserBranchQueryService,
+    UserProfileQueryService,
+    UserProfileCommandService,
+    ChangePasswordService,
+  ],
 })
 export class UserModule {}

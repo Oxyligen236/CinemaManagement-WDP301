@@ -84,6 +84,7 @@ export class MovieOptionQueryService
       duration: doc.duration,
       status: doc.status,
       isActive: doc.isActive,
+      posterUrl: this.resolvePosterUrl(doc.posterKey),
     };
   }
 

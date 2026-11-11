@@ -4,7 +4,10 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
+  Put,
+  UseGuards,
   Query,
   UsePipes,
   ValidationPipe,
@@ -24,6 +27,17 @@ import {
 } from '../application/dto/forgot-password.dto';
 import { PasswordResetService } from '../application/services/password-reset.service';
 import { UserRegistrationService } from '../application/services/user-registration.service';
+import { JwtGuard } from '../../auth/infra/guards/jwt.guard';
+import { CurrentUser } from '../../auth/infra/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../../auth/domain/types/authenticated-user.type';
+import {
+  ChangePasswordReq,
+  UpdateProfileReq,
+} from '../application/dto/req.dto';
+import { UserProfileRes } from '../application/dto/res.dto';
+import { UserProfileQueryService } from '../application/services/user-profile-query.service';
+import { UserProfileCommandService } from '../application/services/user-profile-command.service';
+import { ChangePasswordService } from '../application/services/change-password.service';
 
 @Controller('auth')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -32,6 +46,9 @@ export class UserController {
     private readonly userRegistrationService: UserRegistrationService,
     private readonly userAuthenticationService: UserAuthenticationService,
     private readonly passwordResetService: PasswordResetService,
+    private readonly userProfileQueryService: UserProfileQueryService,
+    private readonly userProfileCommandService: UserProfileCommandService,
+    private readonly changePasswordService: ChangePasswordService,
   ) {}
 
   @Post('register')
@@ -76,5 +93,29 @@ export class UserController {
       input.code,
       input.newPassword,
     );
+  }
+
+  @UseGuards(JwtGuard)
+  @Get('profile')
+  getProfile(@CurrentUser() user: AuthenticatedUser): Promise<UserProfileRes> {
+    return this.userProfileQueryService.execute(user.userId);
+  }
+
+  @UseGuards(JwtGuard)
+  @Patch('profile')
+  updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateProfileReq,
+  ): Promise<UserProfileRes> {
+    return this.userProfileCommandService.execute(user.userId, dto);
+  }
+
+  @UseGuards(JwtGuard)
+  @Put('change-password')
+  changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordReq,
+  ): Promise<{ message: string }> {
+    return this.changePasswordService.execute(user.userId, dto);
   }
 }

@@ -138,6 +138,7 @@ describe('MovieOptionQueryService', () => {
         duration: 166,
         status: 'NOW_SHOWING',
         isActive: true,
+        posterUrl: 'https://cdn/x.jpg',
       });
     });
 

@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   LogOut,
+  User,
   Home,
   ChevronRight,
 } from 'lucide-react';
@@ -103,6 +104,15 @@ export default function StaffLayout({
             <span className="bg-[#da291c] text-white text-[10px] uppercase font-bold px-2 py-0.5">
               STAFF
             </span>
+          </li>
+          <li>
+            <Link
+              href="/profile"
+              className="inline-flex items-center gap-1 text-[#6f6247] hover:text-[#da291c] hover:underline cursor-pointer"
+            >
+              <User className="h-3 w-3" />
+              Hồ sơ
+            </Link>
           </li>
           <li>
             <button

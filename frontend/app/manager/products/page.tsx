@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-'use client';
+"use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   UtensilsCrossed,
   Package,
@@ -22,7 +22,8 @@ import {
   AlertCircle,
   Tag,
   CheckCircle,
-} from 'lucide-react';
+  Ban,
+} from "lucide-react";
 import {
   ItemRes,
   ComboRes,
@@ -30,15 +31,15 @@ import {
   ItemStatus,
   ComboStatus,
   concessionApi,
-} from '@/lib/api/manager/concession';
-import { formatCurrency } from '@/lib/utils/formatters';
-import ItemFormModal from './components/ItemFormModal';
-import StockAdjustModal from './components/StockAdjustModal';
-import ImportExcelModal from './components/ImportExcelModal';
-import ComboFormModal from './components/ComboFormModal';
+} from "@/lib/api/manager/concession";
+import { formatCurrency } from "@/lib/utils/formatters";
+import ItemFormModal from "./components/ItemFormModal";
+import StockAdjustModal from "./components/StockAdjustModal";
+import ImportExcelModal from "./components/ImportExcelModal";
+import ComboFormModal from "./components/ComboFormModal";
 
 export default function ManagerProductsPage() {
-  const [activeTab, setActiveTab] = useState<'ITEMS' | 'COMBOS'>('ITEMS');
+  const [activeTab, setActiveTab] = useState<"ITEMS" | "COMBOS">("ITEMS");
 
   // Data states
   const [items, setItems] = useState<ItemRes[]>([]);
@@ -47,14 +48,14 @@ export default function ManagerProductsPage() {
   const [combosLoading, setCombosLoading] = useState(true);
 
   // Filter States for Items
-  const [itemSearch, setItemSearch] = useState('');
-  const [itemCategory, setItemCategory] = useState<ItemCategory | ''>('');
-  const [itemStatus, setItemStatus] = useState<ItemStatus | ''>('');
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemCategory, setItemCategory] = useState<ItemCategory | "">("");
+  const [itemStatus, setItemStatus] = useState<ItemStatus | "">("");
   const [lowStockOnly, setLowStockOnly] = useState(false);
 
   // Filter States for Combos
-  const [comboSearch, setComboSearch] = useState('');
-  const [comboStatus, setComboStatus] = useState<ComboStatus | ''>('');
+  const [comboSearch, setComboSearch] = useState("");
+  const [comboStatus, setComboStatus] = useState<ComboStatus | "">("");
 
   // Modals state
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
@@ -70,7 +71,7 @@ export default function ManagerProductsPage() {
 
   // Quick Action notification / error
   const [feedbackMsg, setFeedbackMsg] = useState<{
-    type: 'success' | 'error';
+    type: "success" | "error";
     text: string;
   } | null>(null);
 
@@ -88,11 +89,11 @@ export default function ManagerProductsPage() {
       setItems(res.items || []);
     } catch (err: unknown) {
       setFeedbackMsg({
-        type: 'error',
+        type: "error",
         text:
           err instanceof Error
             ? err.message
-            : 'Không thể tải danh sách sản phẩm',
+            : "Không thể tải danh sách sản phẩm",
       });
     } finally {
       setItemsLoading(false);
@@ -111,9 +112,9 @@ export default function ManagerProductsPage() {
       setCombos(res.items || []);
     } catch (err: unknown) {
       setFeedbackMsg({
-        type: 'error',
+        type: "error",
         text:
-          err instanceof Error ? err.message : 'Không thể tải danh sách combo',
+          err instanceof Error ? err.message : "Không thể tải danh sách combo",
       });
     } finally {
       setCombosLoading(false);
@@ -130,58 +131,58 @@ export default function ManagerProductsPage() {
 
   // KPI calculations
   const activeItemsCount = items.filter(
-    (it) => it.status === 'AVAILABLE',
+    (it) => it.status === "AVAILABLE",
   ).length;
   const lowStockCount = items.filter(
     (it) => it.stockQuantity <= it.lowStockThreshold,
   ).length;
   const activeCombosCount = combos.filter(
-    (cb) => cb.status === 'AVAILABLE' && cb.availableStock > 0,
+    (cb) => cb.status === "AVAILABLE" && cb.availableStock > 0,
   ).length;
   const outOfStockCombosCount = combos.filter(
-    (cb) => cb.status === 'OUT_OF_STOCK' || cb.availableStock === 0,
+    (cb) => cb.status === "OUT_OF_STOCK" || cb.availableStock === 0,
   ).length;
 
   // Status Change Handlers
   const handleToggleItemStatus = async (item: ItemRes) => {
     const nextStatus: ItemStatus =
-      item.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE';
+      item.status === "AVAILABLE" ? "INACTIVE" : "AVAILABLE";
     try {
       await concessionApi.changeItemStatus(item.itemId, nextStatus);
       setFeedbackMsg({
-        type: 'success',
+        type: "success",
         text: `Đã đổi trạng thái "${item.name}" sang ${nextStatus}`,
       });
       fetchItems();
       fetchCombos();
     } catch (err: unknown) {
       setFeedbackMsg({
-        type: 'error',
+        type: "error",
         text:
           err instanceof Error
             ? err.message
-            : 'Không thể cập nhật trạng thái món',
+            : "Không thể cập nhật trạng thái món",
       });
     }
   };
 
   const handleToggleComboStatus = async (combo: ComboRes) => {
     const nextStatus: ComboStatus =
-      combo.status === 'AVAILABLE' ? 'INACTIVE' : 'AVAILABLE';
+      combo.status === "AVAILABLE" ? "INACTIVE" : "AVAILABLE";
     try {
       await concessionApi.changeComboStatus(combo.comboId, nextStatus);
       setFeedbackMsg({
-        type: 'success',
+        type: "success",
         text: `Đã đổi trạng thái "${combo.name}" sang ${nextStatus}`,
       });
       fetchCombos();
     } catch (err: unknown) {
       setFeedbackMsg({
-        type: 'error',
+        type: "error",
         text:
           err instanceof Error
             ? err.message
-            : 'Không thể cập nhật trạng thái combo',
+            : "Không thể cập nhật trạng thái combo",
       });
     }
   };
@@ -193,15 +194,15 @@ export default function ManagerProductsPage() {
     try {
       await concessionApi.deleteCombo(comboId);
       setFeedbackMsg({
-        type: 'success',
+        type: "success",
         text: `Đã xóa gói combo "${name}" thành công`,
       });
       fetchCombos();
     } catch (err: unknown) {
       setFeedbackMsg({
-        type: 'error',
+        type: "error",
         text:
-          err instanceof Error ? err.message : 'Không thể xóa gói combo này',
+          err instanceof Error ? err.message : "Không thể xóa gói combo này",
       });
     }
   };
@@ -210,22 +211,22 @@ export default function ManagerProductsPage() {
     try {
       const blob = await concessionApi.downloadExcelTemplate();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = 'Mau_Kiem_Ke_SanPham_FB.xlsx';
+      a.download = "Mau_Kiem_Ke_SanPham_FB.xlsx";
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       setFeedbackMsg({
-        type: 'success',
-        text: 'Đã tải file Excel mẫu thành công',
+        type: "success",
+        text: "Đã tải file Excel mẫu thành công",
       });
     } catch (err: unknown) {
       setFeedbackMsg({
-        type: 'error',
+        type: "error",
         text:
-          err instanceof Error ? err.message : 'Không thể tải file mẫu Excel',
+          err instanceof Error ? err.message : "Không thể tải file mẫu Excel",
       });
     }
   };
@@ -243,7 +244,8 @@ export default function ManagerProductsPage() {
             <span>Quản lý Bắp nước & Combo</span>
           </h1>
           <p className="mt-1 text-[13px] text-[#666]">
-            Quản trị danh mục ẩm thực rạp, theo dõi tồn kho thực tế, nhập liệu Excel và tính toán tồn kho ảo gói combo.
+            Quản trị danh mục ẩm thực rạp, theo dõi tồn kho thực tế, nhập liệu
+            Excel và tính toán tồn kho ảo gói combo.
           </p>
         </div>
 
@@ -274,13 +276,13 @@ export default function ManagerProductsPage() {
       {feedbackMsg && (
         <div
           className={`flex items-center justify-between p-3.5 border text-[13px] ${
-            feedbackMsg.type === 'success'
-              ? 'bg-[#f0fdf4] border-[#bbf7d0] text-[#15803d]'
-              : 'bg-[#fef2f2] border-[#fca5a5] text-[#b91c1c]'
+            feedbackMsg.type === "success"
+              ? "bg-[#f0fdf4] border-[#bbf7d0] text-[#15803d]"
+              : "bg-[#fef2f2] border-[#fca5a5] text-[#b91c1c]"
           }`}
         >
           <div className="flex items-center gap-2">
-            {feedbackMsg.type === 'success' ? (
+            {feedbackMsg.type === "success" ? (
               <CheckCircle className="h-4 w-4 shrink-0" />
             ) : (
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -376,11 +378,11 @@ export default function ManagerProductsPage() {
       <div className="border-b border-[#dad2b4] flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setActiveTab('ITEMS')}
+          onClick={() => setActiveTab("ITEMS")}
           className={`flex items-center gap-2 px-6 py-3 text-[14px] font-bold border-b-2 cursor-pointer transition-colors ${
-            activeTab === 'ITEMS'
-              ? 'border-[#da291c] text-[#da291c] bg-[#efebdb]'
-              : 'border-transparent text-[#6f6247] hover:text-[#231f20] hover:bg-[#fcfbfa]'
+            activeTab === "ITEMS"
+              ? "border-[#da291c] text-[#da291c] bg-[#efebdb]"
+              : "border-transparent text-[#6f6247] hover:text-[#231f20] hover:bg-[#fcfbfa]"
           }`}
         >
           <Package className="h-4 w-4" />
@@ -392,11 +394,11 @@ export default function ManagerProductsPage() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('COMBOS')}
+          onClick={() => setActiveTab("COMBOS")}
           className={`flex items-center gap-2 px-6 py-3 text-[14px] font-bold border-b-2 cursor-pointer transition-colors ${
-            activeTab === 'COMBOS'
-              ? 'border-[#da291c] text-[#da291c] bg-[#efebdb]'
-              : 'border-transparent text-[#6f6247] hover:text-[#231f20] hover:bg-[#fcfbfa]'
+            activeTab === "COMBOS"
+              ? "border-[#da291c] text-[#da291c] bg-[#efebdb]"
+              : "border-transparent text-[#6f6247] hover:text-[#231f20] hover:bg-[#fcfbfa]"
           }`}
         >
           <Layers className="h-4 w-4" />
@@ -408,7 +410,7 @@ export default function ManagerProductsPage() {
       </div>
 
       {/* TAB 1: SẢN PHẨM ĐƠN (ITEMS) */}
-      {activeTab === 'ITEMS' && (
+      {activeTab === "ITEMS" && (
         <div className="space-y-4">
           {/* Filter Bar & Action buttons */}
           <div className="bg-[#efebdb] border border-[#dad2b4] p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -430,7 +432,7 @@ export default function ManagerProductsPage() {
               <select
                 value={itemCategory}
                 onChange={(e) =>
-                  setItemCategory(e.target.value as ItemCategory | '')
+                  setItemCategory(e.target.value as ItemCategory | "")
                 }
                 className="h-[38px] border border-[#dad2b4] bg-white px-3 text-[13px] text-[#231f20] outline-none focus:border-[#a3e635]"
               >
@@ -445,7 +447,7 @@ export default function ManagerProductsPage() {
               <select
                 value={itemStatus}
                 onChange={(e) =>
-                  setItemStatus(e.target.value as ItemStatus | '')
+                  setItemStatus(e.target.value as ItemStatus | "")
                 }
                 className="h-[38px] border border-[#dad2b4] bg-white px-3 text-[13px] text-[#231f20] outline-none focus:border-[#a3e635]"
               >
@@ -485,7 +487,7 @@ export default function ManagerProductsPage() {
                 className="inline-flex h-[38px] items-center gap-1.5 border border-[#dad2b4] bg-white px-3.5 text-[12px] font-bold text-[#231f20] hover:bg-[#efebdb] transition-colors cursor-pointer"
               >
                 <FileSpreadsheet className="h-4 w-4 text-[#15803d]" />
-                <span>📥 Import Excel</span>
+                <span>Import Excel</span>
               </button>
 
               <button
@@ -497,7 +499,7 @@ export default function ManagerProductsPage() {
                 className="inline-flex h-[38px] items-center gap-1.5 bg-[#a3e635] px-4 text-[13px] font-bold text-[#18181b] hover:bg-[#84cc16] shadow-sm transition-colors cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                <span>+ Thêm món lẻ</span>
+                <span>Thêm món lẻ</span>
               </button>
             </div>
           </div>
@@ -518,7 +520,8 @@ export default function ManagerProductsPage() {
                   Không tìm thấy sản phẩm đơn nào
                 </p>
                 <p className="text-[12px] mt-1">
-                  Hãy thử thay đổi bộ lọc tìm kiếm hoặc bấm &ldquo;+ Thêm món lẻ&rdquo; để tạo mới.
+                  Hãy thử thay đổi bộ lọc tìm kiếm hoặc bấm &ldquo;+ Thêm món
+                  lẻ&rdquo; để tạo mới.
                 </p>
               </div>
             ) : (
@@ -544,7 +547,7 @@ export default function ManagerProductsPage() {
                       <tr
                         key={item.itemId}
                         className={`hover:bg-[#fcfbfa] transition-colors ${
-                          isLow ? 'bg-[#fffdf7]' : ''
+                          isLow ? "bg-[#fffdf7]" : ""
                         }`}
                       >
                         {/* Thumbnail */}
@@ -585,7 +588,7 @@ export default function ManagerProductsPage() {
                         {/* Size */}
                         <td className="py-3 px-4 text-center">
                           <span className="font-semibold text-[#555]">
-                            {item.size || '—'}
+                            {item.size || "—"}
                           </span>
                         </td>
 
@@ -605,8 +608,8 @@ export default function ManagerProductsPage() {
                             <span
                               className={`px-2.5 py-0.5 text-[12px] font-bold ${
                                 isLow
-                                  ? 'bg-[#fee2e2] text-[#da291c] border border-[#fca5a5]'
-                                  : 'bg-[#dcfce7] text-[#15803d]'
+                                  ? "bg-[#fee2e2] text-[#da291c] border border-[#fca5a5]"
+                                  : "bg-[#dcfce7] text-[#15803d]"
                               }`}
                             >
                               {item.stockQuantity}
@@ -621,17 +624,20 @@ export default function ManagerProductsPage() {
 
                         {/* Status */}
                         <td className="py-3 px-4 text-center">
-                          {item.status === 'AVAILABLE' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#f0fdf4] text-[#15803d] border border-[#bbf7d0]">
-                              ● Đang bán
+                          {item.status === "AVAILABLE" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>Đang bán</span>
                             </span>
-                          ) : item.status === 'OUT_OF_STOCK' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#fef2f2] text-[#da291c] border border-[#fca5a5]">
-                              ● Hết hàng
+                          ) : item.status === "OUT_OF_STOCK" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span>Hết hàng</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
-                              ● Ngừng bán
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                              <Ban className="h-3 w-3" />
+                              <span>Ngừng bán</span>
                             </span>
                           )}
                         </td>
@@ -686,7 +692,7 @@ export default function ManagerProductsPage() {
       )}
 
       {/* TAB 2: GÓI COMBO */}
-      {activeTab === 'COMBOS' && (
+      {activeTab === "COMBOS" && (
         <div className="space-y-4">
           {/* Filter Bar & Action buttons */}
           <div className="bg-[#efebdb] border border-[#dad2b4] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -705,13 +711,15 @@ export default function ManagerProductsPage() {
               <select
                 value={comboStatus}
                 onChange={(e) =>
-                  setComboStatus(e.target.value as ComboStatus | '')
+                  setComboStatus(e.target.value as ComboStatus | "")
                 }
                 className="h-[38px] border border-[#dad2b4] bg-white px-3 text-[13px] text-[#231f20] outline-none focus:border-[#a3e635]"
               >
                 <option value="">Tất cả trạng thái combo</option>
                 <option value="AVAILABLE">Đang kinh doanh</option>
-                <option value="OUT_OF_STOCK">Tạm ngưng / Hết nguyên liệu</option>
+                <option value="OUT_OF_STOCK">
+                  Tạm ngưng / Hết nguyên liệu
+                </option>
                 <option value="INACTIVE">Ngừng kinh doanh</option>
               </select>
             </div>
@@ -725,7 +733,7 @@ export default function ManagerProductsPage() {
               className="inline-flex h-[38px] items-center gap-1.5 bg-[#a3e635] px-4 text-[13px] font-bold text-[#18181b] hover:bg-[#84cc16] shadow-sm transition-colors cursor-pointer shrink-0"
             >
               <Plus className="h-4 w-4" />
-              <span>+ Tạo gói Combo mới</span>
+              <span>Tạo gói Combo mới</span>
             </button>
           </div>
 
@@ -745,7 +753,8 @@ export default function ManagerProductsPage() {
                   Chưa có gói Combo nào được tạo
                 </p>
                 <p className="text-[12px] mt-1">
-                  Bấm &ldquo;+ Tạo gói Combo mới&rdquo; để kết hợp bắp nước thành gói ưu đãi cho khách hàng.
+                  Bấm &ldquo;+ Tạo gói Combo mới&rdquo; để kết hợp bắp nước
+                  thành gói ưu đãi cho khách hàng.
                 </p>
               </div>
             ) : (
@@ -769,7 +778,7 @@ export default function ManagerProductsPage() {
                       <tr
                         key={combo.comboId}
                         className={`hover:bg-[#fcfbfa] transition-colors ${
-                          isZeroStock ? 'bg-[#fffdf7]' : ''
+                          isZeroStock ? "bg-[#fffdf7]" : ""
                         }`}
                       >
                         {/* Thumbnail */}
@@ -808,11 +817,11 @@ export default function ManagerProductsPage() {
                                 key={subItem.itemId}
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] border font-medium ${
                                   subItem.currentStock < subItem.quantity
-                                    ? 'border-[#fca5a5] bg-[#fee2e2] text-[#b91c1c]'
-                                    : 'border-[#dad2b4] bg-[#fcfbfa] text-[#555]'
+                                    ? "border-[#fca5a5] bg-[#fee2e2] text-[#b91c1c]"
+                                    : "border-[#dad2b4] bg-[#fcfbfa] text-[#555]"
                                 }`}
                               >
-                                <strong>{subItem.quantity}x</strong>{' '}
+                                <strong>{subItem.quantity}x</strong>{" "}
                                 <span>{subItem.name}</span>
                                 {subItem.size && <span>({subItem.size})</span>}
                               </span>
@@ -844,8 +853,8 @@ export default function ManagerProductsPage() {
                             <span
                               className={`px-3 py-0.5 text-[12px] font-bold ${
                                 isZeroStock
-                                  ? 'bg-[#fee2e2] text-[#da291c] border border-[#fca5a5]'
-                                  : 'bg-[#dcfce7] text-[#15803d]'
+                                  ? "bg-[#fee2e2] text-[#da291c] border border-[#fca5a5]"
+                                  : "bg-[#dcfce7] text-[#15803d]"
                               }`}
                             >
                               {combo.availableStock} combo
@@ -860,17 +869,20 @@ export default function ManagerProductsPage() {
 
                         {/* Status */}
                         <td className="py-3 px-4 text-center">
-                          {combo.status === 'AVAILABLE' && !isZeroStock ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#f0fdf4] text-[#15803d] border border-[#bbf7d0]">
-                              ● Đang bán
+                          {combo.status === "AVAILABLE" && !isZeroStock ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>Đang bán</span>
                             </span>
-                          ) : isZeroStock || combo.status === 'OUT_OF_STOCK' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#fef2f2] text-[#da291c] border border-[#fca5a5]">
-                              ● Hết hàng
+                          ) : isZeroStock || combo.status === "OUT_OF_STOCK" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span>Hết hàng</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
-                              ● Ngừng bán
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+                              <Ban className="h-3 w-3" />
+                              <span>Ngừng bán</span>
                             </span>
                           )}
                         </td>
@@ -932,10 +944,10 @@ export default function ManagerProductsPage() {
         }}
         onSuccess={() => {
           setFeedbackMsg({
-            type: 'success',
+            type: "success",
             text: itemToEdit
-              ? 'Cập nhật món lẻ thành công'
-              : 'Tạo mới món lẻ thành công',
+              ? "Cập nhật món lẻ thành công"
+              : "Tạo mới món lẻ thành công",
           });
           fetchItems();
           fetchCombos();
@@ -952,8 +964,8 @@ export default function ManagerProductsPage() {
         }}
         onSuccess={() => {
           setFeedbackMsg({
-            type: 'success',
-            text: 'Điều chỉnh tồn kho thành công',
+            type: "success",
+            text: "Điều chỉnh tồn kho thành công",
           });
           fetchItems();
           fetchCombos();
@@ -980,10 +992,10 @@ export default function ManagerProductsPage() {
         }}
         onSuccess={() => {
           setFeedbackMsg({
-            type: 'success',
+            type: "success",
             text: comboToEdit
-              ? 'Cập nhật combo thành công'
-              : 'Tạo mới gói combo thành công',
+              ? "Cập nhật combo thành công"
+              : "Tạo mới gói combo thành công",
           });
           fetchCombos();
         }}

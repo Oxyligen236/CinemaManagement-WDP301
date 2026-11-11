@@ -1,0 +1,17 @@
+sequenceDiagram
+    autonumber
+    actor Customer as Customer (User)
+    participant UI as CustomerClient: Boundary
+    participant OrderCtrl as OrderController: Controller
+    participant OrderSvc as OrderService: Service
+    participant VNPay as VNPayGateway: External
+
+    %% ================= STAGE 2: VNPAY PAYMENT URL INITIALIZATION =================
+    Customer ->>+ UI: Click "Pay with VNPay"
+    UI ->>+ OrderCtrl: POST /orders/:orderId/vnpay
+    OrderCtrl ->>+ OrderSvc: createVnpayPayment(userId, orderId, clientIp)
+    OrderSvc ->>+ VNPay: buildPaymentUrl(orderId, totalAmount, ipAddr)
+    VNPay -->>- OrderSvc: paymentUrl 
+    OrderSvc -->>- OrderCtrl: VnpayPaymentDto { paymentUrl }
+    OrderCtrl -->>- UI: 200 OK { paymentUrl }
+    UI -->>- Customer: Redirect browser to VNPay gateway

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useState } from "react";
 import {
@@ -51,10 +51,10 @@ export default function AddPriceValueForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="mt-4">
+    <form onSubmit={submit} noValidate className="mt-5 border-t border-[#f0eee4] pt-4">
       <label
         htmlFor={inputId}
-        className="mb-1 block text-sm font-medium text-text-main"
+        className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#6f6247]"
       >
         Thêm giá trị
       </label>
@@ -76,15 +76,15 @@ export default function AddPriceValueForm({
             aria-label={`Hệ số mới cho ${fieldLabel}`}
             aria-invalid={error ? "true" : "false"}
             aria-describedby={describedBy || undefined}
-            className={`h-10 w-full rounded-lg border bg-white pl-3 pr-8 text-sm text-text-main placeholder:text-text-muted focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-70 read-only:opacity-70 ${
+            className={`h-[38px] w-full border bg-[#fcfbfa] pl-3 pr-8 text-[13px] text-[#231f20] placeholder:text-[#9d9580] focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-70 read-only:opacity-70 ${
               error
-                ? "border-status-danger focus:border-status-danger focus:ring-status-danger"
-                : "border-border-main focus:border-primary-600 focus:ring-primary-600"
+                ? "border-[#da291c] focus:border-[#da291c] focus:ring-[#da291c]"
+                : "border-[#dad2b4] focus:border-[#da291c] focus:ring-[#da291c]"
             }`}
           />
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-text-muted"
+            className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[13px] text-[#9d9580]"
           >
             x
           </span>
@@ -93,7 +93,7 @@ export default function AddPriceValueForm({
           type="submit"
           disabled={full}
           aria-disabled={disabled || full}
-          className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:ring-2 focus-visible:ring-primary-600 disabled:cursor-not-allowed disabled:opacity-70 aria-disabled:cursor-not-allowed aria-disabled:opacity-70 motion-reduce:transition-none"
+          className="inline-flex h-[38px] cursor-pointer items-center gap-2 bg-[#da291c] px-5 text-[13px] font-bold text-white transition-colors hover:bg-[#b82116] disabled:cursor-not-allowed disabled:opacity-70 aria-disabled:cursor-not-allowed aria-disabled:opacity-70 motion-reduce:transition-none"
         >
           {submitting && (
             <svg
@@ -122,12 +122,12 @@ export default function AddPriceValueForm({
         </button>
       </div>
       {error && (
-        <p id={errorId} className="mt-1 text-xs text-status-danger">
+        <p id={errorId} className="mt-1.5 text-xs font-bold text-[#da291c]">
           {error}
         </p>
       )}
       {full && (
-        <p id={hintId} className="mt-1 text-xs text-status-danger">
+        <p id={hintId} className="mt-1.5 text-xs font-bold text-[#da291c]">
           {MSG_MAX_VALUES}
         </p>
       )}

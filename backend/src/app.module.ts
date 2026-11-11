@@ -14,7 +14,6 @@ import { BranchModule } from './modules/branch/branch.module';
 import { RoomModule } from './modules/room/room.module';
 import { ProductModule } from './modules/product/product.module';
 import { OrderModule } from './modules/order/order.module';
-import { TicketModule } from './modules/ticket/ticket.module';
 import { PromotionModule } from './modules/promotion/promotion.module';
 import { MovieModule } from './modules/movie/movie.module';
 import { ShowtimeModule } from './modules/showtime/showtime.module';
@@ -62,7 +61,6 @@ import { StatisticsModule } from './modules/statistics/statistics.module';
     RoomModule,
     ProductModule,
     OrderModule,
-    TicketModule,
     PromotionModule,
     MovieModule,
     ShowtimeModule,
