@@ -556,14 +556,6 @@ export default function MovieDetailPage({
                     <span className="w-32 text-[#6b7280] font-medium shrink-0">Khởi chiếu</span>
                     <span className="font-semibold text-[#111827]">{formatDateVi(movie.releaseDate)}</span>
                   </div>
-                  <div className="flex items-center">
-                    <span className="w-32 text-[#6b7280] font-medium shrink-0">Đạo diễn</span>
-                    <span className="text-[#4b5563]">Đang cập nhật</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-32 text-[#6b7280] font-medium shrink-0">Diễn viên</span>
-                    <span className="text-[#4b5563]">Đang cập nhật</span>
-                  </div>
                 </div>
               </div>
 

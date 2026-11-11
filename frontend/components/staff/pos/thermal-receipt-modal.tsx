@@ -44,11 +44,40 @@ export function ThermalReceiptModal({
     return [];
   }, [receipt]);
 
-  useEffect(() => {
-    if (tickets.length > 0 && !selectedTicketCode) {
-      setSelectedTicketCode(tickets[0].ticketCode);
-    }
+  const activeTicketCode = useMemo(() => {
+    if (tickets.length === 0) return '';
+    return tickets.some((t) => t.ticketCode === selectedTicketCode)
+      ? selectedTicketCode
+      : tickets[0].ticketCode;
   }, [tickets, selectedTicketCode]);
+
+  const concessions = useMemo(() => {
+    if (!receipt) return [];
+    const rawConcessions = receipt.concessions || receipt.products || [];
+    return rawConcessions.map((item) => {
+      const anyItem = item as {
+        name?: string;
+        productName?: string;
+        quantity: number;
+        unitPrice?: number;
+        subTotal?: number;
+      };
+      const name = anyItem.name || anyItem.productName || 'Sản phẩm F&B';
+      const quantity = anyItem.quantity ?? 1;
+      const unitPrice = anyItem.unitPrice ?? 0;
+      const subTotal = anyItem.subTotal ?? (quantity * unitPrice);
+      return { name, quantity, unitPrice, subTotal };
+    });
+  }, [receipt]);
+
+  // Lọc vé hiển thị theo printMode
+  const visibleTickets = useMemo(() => {
+    if (printMode === 'receipt_only') return [];
+    if (printMode === 'single_ticket') {
+      return tickets.filter((t) => t.ticketCode === activeTicketCode);
+    }
+    return tickets;
+  }, [printMode, tickets, activeTicketCode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -79,33 +108,7 @@ export function ThermalReceiptModal({
 
   const hasTickets = tickets.length > 0;
   const hasSeats = Boolean(receipt.seats && receipt.seats.length > 0) || hasTickets;
-  const rawConcessions = receipt.concessions || receipt.products || [];
-  const concessions = useMemo(() => {
-    return rawConcessions.map((item) => {
-      const anyItem = item as {
-        name?: string;
-        productName?: string;
-        quantity: number;
-        unitPrice?: number;
-        subTotal?: number;
-      };
-      const name = anyItem.name || anyItem.productName || 'Sản phẩm F&B';
-      const quantity = anyItem.quantity ?? 1;
-      const unitPrice = anyItem.unitPrice ?? 0;
-      const subTotal = anyItem.subTotal ?? (quantity * unitPrice);
-      return { name, quantity, unitPrice, subTotal };
-    });
-  }, [rawConcessions]);
   const hasConcessions = concessions.length > 0;
-
-  // Lọc vé hiển thị theo printMode
-  const visibleTickets = useMemo(() => {
-    if (printMode === 'receipt_only') return [];
-    if (printMode === 'single_ticket') {
-      return tickets.filter((t) => t.ticketCode === selectedTicketCode);
-    }
-    return tickets;
-  }, [printMode, tickets, selectedTicketCode]);
 
   const showReceiptStub = printMode === 'all' || printMode === 'receipt_only';
 
@@ -253,7 +256,7 @@ export function ThermalReceiptModal({
             <div className="flex items-center gap-1.5 ml-auto">
               <span className="text-gray-600 font-medium">Chọn vé:</span>
               <select
-                value={selectedTicketCode}
+                value={activeTicketCode}
                 onChange={(e) => setSelectedTicketCode(e.target.value)}
                 className="bg-white border border-[#dad2b4] text-xs rounded px-2 py-1 font-bold text-gray-900 focus:outline-hidden focus:border-red-600"
               >

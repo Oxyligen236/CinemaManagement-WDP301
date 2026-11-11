@@ -39,7 +39,6 @@ import {
   X,
   Armchair,
   MapPin,
-  User,
 } from "lucide-react";
 
 const BRANCH_NAMES: Record<string, string> = {
@@ -78,10 +77,6 @@ export default function StaffPosPage() {
   const [productCart, setProductCart] = useState<
     Map<string, SelectedProductCart>
   >(new Map());
-
-  // Thông tin Khách hàng (Tùy chọn cho đơn lẻ F&B / vé)
-  const [isGuestCustomer, setIsGuestCustomer] = useState(true);
-  const [customerPhone, setCustomerPhone] = useState("");
 
   // Khuyến mãi
   const [voucherCode, setVoucherCode] = useState("");
@@ -341,8 +336,6 @@ export default function StaffPosPage() {
     setPendingOrder(null);
     setSelectedSeatIds([]);
     setProductCart(new Map());
-    setIsGuestCustomer(true);
-    setCustomerPhone("");
     setVoucherCode("");
     setVoucherDiscount(0);
     setVoucherApplied(null);
@@ -1313,43 +1306,6 @@ export default function StaffPosPage() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Thông tin Khách hàng (Tùy chọn: Bỏ qua / Vãng lai hoặc Thành viên) */}
-            <div className="bg-[#fcfbfa] p-3 border border-[#dad2b4]">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-bold text-[#6f6247] uppercase flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-[#da291c]" />
-                  Khách hàng
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsGuestCustomer(true);
-                      setCustomerPhone("");
-                    }}
-                    className={`px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
-                      isGuestCustomer
-                        ? "bg-[#231f20] text-white border-[#231f20]"
-                        : "bg-white text-[#666] border-[#dad2b4] hover:bg-[#efebdb]"
-                    }`}
-                  >
-                    Bỏ qua (Vãng lai)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsGuestCustomer(false)}
-                    className={`px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
-                      !isGuestCustomer
-                        ? "bg-[#da291c] text-white border-[#da291c]"
-                        : "bg-white text-[#666] border-[#dad2b4] hover:bg-[#efebdb]"
-                    }`}
-                  >
-                    Thành viên
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Khuyến mãi / Voucher */}
