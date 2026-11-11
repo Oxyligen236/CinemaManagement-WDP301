@@ -7,13 +7,9 @@ import {
 } from '../../../infra/storage/application/interface/storage.interface';
 import { MovieStatus } from '@prisma/client';
 import { MovieOptionResDto, MovieSchedulingInfoResDto } from '../dto/res.dto';
-import { GetMovieSchedulingInfoUsecase } from '../usecase/get-movie-scheduling-info.usecase';
-import { SearchMovieOptionsUsecase } from '../usecase/search-movie-options.usecase';
 
 @Injectable()
-export class MovieOptionQueryService
-  implements SearchMovieOptionsUsecase, GetMovieSchedulingInfoUsecase
-{
+export class MovieOptionQueryService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(STORAGE_SERVICE) private readonly storageService: StorageService,
@@ -68,24 +64,24 @@ export class MovieOptionQueryService
   }
 
   private toOption(doc: any): MovieOptionResDto {
-    return {
-      movieId: doc.id,
-      movieName: doc.movieName,
-      duration: doc.duration,
-      status: doc.status,
-      posterUrl: this.resolvePosterUrl(doc.posterKey),
-    };
+    return MovieOptionResDto.of(
+      doc.id,
+      doc.movieName,
+      doc.duration,
+      doc.status,
+      this.resolvePosterUrl(doc.posterKey),
+    );
   }
 
   private toSchedulingInfo(doc: any): MovieSchedulingInfoResDto {
-    return {
-      movieId: doc.id,
-      movieName: doc.movieName,
-      duration: doc.duration,
-      status: doc.status,
-      isActive: doc.isActive,
-      posterUrl: this.resolvePosterUrl(doc.posterKey),
-    };
+    return MovieSchedulingInfoResDto.of(
+      doc.id,
+      doc.movieName,
+      doc.duration,
+      doc.status,
+      doc.isActive,
+      this.resolvePosterUrl(doc.posterKey),
+    );
   }
 
   private resolvePosterUrl(posterKey?: string): string | undefined {

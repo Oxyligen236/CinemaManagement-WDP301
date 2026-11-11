@@ -6,12 +6,12 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { STORAGE_SERVICE } from '../../../infra/storage/application/interface/storage.interface';
+import { type StorageService } from '../../../infra/storage/application/interface/storage.interface';
 import { ShowtimeQueryService } from '../../../showtime/application/services/showtime-query.service';
-import { MovieStatus } from '@prisma/client';
+import { MovieStatus } from '../../domain/enums/movie-status.enum';
 import { CreateMovieReqDto } from '../dto/req.dto';
 import { MovieService } from './movie.service';
-import { PrismaService } from '../../../infra/prisma/prisma.service';
+import { type PrismaService } from '../../../infra/prisma/prisma.service';
 
 const PUBLIC_BASE = 'https://cdn.cinema.local';
 
@@ -46,7 +46,19 @@ const buildMovieDoc = (overrides: Record<string, unknown> = {}) => ({
 
 describe('MovieService', () => {
   let service: MovieService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    movie: {
+      create: jest.Mock;
+      findMany: jest.Mock;
+      findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      count: jest.Mock;
+      update: jest.Mock;
+    };
+    genre: {
+      findMany: jest.Mock;
+    };
+  };
   const mockShowtimeQueryService = {
     hasActiveShowtimes: jest.fn().mockImplementation((movieId: string) => {
       if (movieId === 'movie-with-active-showtimes')
@@ -89,9 +101,9 @@ describe('MovieService', () => {
     };
 
     service = new MovieService(
-      mockPrisma,
+      mockPrisma as unknown as PrismaService,
       mockShowtimeQueryService as unknown as ShowtimeQueryService,
-      mockStorageService as any,
+      mockStorageService as unknown as StorageService,
     );
   });
 
@@ -108,11 +120,11 @@ describe('MovieService', () => {
       status: MovieStatus.COMING_SOON,
     });
     expect(mockPrisma.movie.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+      data: expect.objectContaining<Record<string, unknown>>({
         isActive: true,
         status: MovieStatus.COMING_SOON,
         releaseDate: new Date('2026-01-01'),
-      }),
+      }) as unknown,
     });
     expect(res.movieId).toBe('m1');
     expect(res.isActive).toBe(true);
@@ -403,6 +415,63 @@ describe('MovieService', () => {
       expect(res.movieId).toBe('m1');
       expect(res.movieName).toBe('Film 1');
       expect(res.posterUrl).toBe(`${PUBLIC_BASE}/movies/posters/p1.png`);
+    });
+  });
+
+  describe('getMovieSummary', () => {
+    it('returns movie summary when movie found', async () => {
+      const mockDoc = {
+        id: 'm1',
+        movieName: 'Film 1',
+        duration: 120,
+        posterKey: 'movies/posters/m1.png',
+        status: MovieStatus.NOW_SHOWING,
+        releaseDate: new Date('2026-05-01'),
+      };
+      mockPrisma.movie.findUnique.mockResolvedValue(mockDoc);
+
+      const result = await service.getMovieSummary('m1');
+      expect(result).toEqual({
+        movieId: 'm1',
+        movieName: 'Film 1',
+        duration: 120,
+        posterUrl: `${PUBLIC_BASE}/movies/posters/m1.png`,
+        status: MovieStatus.NOW_SHOWING,
+        releaseDate: new Date('2026-05-01'),
+      });
+    });
+
+    it('returns null when movie not found', async () => {
+      mockPrisma.movie.findUnique.mockResolvedValue(null);
+
+      const result = await service.getMovieSummary('none');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getMoviesSummary', () => {
+    it('returns list of movie summaries', async () => {
+      const mockDocs = [
+        {
+          id: 'm1',
+          movieName: 'Film 1',
+          duration: 120,
+          posterKey: 'movies/posters/m1.png',
+          status: MovieStatus.NOW_SHOWING,
+        },
+      ];
+      mockPrisma.movie.findMany.mockResolvedValue(mockDocs);
+
+      const result = await service.getMoviesSummary(['m1']);
+      expect(result).toHaveLength(1);
+      expect(result[0].movieId).toBe('m1');
+      expect(result[0].posterUrl).toBe(`${PUBLIC_BASE}/movies/posters/m1.png`);
+    });
+
+    it('returns empty array when input movieIds is empty', async () => {
+      const result = await service.getMoviesSummary([]);
+      expect(result).toEqual([]);
+      expect(mockPrisma.movie.findMany).not.toHaveBeenCalled();
     });
   });
 });
