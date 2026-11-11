@@ -1,13 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RoomOptionResDto } from '../dto/res.dto';
-import { GetRoomSchedulingInfoUsecase } from '../usecase/get-room-scheduling-info.usecase';
-import { ListBranchRoomsUsecase } from '../usecase/list-branch-rooms.usecase';
 
 @Injectable()
-export class RoomOptionQueryService
-  implements ListBranchRoomsUsecase, GetRoomSchedulingInfoUsecase
-{
+export class RoomOptionQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listRoomsByBranch(branchId: string): Promise<RoomOptionResDto[]> {
@@ -38,11 +34,11 @@ export class RoomOptionQueryService
   }
 
   private toDto(doc: any): RoomOptionResDto {
-    return {
-      roomId: doc.id,
-      roomName: doc.roomName,
-      roomStatus: doc.roomStatus,
-      branchId: doc.branchId,
-    };
+    return RoomOptionResDto.of(
+      doc.id,
+      doc.roomName,
+      doc.roomStatus,
+      doc.branchId,
+    );
   }
 }
