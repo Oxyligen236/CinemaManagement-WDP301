@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { ScanTicketResult } from '@/lib/types/order.types';
 import { orderApi } from '@/lib/api/order.api';
+import { posApi } from '@/lib/api/pos.api';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
 import { getFriendlyErrorMessage } from '@/lib/utils/error-handler';
 import {
@@ -16,6 +17,7 @@ import {
   History,
   MapPin,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ShowtimeOption {
@@ -61,6 +63,7 @@ interface ScanHistoryItem {
 export default function TicketScanPage() {
   const [showtimes, setShowtimes] = useState<ShowtimeOption[]>([]);
   const [selectedShowtimeId, setSelectedShowtimeId] = useState('');
+  const [isLoadingShowtimes, setIsLoadingShowtimes] = useState(true);
   const [showtimeError, setShowtimeError] = useState('');
   const selectedShowtime = showtimes.find((showtime) => showtime.showtimeId === selectedShowtimeId);
   const [ticketCodeInput, setTicketCodeInput] = useState('');
@@ -114,59 +117,84 @@ export default function TicketScanPage() {
   };
 
   // Tải tên chi nhánh động và danh sách suất chiếu của chi nhánh nhân viên
-  useEffect(() => {
-    let active = true;
+  const loadShowtimes = useCallback(async () => {
     const branchId = staffUser?.branchId;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
+    setIsLoadingShowtimes(true);
+    setShowtimeError('');
 
     // Tải chi tiết tên rạp từ API nếu có branchId
     if (branchId) {
       void fetch(`${apiUrl}/branches/${branchId}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((bData) => {
-          if (active && bData?.name) {
-            setStaffBranchName(bData.name);
+          const resolvedName = bData?.branchName || bData?.name;
+          if (resolvedName) {
+            setStaffBranchName(resolvedName);
           }
         })
         .catch(() => {});
     }
 
-    const showtimesUrl = branchId
-      ? `${apiUrl}/showtimes?branchId=${encodeURIComponent(branchId)}`
-      : `${apiUrl}/showtimes`;
+    try {
+      let items = await posApi.getTodayShowtimes(branchId);
 
-    void fetch(showtimesUrl)
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Không tải được danh sách suất chiếu');
-        return response.json();
-      })
-      .then((payload) => {
-        const items = Array.isArray(payload) ? payload : payload?.data;
-        if (!active || !Array.isArray(items)) return;
-        setShowtimes(
-          items.flatMap((item: Record<string, unknown>) => {
-            const id = String(item.showtimeId ?? item._id ?? '');
-            if (!id) return [];
-            return [
-              {
-                showtimeId: id,
-                movieTitle: String(item.movieTitle ?? item.movieName ?? 'Phim chiếu rạp'),
-                roomName: String(item.roomName ?? 'Phòng chiếu'),
-                startTime: String(item.startTime ?? ''),
-                endTime: String(item.endTime ?? ''),
-              },
-            ];
-          }),
+      // Fallback sang suất chiếu công khai sắp/đang chiếu của chi nhánh nếu hôm nay chưa có suất
+      if (items.length === 0 && branchId) {
+        const res = await fetch(
+          `${apiUrl}/showtimes/public?branchId=${encodeURIComponent(branchId)}`,
         );
-      })
-      .catch(() => {
-        if (active) setShowtimeError('Không tải được suất chiếu. Vui lòng thử lại sau.');
+        if (!res.ok) {
+          throw new Error('Không tải được danh sách suất chiếu');
+        }
+        const payload = await res.json();
+        const rawList = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.items)
+          ? payload.items
+          : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+        const cutoffMs = Date.now() - 2 * 60 * 60 * 1000;
+        items = rawList.filter((item: Record<string, unknown>) => {
+          if (!item.endTime) return true;
+          const endMs = new Date(String(item.endTime)).getTime();
+          return Number.isNaN(endMs) || endMs >= cutoffMs;
+        });
+      }
+
+      const mapped: ShowtimeOption[] = items.flatMap((raw) => {
+        const item = raw as unknown as Record<string, unknown>;
+        const id = String(item.showtimeId ?? item._id ?? item.id ?? '');
+        if (!id) return [];
+        return [
+          {
+            showtimeId: id,
+            movieTitle: String(item.movieTitle ?? item.movieName ?? 'Phim chiếu rạp'),
+            roomName: String(item.roomName ?? 'Phòng chiếu'),
+            startTime: String(item.startTime ?? ''),
+            endTime: String(item.endTime ?? ''),
+          },
+        ];
       });
 
-    return () => {
-      active = false;
-    };
+      setShowtimes(mapped);
+      const firstBranchName = (items[0] as { branchName?: string } | undefined)?.branchName;
+      if (firstBranchName) {
+        setStaffBranchName((prev) => prev || firstBranchName);
+      }
+    } catch {
+      setShowtimeError('Không tải được suất chiếu. Vui lòng thử lại sau.');
+    } finally {
+      setIsLoadingShowtimes(false);
+    }
   }, [staffUser?.branchId]);
+
+  useEffect(() => {
+    void (async () => {
+      await loadShowtimes();
+    })();
+  }, [loadShowtimes]);
 
   const handleProcessScan = async (rawCode: string) => {
     const code = rawCode.trim();
@@ -353,16 +381,27 @@ export default function TicketScanPage() {
 
       {/* 2. Suất chiếu đang soát vé */}
       <section aria-labelledby="showtime-title" className="border border-[#dad2b4] bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 id="showtime-title" className="text-[13px] font-bold uppercase tracking-wider text-[#231f20] flex items-center gap-2">
             <CalendarClock className="h-4 w-4 text-[#da291c]" />
             <span>1. Chọn suất chiếu đang soát vé tại cửa</span>
           </h2>
-          {selectedShowtime && (
-            <span className="text-[12px] text-[#15803d] font-bold bg-[#f0fdf4] px-2.5 py-1 border border-[#bbf7d0]">
-              Đang chọn: {selectedShowtime.movieTitle} • {selectedShowtime.roomName}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {selectedShowtime && (
+              <span className="text-[12px] text-[#15803d] font-bold bg-[#f0fdf4] px-2.5 py-1 border border-[#bbf7d0]">
+                Đang chọn: {selectedShowtime.movieTitle} • {selectedShowtime.roomName}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => void loadShowtimes()}
+              disabled={isLoadingShowtimes}
+              className="inline-flex items-center gap-1 border border-[#dad2b4] bg-[#fcfbfa] hover:bg-[#efebdb] px-2.5 py-1 text-[11px] font-bold text-[#231f20] disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`h-3 w-3 ${isLoadingShowtimes ? 'animate-spin' : ''}`} />
+              <span>Làm mới</span>
+            </button>
+          </div>
         </div>
 
         {showtimeError && (
@@ -371,7 +410,9 @@ export default function TicketScanPage() {
           </p>
         )}
 
-        {showtimes.length ? (
+        {isLoadingShowtimes ? (
+          <p className="text-xs text-[#888]">Đang tải danh sách suất chiếu...</p>
+        ) : showtimes.length ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {showtimes.map((showtime) => {
               const isSelected = selectedShowtimeId === showtime.showtimeId;
@@ -401,7 +442,9 @@ export default function TicketScanPage() {
             })}
           </div>
         ) : !showtimeError ? (
-          <p className="text-xs text-[#888]">Đang tải danh sách suất chiếu...</p>
+          <p className="text-xs text-[#888]">
+            Hiện chưa có suất chiếu nào đang mở soát vé tại chi nhánh này.
+          </p>
         ) : null}
       </section>
 
