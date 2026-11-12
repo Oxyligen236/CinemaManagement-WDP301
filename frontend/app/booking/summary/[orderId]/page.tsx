@@ -387,22 +387,41 @@ export default function BookingSummaryPage({
             </>
           )}
 
-          {isExpired && (
-            <button
-              type="button"
-              onClick={() => {
-                if (summary.showtimeId) {
-                  router.push(`/booking/${summary.showtimeId}`);
-                } else {
-                  router.push("/");
-                }
-              }}
-              className="shrink-0 h-10 px-5 bg-[#da291c] hover:bg-[#b91c1c] text-white text-[13px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <RotateCcw className="h-4 w-4" />
-              <span>Đặt vé lại</span>
-            </button>
-          )}
+          {isExpired &&
+            (() => {
+              const isShowtimePast = Boolean(
+                summary.startTime &&
+                  !isNaN(new Date(summary.startTime).getTime()) &&
+                  new Date(summary.startTime).getTime() <= new Date().getTime(),
+              );
+              if (isShowtimePast) {
+                return (
+                  <Link
+                    href="/showtimes"
+                    className="shrink-0 h-10 px-5 bg-[#da291c] hover:bg-[#b91c1c] text-white text-[13px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    <span>Chọn suất khác</span>
+                  </Link>
+                );
+              }
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (summary.showtimeId) {
+                      router.push(`/booking/${summary.showtimeId}`);
+                    } else {
+                      router.push("/");
+                    }
+                  }}
+                  className="shrink-0 h-10 px-5 bg-[#da291c] hover:bg-[#b91c1c] text-white text-[13px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span>Đặt vé lại</span>
+                </button>
+              );
+            })()}
         </div>
       </div>
 

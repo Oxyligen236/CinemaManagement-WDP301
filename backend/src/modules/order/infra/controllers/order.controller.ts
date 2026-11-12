@@ -7,7 +7,6 @@ import {
   Query,
   Req,
   UnauthorizedException,
-  Ip,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -92,20 +91,6 @@ export class OrderController {
       );
     }
     return this.orderService.applyPromotion(userId, orderId, body);
-  }
-
-  @Post(':orderId/vnpay')
-  async createVnpayPayment(
-    @Req() req: AuthenticatedRequest,
-    @Param('orderId') orderId: string,
-    @Ip() ip: string,
-  ) {
-    const userId = req.user?.userId || req.user?.sub;
-    if (!userId)
-      throw new UnauthorizedException(
-        'User ID is missing from authorization context',
-      );
-    return this.orderService.createVnpayPayment(userId, orderId, ip);
   }
 
   @Post(':orderId/cancel')

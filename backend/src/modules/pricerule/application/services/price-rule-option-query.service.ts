@@ -24,13 +24,9 @@ import {
   resolvePriceField,
   toPriceValueDto,
 } from '../helpers/price-rule.helper';
-import { ListPriceValuesUsecase } from '../usecase/list-price-values.usecase';
-import { ResolvePriceSelectionsUsecase } from '../usecase/resolve-price-selections.usecase';
 
 @Injectable()
-export class PriceRuleOptionQueryService
-  implements ListPriceValuesUsecase, ResolvePriceSelectionsUsecase
-{
+export class PriceRuleOptionQueryService {
   private readonly logger = new Logger(PriceRuleOptionQueryService.name);
 
   constructor(private readonly prisma: PrismaService) {}
@@ -114,21 +110,20 @@ export class PriceRuleOptionQueryService
       }
 
       if (field.group === PriceGroup.SEAT) {
-        seatPriceSelections.push({
-          seatType: field.fieldKey,
-          ruleId,
-          multiplier,
-        });
+        seatPriceSelections.push(
+          ResolvedSeatSelectionResDto.of(field.fieldKey, ruleId, multiplier),
+        );
       } else {
-        dayPriceSelections.push({
-          dayType: field.fieldKey,
-          ruleId,
-          multiplier,
-        });
+        dayPriceSelections.push(
+          ResolvedDaySelectionResDto.of(field.fieldKey, ruleId, multiplier),
+        );
       }
     }
 
-    return { seatPriceSelections, dayPriceSelections };
+    return ResolvedPriceSelectionsResDto.of(
+      seatPriceSelections,
+      dayPriceSelections,
+    );
   }
 
   private async readField(
@@ -156,13 +151,13 @@ export class PriceRuleOptionQueryService
       });
     }
 
-    return {
-      group: field.group,
-      fieldKey: field.fieldKey,
-      label: field.label,
-      values: docs.map((d) =>
+    return PriceFieldResDto.of(
+      field.group,
+      field.fieldKey,
+      field.label,
+      docs.map((d) =>
         toPriceValueDto({ ruleId: d.id, adjustmentValue: d.adjustmentValue }),
       ),
-    };
+    );
   }
 }

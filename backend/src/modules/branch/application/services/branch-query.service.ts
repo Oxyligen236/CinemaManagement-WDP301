@@ -3,13 +3,9 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { BranchStatus } from '@prisma/client';
 import { GetPublicBranchesReqDto } from '../dto/req.dto';
 import { BranchSummaryResDto, PublicBranchResDto } from '../dto/res.dto';
-import { GetBranchSummaryUsecase } from '../usecase/get-branch-summary.usecase';
-import { GetPublicBranchesUsecase } from '../usecase/get-public-branches.usecase';
 
 @Injectable()
-export class BranchQueryService
-  implements GetBranchSummaryUsecase, GetPublicBranchesUsecase
-{
+export class BranchQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getBranchSummary(
@@ -22,10 +18,7 @@ export class BranchQueryService
     if (!doc) {
       return null;
     }
-    return {
-      branchId: doc.id,
-      branchName: doc.branchName,
-    };
+    return BranchSummaryResDto.of(doc.id, doc.branchName);
   }
 
   async getPublicBranches(
@@ -52,12 +45,14 @@ export class BranchQueryService
       orderBy: { branchName: 'asc' },
     });
 
-    return docs.map((d) => ({
-      branchId: d.id,
-      branchName: d.branchName,
-      address: d.address,
-      hotline: d.hotline || '1900 2224',
-      branchStatus: d.branchStatus as any,
-    }));
+    return docs.map((d) =>
+      PublicBranchResDto.of(
+        d.id,
+        d.branchName,
+        d.address,
+        d.hotline || '1900 2224',
+        d.branchStatus as any,
+      ),
+    );
   }
 }

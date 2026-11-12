@@ -1,4 +1,5 @@
 import { Transform } from 'class-transformer';
+import { BranchStatus } from '@prisma/client';
 import {
   IsEmail,
   IsEnum,
@@ -112,4 +113,119 @@ export class UpdateBranchStaffDto {
   @IsOptional()
   @IsEnum(EmploymentStatus, { message: MSG.EMPLOYMENT_STATUS_INVALID })
   employmentStatus?: EmploymentStatus;
+}
+
+export class BranchStaffItemDto {
+  userId!: string;
+  email!: string;
+  firstName!: string;
+  lastName!: string;
+  branchId!: string;
+  jobPosition?: string | null;
+  employmentStatus!: string;
+  isActive!: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+
+  static of(params: {
+    userId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    branchId: string;
+    jobPosition?: string | null;
+    employmentStatus: string;
+    isActive: boolean;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }): BranchStaffItemDto {
+    const res = new BranchStaffItemDto();
+    Object.assign(res, params);
+    return res;
+  }
+}
+
+export class BranchStaffManagerBranchDto {
+  branchId!: string;
+  branchName!: string;
+  address!: string;
+  branchStatus!: BranchStatus;
+
+  static of(
+    branchId: string,
+    branchName: string,
+    address: string,
+    branchStatus: BranchStatus,
+  ): BranchStaffManagerBranchDto {
+    const res = new BranchStaffManagerBranchDto();
+    Object.assign(res, { branchId, branchName, address, branchStatus });
+    return res;
+  }
+}
+
+export class BranchStaffOptionsResDto {
+  branch!: BranchStaffManagerBranchDto;
+  jobPositions!: string[];
+  employmentStatuses!: string[];
+  creatableStatuses!: string[];
+
+  static of(
+    branch: BranchStaffManagerBranchDto,
+    jobPositions: readonly string[] | string[],
+    employmentStatuses: readonly string[] | string[],
+    creatableStatuses: readonly string[] | string[],
+  ): BranchStaffOptionsResDto {
+    const res = new BranchStaffOptionsResDto();
+    Object.assign(res, {
+      branch,
+      jobPositions: [...jobPositions],
+      employmentStatuses: [...employmentStatuses],
+      creatableStatuses: [...creatableStatuses],
+    });
+    return res;
+  }
+}
+
+export class BranchStaffListResDto {
+  branch!: BranchStaffManagerBranchDto;
+  staff!: BranchStaffItemDto[];
+  total!: number;
+
+  static of(
+    branch: BranchStaffManagerBranchDto,
+    staff: BranchStaffItemDto[],
+    total: number,
+  ): BranchStaffListResDto {
+    const res = new BranchStaffListResDto();
+    Object.assign(res, { branch, staff, total });
+    return res;
+  }
+}
+
+export class BranchStaffDetailResDto {
+  branch!: BranchStaffManagerBranchDto;
+  staff!: BranchStaffItemDto;
+
+  static of(
+    branch: BranchStaffManagerBranchDto,
+    staff: BranchStaffItemDto,
+  ): BranchStaffDetailResDto {
+    const res = new BranchStaffDetailResDto();
+    Object.assign(res, { branch, staff });
+    return res;
+  }
+}
+
+export class BranchStaffMutationResDto {
+  message!: string;
+  staff!: BranchStaffItemDto;
+
+  static of(
+    message: string,
+    staff: BranchStaffItemDto,
+  ): BranchStaffMutationResDto {
+    const res = new BranchStaffMutationResDto();
+    Object.assign(res, { message, staff });
+    return res;
+  }
 }

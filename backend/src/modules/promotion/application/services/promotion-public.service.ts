@@ -1,42 +1,34 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
-import { ValidatePromotionUsecase } from '../usecase/validate-promotion.usecase';
-import { GetPublicPromotionUsecase } from '../usecase/get-public-promotion.usecase';
-import { RecordPromotionUsageUsecase } from '../usecase/record-promotion-usage.usecase';
 import { DiscountType } from '@prisma/client';
-import { PromotionResponseDto } from '../dto/res.dto';
+import { DiscountType as DomainDiscountType } from '../../domain/enums/discount-type.enum';
+import {
+  PromotionResponseDto,
+  ValidatePromotionResultDto,
+} from '../dto/res.dto';
 
 @Injectable()
-export class PromotionPublicService
-  implements
-    ValidatePromotionUsecase,
-    GetPublicPromotionUsecase,
-    RecordPromotionUsageUsecase
-{
+export class PromotionPublicService {
   constructor(private readonly prisma: PrismaService) {}
 
   async validatePromotionCode(params: {
     code: string;
     orderAmount: number;
     userId: string;
-  }): Promise<{
-    isValid: boolean;
-    promotionId?: string;
-    promotionCode?: string;
-    discountType?: string;
-    discountValue?: number;
-    discountAmount: number;
-    reason?: string;
-  }> {
+  }): Promise<ValidatePromotionResultDto> {
     const { code, orderAmount, userId } = params;
     const normalizedCode = (code || '').trim().toUpperCase();
 
     if (!normalizedCode) {
-      return {
-        isValid: false,
-        discountAmount: 0,
-        reason: 'Mã giảm giá không được để trống',
-      };
+      return ValidatePromotionResultDto.of(
+        false,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'Mã giảm giá không được để trống',
+      );
     }
 
     const promotion = await this.prisma.promotion.findFirst({
@@ -44,36 +36,52 @@ export class PromotionPublicService
     });
 
     if (!promotion) {
-      return {
-        isValid: false,
-        discountAmount: 0,
-        reason: 'Mã giảm giá không tồn tại',
-      };
+      return ValidatePromotionResultDto.of(
+        false,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'Mã giảm giá không tồn tại',
+      );
     }
 
     if (!promotion.isActive) {
-      return {
-        isValid: false,
-        discountAmount: 0,
-        reason: 'Mã giảm giá hiện đang tạm ngừng hoạt động',
-      };
+      return ValidatePromotionResultDto.of(
+        false,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'Mã giảm giá hiện đang tạm ngừng hoạt động',
+      );
     }
 
     const now = new Date();
     if (now < promotion.startDate) {
-      return {
-        isValid: false,
-        discountAmount: 0,
-        reason: 'Mã giảm giá chưa đến ngày áp dụng',
-      };
+      return ValidatePromotionResultDto.of(
+        false,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'Mã giảm giá chưa đến ngày áp dụng',
+      );
     }
 
     if (now > promotion.endDate) {
-      return {
-        isValid: false,
-        discountAmount: 0,
-        reason: 'Mã giảm giá đã hết hạn sử dụng',
-      };
+      return ValidatePromotionResultDto.of(
+        false,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'Mã giảm giá đã hết hạn sử dụng',
+      );
     }
 
     if (
@@ -82,11 +90,15 @@ export class PromotionPublicService
       promotion.minOrderValue > 0 &&
       orderAmount < promotion.minOrderValue
     ) {
-      return {
-        isValid: false,
-        discountAmount: 0,
-        reason: `Giá trị đơn hàng chưa đạt mức tối thiểu ${promotion.minOrderValue}`,
-      };
+      return ValidatePromotionResultDto.of(
+        false,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        `Giá trị đơn hàng chưa đạt mức tối thiểu ${promotion.minOrderValue}`,
+      );
     }
 
     if (
@@ -95,11 +107,15 @@ export class PromotionPublicService
       promotion.usageLimit > 0 &&
       (promotion.usedCount ?? 0) >= promotion.usageLimit
     ) {
-      return {
-        isValid: false,
-        discountAmount: 0,
-        reason: 'Mã giảm giá đã hết lượt sử dụng',
-      };
+      return ValidatePromotionResultDto.of(
+        false,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'Mã giảm giá đã hết lượt sử dụng',
+      );
     }
 
     if (userId) {
@@ -111,11 +127,15 @@ export class PromotionPublicService
       });
 
       if (hasUsed) {
-        return {
-          isValid: false,
-          discountAmount: 0,
-          reason: 'Bạn đã sử dụng mã giảm giá này rồi',
-        };
+        return ValidatePromotionResultDto.of(
+          false,
+          0,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          'Bạn đã sử dụng mã giảm giá này rồi',
+        );
       }
     }
 
@@ -133,14 +153,14 @@ export class PromotionPublicService
       discountAmount = Math.min(discountAmount, promotion.maxDiscountAmount);
     }
 
-    return {
-      isValid: true,
-      promotionId: promotion.id,
-      promotionCode: promotion.promotionCode,
-      discountType: promotion.discountType,
-      discountValue: promotion.discountValue,
+    return ValidatePromotionResultDto.of(
+      true,
       discountAmount,
-    };
+      promotion.id,
+      promotion.promotionCode,
+      promotion.discountType,
+      promotion.discountValue,
+    );
   }
 
   async recordPromotionUsage(params: {
@@ -163,7 +183,7 @@ export class PromotionPublicService
         where: { id: promotionId },
         data: { usedCount: { increment: 1 } },
       });
-    } catch (err: unknown) {
+    } catch {
       // Idempotency: Người dùng đã được ghi nhận trước đó, bỏ qua để tránh lỗi crash luồng event
       return;
     }
@@ -183,7 +203,7 @@ export class PromotionPublicService
       promo.id,
       promo.promotionCode,
       promo.discountValue,
-      promo.discountType as any,
+      promo.discountType as unknown as DomainDiscountType,
       promo.startDate,
       promo.endDate,
       promo.isActive,

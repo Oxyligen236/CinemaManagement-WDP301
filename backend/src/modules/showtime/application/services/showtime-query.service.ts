@@ -4,13 +4,9 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { SearchShowtimeReqDto } from '../dto/req.dto';
 import { ShowtimeResDto } from '../dto/res.dto';
 import { toShowtimeResDto } from '../helpers/showtime-res.mapper';
-import { GetShowtimeDetailUsecase } from '../usecase/get-showtime-detail.usecase';
-import { SearchShowtimesUsecase } from '../usecase/search-showtimes.usecase';
 
 @Injectable()
-export class ShowtimeQueryService
-  implements SearchShowtimesUsecase, GetShowtimeDetailUsecase
-{
+export class ShowtimeQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async hasActiveShowtimes(movieId: string): Promise<boolean> {

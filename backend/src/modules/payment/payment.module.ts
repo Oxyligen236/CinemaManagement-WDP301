@@ -1,17 +1,19 @@
-import { Module } from '@nestjs/common';
-import { PAYMENT_CONTRACT } from './contracts/payment.contract';
-import { PaymentContractImpl } from './contracts/payment-contract.impl';
+import { Module, forwardRef } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { OrderModule } from '../order/order.module';
+import { PaymentService } from './application/services/payment.service';
+import { VnpayReturnController } from './infra/controllers/vnpay-return.controller';
+import { OrderPaymentController } from './infra/controllers/order-payment.controller';
+import { PosPaymentController } from './infra/controllers/pos-payment.controller';
 
 @Module({
-  imports: [],
-  controllers: [],
-  providers: [
-    PaymentContractImpl,
-    {
-      provide: PAYMENT_CONTRACT,
-      useClass: PaymentContractImpl,
-    },
+  imports: [AuthModule, forwardRef(() => OrderModule)],
+  controllers: [
+    VnpayReturnController,
+    OrderPaymentController,
+    PosPaymentController,
   ],
-  exports: [PAYMENT_CONTRACT],
+  providers: [PaymentService],
+  exports: [PaymentService],
 })
 export class PaymentModule {}

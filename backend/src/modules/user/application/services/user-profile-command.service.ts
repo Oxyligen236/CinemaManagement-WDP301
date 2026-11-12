@@ -1,13 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
-import { UpdateProfileUsecase } from '../usecase/update-profile.usecase';
 import { UpdateProfileReq } from '../dto/req.dto';
 import { UserProfileRes } from '../dto/res.dto';
 import { UserProfileUpdatedEvent } from '../../domain/events/user-profile-updated.event';
 
 @Injectable()
-export class UserProfileCommandService implements UpdateProfileUsecase {
+export class UserProfileCommandService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
@@ -43,6 +42,17 @@ export class UserProfileCommandService implements UpdateProfileUsecase {
       new UserProfileUpdatedEvent(user.id, dataToUpdate, updatedUser.updatedAt),
     );
 
-    return UserProfileRes.fromEntity(updatedUser);
+    return UserProfileRes.of(
+      updatedUser.id,
+      updatedUser.email,
+      updatedUser.firstName,
+      updatedUser.lastName,
+      updatedUser.role,
+      updatedUser.branchId,
+      updatedUser.jobPosition,
+      updatedUser.employmentStatus,
+      updatedUser.createdAt,
+      updatedUser.updatedAt,
+    );
   }
 }

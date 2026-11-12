@@ -16,12 +16,23 @@ import {
   UpdateUserDto,
 } from './dto/manage-user.dto';
 import { REGISTRATION_MESSAGES } from '../../user/domain/constants/auth-message.constants';
+import {
+  AdminBranchItemRes,
+  AdminBranchesListRes,
+  AdminDashboardRes,
+  AdminDashboardStatsRes,
+  AdminInfoRes,
+  AdminUserDetailRes,
+  AdminUserItemRes,
+  AdminUserMutateRes,
+  AdminUsersListRes,
+} from './dto/res.dto';
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard(authUser: AuthUser) {
+  async getDashboard(authUser: AuthUser): Promise<AdminDashboardRes> {
     const admin = await this.prisma.user.findUnique({
       where: { id: authUser.sub },
     });
@@ -48,24 +59,27 @@ export class AdminService {
       usersByRole[g.role] = g._count.id;
     }
 
-    return {
-      message: `Welcome back, ${admin.firstName} ${admin.lastName}`,
-      admin: {
-        userId: admin.id,
-        email: admin.email,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-      },
-      stats: {
-        totalUsers,
-        activeUsers,
-        inactiveUsers: totalUsers - activeUsers,
-        usersByRole,
-      },
-    };
+    const adminInfo = AdminInfoRes.of(
+      admin.id,
+      admin.email,
+      admin.firstName,
+      admin.lastName,
+    );
+    const stats = AdminDashboardStatsRes.of(
+      totalUsers,
+      activeUsers,
+      totalUsers - activeUsers,
+      usersByRole,
+    );
+
+    return AdminDashboardRes.of(
+      `Welcome back, ${admin.firstName} ${admin.lastName}`,
+      adminInfo,
+      stats,
+    );
   }
 
-  async getUsers(query: ManageUsersQueryDto) {
+  async getUsers(query: ManageUsersQueryDto): Promise<AdminUsersListRes> {
     const where: any = {};
 
     if (query.search) {
@@ -99,15 +113,24 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const users = docs.map((u: any) => ({
-      ...u,
-      userId: u.id,
-    }));
+    const users = docs.map((u: any) =>
+      AdminUserItemRes.of({
+        userId: u.id,
+        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        role: u.role,
+        isActive: u.isActive,
+        branchId: u.branchId,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt,
+      }),
+    );
 
-    return { users, total: users.length };
+    return AdminUsersListRes.of(users, users.length);
   }
 
-  async getUser(userId: string) {
+  async getUser(userId: string): Promise<AdminUserDetailRes> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -127,10 +150,22 @@ export class AdminService {
       throw new NotFoundException('Không tìm thấy tài khoản');
     }
 
-    return { user: { ...user, userId: user.id } };
+    return AdminUserDetailRes.of(
+      AdminUserItemRes.of({
+        userId: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        isActive: user.isActive,
+        branchId: user.branchId,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }),
+    );
   }
 
-  async getActiveBranches() {
+  async getActiveBranches(): Promise<AdminBranchesListRes> {
     const branches = await this.prisma.branch.findMany({
       where: { branchStatus: BranchStatus.ACTIVE },
       select: {
@@ -142,19 +177,18 @@ export class AdminService {
       orderBy: { branchName: 'asc' },
     });
 
-    return {
-      branches: branches.map((b: any) => ({
-        ...b,
-        branchId: b.id,
-      })),
-    };
+    return AdminBranchesListRes.of(
+      branches.map((b: any) =>
+        AdminBranchItemRes.of(b.id, b.branchName, b.address, b.branchStatus),
+      ),
+    );
   }
 
   async assignBranch(
     userId: string,
     input: AssignBranchDto,
     adminUserId: string,
-  ) {
+  ): Promise<AdminUserMutateRes> {
     if (userId === adminUserId) {
       throw new ForbiddenException(
         'Không thể chỉ định chi nhánh cho tài khoản của bạn',
@@ -224,13 +258,23 @@ export class AdminService {
       },
     });
 
-    return {
-      message: 'Cập nhật tài khoản thành công.',
-      user: { ...updatedUser, userId: updatedUser.id },
-    };
+    return AdminUserMutateRes.of(
+      'Cập nhật tài khoản thành công.',
+      AdminUserItemRes.of({
+        userId: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        role: updatedUser.role,
+        isActive: updatedUser.isActive,
+        branchId: updatedUser.branchId,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      }),
+    );
   }
 
-  async createUser(input: CreateUserDto) {
+  async createUser(input: CreateUserDto): Promise<AdminUserMutateRes> {
     const email = input.email.toLowerCase();
 
     if ((input.role as unknown as Role) === Role.ADMIN) {
@@ -273,9 +317,9 @@ export class AdminService {
         },
       });
 
-      return {
-        message: 'Tạo tài khoản thành công',
-        user: {
+      return AdminUserMutateRes.of(
+        'Tạo tài khoản thành công',
+        AdminUserItemRes.of({
           userId: user.id,
           email: user.email,
           firstName: user.firstName,
@@ -283,8 +327,10 @@ export class AdminService {
           role: user.role,
           isActive: user.isActive,
           branchId: user.branchId,
-        },
-      };
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        }),
+      );
     } catch (error: any) {
       if (error?.code === 'P2002') {
         throw new ConflictException(
@@ -295,7 +341,11 @@ export class AdminService {
     }
   }
 
-  async updateUser(userId: string, input: UpdateUserDto, adminUserId: string) {
+  async updateUser(
+    userId: string,
+    input: UpdateUserDto,
+    adminUserId: string,
+  ): Promise<AdminUserMutateRes> {
     if (Object.keys(input).length === 0) {
       throw new BadRequestException(
         'Ít nhất một trường phải được cung cấp để cập nhật',
@@ -380,10 +430,20 @@ export class AdminService {
         },
       });
 
-      return {
-        message: 'Cập nhật tài khoản thành công',
-        user: { ...user, userId: user.id },
-      };
+      return AdminUserMutateRes.of(
+        'Cập nhật tài khoản thành công',
+        AdminUserItemRes.of({
+          userId: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          isActive: user.isActive,
+          branchId: user.branchId,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        }),
+      );
     } catch (error: any) {
       if (error?.code === 'P2002') {
         throw new ConflictException(

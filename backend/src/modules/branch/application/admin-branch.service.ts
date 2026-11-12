@@ -15,11 +15,13 @@ import {
   UpdateBranchDto,
 } from './dto/req.dto';
 import {
+  AdminBranchChainStatsDto,
   AdminBranchDetailResponseDto,
   AdminBranchItemDto,
   AdminBranchListResponseDto,
   AdminBranchMutationResponseDto,
   AdminBranchRoomItemDto,
+  PublicBranchListResponseDto,
 } from './dto/res.dto';
 
 @Injectable()
@@ -39,7 +41,7 @@ export class AdminBranchService {
 
       const allEnriched = await this.enrichBranches(allBranches);
 
-      const chainStats = {
+      const chainStats = AdminBranchChainStatsDto.of({
         totalBranches: allEnriched.length,
         activeBranches: allEnriched.filter(
           (b) => b.branchStatus === BranchStatus.ACTIVE,
@@ -57,7 +59,7 @@ export class AdminBranchService {
           (acc, b) => acc + b.availableSeats,
           0,
         ),
-      };
+      });
 
       let filtered = allEnriched;
       if (query.branchStatus) {
@@ -75,11 +77,11 @@ export class AdminBranchService {
         );
       }
 
-      return {
-        branches: filtered,
-        total: filtered.length,
+      return AdminBranchListResponseDto.of(
+        filtered,
+        filtered.length,
         chainStats,
-      };
+      );
     });
   }
 
@@ -108,10 +110,10 @@ export class AdminBranchService {
 
       const roomSummaries = await this.enrichRooms(rooms);
 
-      return {
-        branch: enrichedBranches[0],
-        rooms: roomSummaries,
-      };
+      return AdminBranchDetailResponseDto.of(
+        enrichedBranches[0],
+        roomSummaries,
+      );
     });
   }
 
@@ -149,10 +151,10 @@ export class AdminBranchService {
 
       const [enriched] = await this.enrichBranches([created]);
 
-      return {
-        message: BRANCH_MESSAGES.MSG04_CREATED,
-        branch: enriched,
-      };
+      return AdminBranchMutationResponseDto.of(
+        BRANCH_MESSAGES.MSG04_CREATED,
+        enriched,
+      );
     });
   }
 
@@ -224,10 +226,10 @@ export class AdminBranchService {
 
       const [enriched] = await this.enrichBranches([updated]);
 
-      return {
-        message: BRANCH_MESSAGES.MSG03_UPDATED,
-        branch: enriched,
-      };
+      return AdminBranchMutationResponseDto.of(
+        BRANCH_MESSAGES.MSG03_UPDATED,
+        enriched,
+      );
     });
   }
 
@@ -255,17 +257,19 @@ export class AdminBranchService {
 
       const [enriched] = await this.enrichBranches([updated]);
 
-      return {
-        message: BRANCH_MESSAGES.MSG03_UPDATED,
-        branch: enriched,
-      };
+      return AdminBranchMutationResponseDto.of(
+        BRANCH_MESSAGES.MSG03_UPDATED,
+        enriched,
+      );
     });
   }
 
   /**
    * UC22 & UC23: Danh sách chi nhánh đang hoạt động cho khách (Guest / Public)
    */
-  async listPublicBranches(search?: string) {
+  async listPublicBranches(
+    search?: string,
+  ): Promise<PublicBranchListResponseDto> {
     return this.guard(async () => {
       const where: any = { branchStatus: BranchStatus.ACTIVE };
       if (search && search.trim()) {
@@ -281,10 +285,7 @@ export class AdminBranchService {
       });
 
       const enriched = await this.enrichBranches(branches);
-      return {
-        branches: enriched,
-        total: enriched.length,
-      };
+      return PublicBranchListResponseDto.of(enriched, enriched.length);
     });
   }
 
@@ -422,7 +423,7 @@ export class AdminBranchService {
         upcomingShowtimesCount += showtimeCountByRoom.get(room.id) ?? 0;
       }
 
-      return {
+      return AdminBranchItemDto.of({
         branchId: branch.id,
         branchName: branch.branchName,
         address: branch.address,
@@ -441,7 +442,7 @@ export class AdminBranchService {
         canDeactivate: canDeactivateBranch(activeRooms, upcomingShowtimesCount),
         createdAt: branch.createdAt,
         updatedAt: branch.updatedAt,
-      };
+      });
     });
   }
 
@@ -497,7 +498,7 @@ export class AdminBranchService {
 
     return rooms.map((room) => {
       const stat = seatStatsByRoom.get(room.id);
-      return {
+      return AdminBranchRoomItemDto.of({
         roomId: room.id,
         roomName: room.roomName,
         roomStatus: room.roomStatus,
@@ -509,7 +510,7 @@ export class AdminBranchService {
         vipSeats: stat?.vipSeats ?? 0,
         coupleSeats: stat?.coupleSeats ?? 0,
         upcomingShowtimesCount: showtimeCountByRoom.get(room.id) ?? 0,
-      };
+      });
     });
   }
 

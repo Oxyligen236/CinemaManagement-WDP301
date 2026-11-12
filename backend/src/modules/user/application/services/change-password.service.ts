@@ -6,12 +6,11 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
-import { ChangePasswordUsecase } from '../usecase/change-password.usecase';
 import { ChangePasswordReq } from '../dto/req.dto';
 import { UserPasswordChangedEvent } from '../../domain/events/user-password-changed.event';
 
 @Injectable()
-export class ChangePasswordService implements ChangePasswordUsecase {
+export class ChangePasswordService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,

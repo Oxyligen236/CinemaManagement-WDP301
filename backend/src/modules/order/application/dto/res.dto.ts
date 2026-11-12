@@ -1,6 +1,5 @@
 import { OrderStatus } from '../../domain/enums/order-status.enum';
 import { TicketStatus } from '../../domain/enums/ticket-status.enum';
-import { PaymentMethod, PaymentStatus } from '../../contracts/payment.contract';
 
 export class BookingSeatRes {
   seatShowtimeId!: string;
@@ -9,6 +8,26 @@ export class BookingSeatRes {
   columnPosition!: number;
   seatType!: string;
   price!: number;
+
+  static of(
+    seatShowtimeId: string,
+    seatId: string,
+    rowPosition: string,
+    columnPosition: number,
+    seatType: string,
+    price: number,
+  ): BookingSeatRes {
+    const res = new BookingSeatRes();
+    Object.assign(res, {
+      seatShowtimeId,
+      seatId,
+      rowPosition,
+      columnPosition,
+      seatType,
+      price,
+    });
+    return res;
+  }
 }
 
 export class BookingProductRes {
@@ -16,6 +35,22 @@ export class BookingProductRes {
   productName!: string;
   quantity!: number;
   unitPrice!: number;
+
+  static of(
+    productId: string,
+    productName: string,
+    quantity: number,
+    unitPrice: number,
+  ): BookingProductRes {
+    const res = new BookingProductRes();
+    Object.assign(res, {
+      productId,
+      productName,
+      quantity,
+      unitPrice,
+    });
+    return res;
+  }
 }
 
 export class BookingSummaryRes {
@@ -29,6 +64,34 @@ export class BookingSummaryRes {
   seats!: BookingSeatRes[];
   products!: BookingProductRes[];
   promotion?: PromotionSummaryRes;
+
+  static of(
+    orderId: string,
+    userId: string,
+    status: OrderStatus,
+    totalAmount: number,
+    createdAt: Date,
+    expiresAt: Date,
+    remainingSeconds: number,
+    seats: BookingSeatRes[],
+    products: BookingProductRes[],
+    promotion?: PromotionSummaryRes,
+  ): BookingSummaryRes {
+    const res = new BookingSummaryRes();
+    Object.assign(res, {
+      orderId,
+      userId,
+      status,
+      totalAmount,
+      createdAt,
+      expiresAt,
+      remainingSeconds,
+      seats,
+      products,
+      promotion,
+    });
+    return res;
+  }
 }
 
 export class ApplyPromotionRes {
@@ -42,6 +105,34 @@ export class ApplyPromotionRes {
   seats!: BookingSeatRes[];
   products!: BookingProductRes[];
   promotion?: PromotionSummaryRes;
+
+  static of(
+    orderId: string,
+    userId: string,
+    status: OrderStatus,
+    totalAmount: number,
+    createdAt: Date,
+    expiresAt: Date,
+    remainingSeconds: number,
+    seats: BookingSeatRes[],
+    products: BookingProductRes[],
+    promotion?: PromotionSummaryRes,
+  ): ApplyPromotionRes {
+    const res = new ApplyPromotionRes();
+    Object.assign(res, {
+      orderId,
+      userId,
+      status,
+      totalAmount,
+      createdAt,
+      expiresAt,
+      remainingSeconds,
+      seats,
+      products,
+      promotion,
+    });
+    return res;
+  }
 }
 
 export class CancelOrderRes {
@@ -263,27 +354,34 @@ export class PosBookingSummaryRes {
   seats!: BookingSeatRes[];
   products!: BookingProductRes[];
   promotion?: PromotionSummaryRes;
-}
 
-export class PosCashPaymentResultRes {
-  orderId!: string;
-  paymentId!: string;
-  status!: OrderStatus;
-  totalAmount!: number;
-  cashReceived!: number;
-  changeAmount!: number;
-  paidAt!: Date;
-  tickets!: TicketItemSummaryRes[];
-}
-
-export class PosQrPaymentRes {
-  orderId!: string;
-  paymentId!: string;
-  amount!: number;
-  paymentMethod!: PaymentMethod;
-  paymentStatus!: PaymentStatus;
-  qrCodeUrl!: string;
-  qrPayload!: string;
+  static of(
+    orderId: string,
+    userId: string,
+    status: OrderStatus,
+    totalAmount: number,
+    createdAt: Date,
+    expiresAt: Date,
+    remainingSeconds: number,
+    seats: BookingSeatRes[],
+    products: BookingProductRes[],
+    promotion?: PromotionSummaryRes,
+  ): PosBookingSummaryRes {
+    const res = new PosBookingSummaryRes();
+    Object.assign(res, {
+      orderId,
+      userId,
+      status,
+      totalAmount,
+      createdAt,
+      expiresAt,
+      remainingSeconds,
+      seats,
+      products,
+      promotion,
+    });
+    return res;
+  }
 }
 
 export class PosReceiptTicketRes {
@@ -296,12 +394,48 @@ export class PosReceiptTicketRes {
   startTime!: Date;
   endTime!: Date;
   price!: number;
+
+  static of(
+    ticketCode: string,
+    movieTitle: string,
+    roomName: string,
+    seatLabel: string,
+    startTime: Date,
+    endTime: Date,
+    price: number,
+    seatName?: string,
+    seatType?: string,
+  ): PosReceiptTicketRes {
+    const res = new PosReceiptTicketRes();
+    Object.assign(res, {
+      ticketCode,
+      movieTitle,
+      roomName,
+      seatLabel,
+      startTime,
+      endTime,
+      price,
+      seatName,
+      seatType,
+    });
+    return res;
+  }
 }
 
 export class PosReceiptSeatRes {
   seatName!: string;
   seatType!: string;
   price!: number;
+
+  static of(
+    seatName: string,
+    seatType: string,
+    price: number,
+  ): PosReceiptSeatRes {
+    const res = new PosReceiptSeatRes();
+    Object.assign(res, { seatName, seatType, price });
+    return res;
+  }
 }
 
 export class PosReceiptItemRes {
@@ -309,6 +443,22 @@ export class PosReceiptItemRes {
   quantity!: number;
   unitPrice!: number;
   subTotal!: number;
+
+  static of(
+    productName: string,
+    quantity: number,
+    unitPrice: number,
+    subTotal: number,
+  ): PosReceiptItemRes {
+    const res = new PosReceiptItemRes();
+    Object.assign(res, {
+      productName,
+      quantity,
+      unitPrice,
+      subTotal,
+    });
+    return res;
+  }
 }
 
 export class PosReceiptRes {
@@ -329,6 +479,30 @@ export class PosReceiptRes {
   seats?: PosReceiptSeatRes[];
   tickets!: PosReceiptTicketRes[];
   products!: PosReceiptItemRes[];
+
+  static of(params: {
+    orderId: string;
+    orderCode?: string;
+    branchName: string;
+    branchAddress: string;
+    staffName: string;
+    printedAt: Date;
+    paymentMethod: string;
+    totalAmount: number;
+    cashReceived?: number;
+    changeAmount?: number;
+    movieTitle?: string;
+    roomName?: string;
+    showtime?: string;
+    showDate?: string;
+    seats?: PosReceiptSeatRes[];
+    tickets: PosReceiptTicketRes[];
+    products: PosReceiptItemRes[];
+  }): PosReceiptRes {
+    const res = new PosReceiptRes();
+    Object.assign(res, params);
+    return res;
+  }
 }
 
 export class TicketDetailRes {
@@ -463,4 +637,66 @@ export class TicketItemSummaryRes {
   branchId?: string;
   branchName?: string;
   branchAddress?: string;
+
+  static of(
+    ticketId: string,
+    ticketCode: string,
+    price: number,
+    ticketStatus: string,
+    usedAt: Date | undefined,
+    seatShowtimeId: string,
+    movieTitle: string,
+    roomName: string,
+    seatLabel: string,
+    startTime: Date,
+    endTime: Date,
+    branchId?: string,
+    branchName?: string,
+    branchAddress?: string,
+  ): TicketItemSummaryRes {
+    const res = new TicketItemSummaryRes();
+    Object.assign(res, {
+      ticketId,
+      ticketCode,
+      price,
+      ticketStatus,
+      usedAt,
+      seatShowtimeId,
+      movieTitle,
+      roomName,
+      seatLabel,
+      startTime,
+      endTime,
+      branchId,
+      branchName,
+      branchAddress,
+    });
+    return res;
+  }
+}
+
+export interface OrderPaymentTicketDto {
+  ticketId: string;
+  ticketCode: string;
+  price: number;
+  ticketStatus: string;
+  usedAt?: Date;
+  seatShowtimeId: string;
+  movieTitle: string;
+  roomName: string;
+  seatLabel: string;
+  startTime: Date;
+  endTime: Date;
+  branchId?: string;
+  branchName?: string;
+  branchAddress?: string;
+}
+
+export interface OrderPaymentInfoDto {
+  orderId: string;
+  userId: string;
+  branchId?: string | null;
+  totalAmount: number;
+  status: string;
+  updatedAt?: Date;
 }

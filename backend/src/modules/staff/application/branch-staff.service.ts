@@ -22,6 +22,12 @@ import {
   staffConflictBody,
 } from '../domain/staff.rules';
 import {
+  BranchStaffDetailResDto,
+  BranchStaffItemDto,
+  BranchStaffListResDto,
+  BranchStaffManagerBranchDto,
+  BranchStaffMutationResDto,
+  BranchStaffOptionsResDto,
   BranchStaffQueryDto,
   CreateBranchStaffDto,
   UpdateBranchStaffDto,
@@ -36,33 +42,29 @@ const prismaErrorCode = (error: unknown): string | undefined => {
   return undefined;
 };
 
-type ManagerBranch = {
-  branchId: string;
-  branchName: string;
-  address: string;
-  branchStatus: BranchStatus;
-};
-
 /** UC19 - Manage Branch Staff */
 @Injectable()
 export class BranchStaffService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Thông tin chi nhánh (khóa) + danh mục vị trí/trạng thái cho form. */
-  async getOptions(managerUserId: string) {
+  async getOptions(managerUserId: string): Promise<BranchStaffOptionsResDto> {
     return this.guard(async () => {
       const branch = await this.getManagerBranch(managerUserId);
-      return {
+      return BranchStaffOptionsResDto.of(
         branch,
-        jobPositions: BRANCH_ASSIGNABLE_POSITIONS,
-        employmentStatuses: Object.values(EmploymentStatus),
-        creatableStatuses: CREATABLE_STATUSES,
-      };
+        BRANCH_ASSIGNABLE_POSITIONS,
+        Object.values(EmploymentStatus),
+        CREATABLE_STATUSES,
+      );
     });
   }
 
   /** Main flow bước 1: danh sách nhân viên thuộc chi nhánh. */
-  async listStaff(managerUserId: string, query: BranchStaffQueryDto) {
+  async listStaff(
+    managerUserId: string,
+    query: BranchStaffQueryDto,
+  ): Promise<BranchStaffListResDto> {
     return this.guard(async () => {
       const branch = await this.getManagerBranch(managerUserId);
       const where: any = {
@@ -89,25 +91,31 @@ export class BranchStaffService {
         orderBy: { createdAt: 'desc' },
       });
 
-      return {
+      return BranchStaffListResDto.of(
         branch,
-        staff: staff.map((record: any) => this.toView(record)),
-        total: staff.length,
-      };
+        staff.map((record: any) => this.toView(record)),
+        staff.length,
+      );
     });
   }
 
   /** Main flow bước 2: chi tiết nhân viên đã chọn. */
-  async getStaff(managerUserId: string, userId: string) {
+  async getStaff(
+    managerUserId: string,
+    userId: string,
+  ): Promise<BranchStaffDetailResDto> {
     return this.guard(async () => {
       const branch = await this.getManagerBranch(managerUserId);
       const staff = await this.findBranchStaff(branch.branchId, userId);
-      return { branch, staff: this.toView(staff) };
+      return BranchStaffDetailResDto.of(branch, this.toView(staff));
     });
   }
 
   /** Main flow bước 3-5 (tạo mới). */
-  async createStaff(managerUserId: string, input: CreateBranchStaffDto) {
+  async createStaff(
+    managerUserId: string,
+    input: CreateBranchStaffDto,
+  ): Promise<BranchStaffMutationResDto> {
     return this.guard(async () => {
       const branch = await this.getManagerBranch(managerUserId);
       if (branch.branchStatus !== BranchStatus.ACTIVE) {
@@ -149,10 +157,10 @@ export class BranchStaffService {
           },
         });
 
-        return {
-          message: STAFF_MESSAGES.MSG26,
-          staff: this.toView(created),
-        };
+        return BranchStaffMutationResDto.of(
+          STAFF_MESSAGES.MSG26,
+          this.toView(created),
+        );
       } catch (error: unknown) {
         if (prismaErrorCode(error) === 'P2002') {
           throw new ConflictException(
@@ -169,7 +177,7 @@ export class BranchStaffService {
     managerUserId: string,
     userId: string,
     input: UpdateBranchStaffDto,
-  ) {
+  ): Promise<BranchStaffMutationResDto> {
     return this.guard(async () => {
       if (Object.keys(input).length === 0) {
         throw new BadRequestException(STAFF_MESSAGES.MSG01);
@@ -208,7 +216,10 @@ export class BranchStaffService {
           data,
         });
 
-        return { message: STAFF_MESSAGES.MSG26, staff: this.toView(updated) };
+        return BranchStaffMutationResDto.of(
+          STAFF_MESSAGES.MSG26,
+          this.toView(updated),
+        );
       } catch (error: unknown) {
         // Chỉ "không tìm thấy bản ghi" (P2025) mới là 404. Bắt mọi lỗi rồi
         // đổi thành 404 che mất nguyên nhân thật (vd. DB lỗi) và báo sai cho
@@ -221,7 +232,9 @@ export class BranchStaffService {
     });
   }
 
-  private async getManagerBranch(managerUserId: string): Promise<ManagerBranch> {
+  private async getManagerBranch(
+    managerUserId: string,
+  ): Promise<BranchStaffManagerBranchDto> {
     const manager = await this.prisma.user.findUnique({
       where: { id: managerUserId },
       select: { role: true, isActive: true, branchId: true },
@@ -243,12 +256,12 @@ export class BranchStaffService {
       throw new ForbiddenException(STAFF_MESSAGES.NO_BRANCH);
     }
 
-    return {
-      branchId: branch.id,
-      branchName: branch.branchName,
-      address: branch.address,
-      branchStatus: branch.branchStatus,
-    };
+    return BranchStaffManagerBranchDto.of(
+      branch.id,
+      branch.branchName,
+      branch.address,
+      branch.branchStatus,
+    );
   }
 
   private async findBranchStaff(branchId: string, userId: string) {
@@ -286,8 +299,8 @@ export class BranchStaffService {
     }
   }
 
-  private toView(record: any) {
-    return {
+  private toView(record: any): BranchStaffItemDto {
+    return BranchStaffItemDto.of({
       userId: record.id,
       email: record.email,
       firstName: record.firstName,
@@ -301,7 +314,7 @@ export class BranchStaffService {
       isActive: record.isActive,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
-    };
+    });
   }
 
   private async guard<T>(operation: () => Promise<T>): Promise<T> {

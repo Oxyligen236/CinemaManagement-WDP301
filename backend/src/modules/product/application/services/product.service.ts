@@ -7,17 +7,15 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { BranchStatus, ItemStatus, ComboStatus } from '@prisma/client';
 import {
   BranchConcessionCatalogRes,
+  BranchConcessionComboItemRes,
   BranchConcessionComboRes,
+  BranchConcessionItemRes,
   ProductSummaryRes,
 } from '../dto/res.dto';
-import { GetBranchConcessionsUsecase } from '../usecase/get-branch-concessions.usecase';
-import { DeductConcessionStockUsecase } from '../usecase/deduct-concession-stock.usecase';
 import { ItemService } from './item.service';
 
 @Injectable()
-export class ProductService
-  implements GetBranchConcessionsUsecase, DeductConcessionStockUsecase
-{
+export class ProductService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly itemService: ItemService,
@@ -91,39 +89,43 @@ export class ProductService
       }
 
       if (canServe && minStock > 0 && minStock !== Number.MAX_SAFE_INTEGER) {
-        validCombos.push({
-          comboId: combo.id,
-          name: combo.name,
-          price: combo.price,
-          availableStock: minStock,
-          imageUrl: formatImageUrl(combo.imageKey),
-          description: combo.description || undefined,
-          items: comboItems.map((sub) => {
-            const doc = itemMap.get(sub.itemId);
-            return {
-              itemId: sub.itemId,
-              name: doc?.name || 'Món',
-              quantity: sub.quantity,
-            };
+        validCombos.push(
+          BranchConcessionComboRes.of({
+            comboId: combo.id,
+            name: combo.name,
+            price: combo.price,
+            availableStock: minStock,
+            imageUrl: formatImageUrl(combo.imageKey),
+            description: combo.description || undefined,
+            items: comboItems.map((sub) => {
+              const doc = itemMap.get(sub.itemId);
+              return BranchConcessionComboItemRes.of(
+                sub.itemId,
+                doc?.name || 'Món',
+                sub.quantity,
+              );
+            }),
           }),
-        });
+        );
       }
     }
 
-    return {
-      branchId: branch.id,
-      items: items.map((i) => ({
-        itemId: i.id,
-        name: i.name,
-        category: i.category as any,
-        size: (i.size as any) ?? null,
-        price: i.price,
-        stockQuantity: i.stockQuantity,
-        imageUrl: formatImageUrl(i.imageKey),
-        description: i.description || undefined,
-      })),
-      combos: validCombos,
-    };
+    return BranchConcessionCatalogRes.of(
+      branch.id,
+      items.map((i) =>
+        BranchConcessionItemRes.of({
+          itemId: i.id,
+          name: i.name,
+          category: i.category as any,
+          size: (i.size as any) ?? null,
+          price: i.price,
+          stockQuantity: i.stockQuantity,
+          imageUrl: formatImageUrl(i.imageKey),
+          description: i.description || undefined,
+        }),
+      ),
+      validCombos,
+    );
   }
 
   async getProductsByIds(

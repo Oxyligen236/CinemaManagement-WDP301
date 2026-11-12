@@ -67,11 +67,7 @@ export class BranchRoomService {
 
       const summaries = await this.buildRoomSummaries(rooms);
 
-      return {
-        branch,
-        rooms: summaries,
-        total: summaries.length,
-      };
+      return BranchRoomListResponseDto.of(branch, summaries, summaries.length);
     });
   }
 
@@ -216,12 +212,12 @@ export class BranchRoomService {
           this.getUpcomingShowtimesForRoom(room.id),
         ]);
 
-      return {
+      return BranchRoomDetailResponseDto.of(
         branch,
-        room: summaries[0],
-        seats: seatsWithLockInfo,
+        summaries[0],
+        seatsWithLockInfo,
         upcomingShowtimes,
-      };
+      );
     });
   }
 
@@ -271,10 +267,10 @@ export class BranchRoomService {
 
       const [summary] = await this.buildRoomSummaries([created]);
 
-      return {
-        message: ROOM_MESSAGES.MSG04_ROOM_CREATED,
-        room: summary,
-      };
+      return BranchRoomMutationResponseDto.of(
+        ROOM_MESSAGES.MSG04_ROOM_CREATED,
+        summary,
+      );
     });
   }
 
@@ -385,10 +381,10 @@ export class BranchRoomService {
 
       const [summary] = await this.buildRoomSummaries([room]);
 
-      return {
-        message: ROOM_MESSAGES.MSG08_LAYOUT_REPLACED,
-        room: summary,
-      };
+      return BranchRoomMutationResponseDto.of(
+        ROOM_MESSAGES.MSG08_LAYOUT_REPLACED,
+        summary,
+      );
     });
   }
 
@@ -464,10 +460,10 @@ export class BranchRoomService {
 
       const [summary] = await this.buildRoomSummaries([updated]);
 
-      return {
-        message: ROOM_MESSAGES.MSG04_ROOM_UPDATED,
-        room: summary,
-      };
+      return BranchRoomMutationResponseDto.of(
+        ROOM_MESSAGES.MSG04_ROOM_UPDATED,
+        summary,
+      );
     });
   }
 
@@ -608,12 +604,12 @@ export class BranchRoomService {
         validSeatIdSet.has(s.seatId),
       );
 
-      return {
-        message: ROOM_MESSAGES.MSG04_SEATS_UPDATED,
-        updatedCount: updatedSeatDtos.length,
-        room: summaries[0],
-        seats: updatedSeatDtos,
-      };
+      return BranchRoomSeatsMutationResponseDto.of(
+        ROOM_MESSAGES.MSG04_SEATS_UPDATED,
+        updatedSeatDtos.length,
+        summaries[0],
+        updatedSeatDtos,
+      );
     });
   }
 
@@ -674,7 +670,7 @@ export class BranchRoomService {
 
     return rooms.map((room) => {
       const stat = seatStatsByRoom.get(room.id);
-      return {
+      return BranchRoomSummaryDto.of({
         roomId: room.id,
         roomName: room.roomName,
         roomStatus: room.roomStatus,
@@ -686,7 +682,7 @@ export class BranchRoomService {
         vipSeats: stat?.vipSeats ?? 0,
         coupleSeats: stat?.coupleSeats ?? 0,
         upcomingShowtimesCount: showtimeCountByRoom.get(room.id) ?? 0,
-      };
+      });
     });
   }
 
@@ -720,19 +716,21 @@ export class BranchRoomService {
       bookedSeatIds = new Set(bookedEntries.map((e: any) => e.seatId));
     }
 
-    return seats.map((seat: any) => ({
-      seatId: seat.id,
-      roomId: seat.roomId,
-      rowPosition: seat.rowPosition,
-      columnPosition: seat.columnPosition,
-      seatLabel: `${seat.rowPosition}${seat.columnPosition}`,
-      seatType: seat.seatType,
-      status: seat.status,
-      isBroken:
-        seat.status === SeatStatus.MAINTENANCE ||
-        seat.status === SeatStatus.BLOCKED,
-      hasUpcomingBookedTicket: bookedSeatIds.has(seat.id),
-    }));
+    return seats.map((seat: any) =>
+      RoomSeatItemDto.of({
+        seatId: seat.id,
+        roomId: seat.roomId,
+        rowPosition: seat.rowPosition,
+        columnPosition: seat.columnPosition,
+        seatLabel: `${seat.rowPosition}${seat.columnPosition}`,
+        seatType: seat.seatType,
+        status: seat.status,
+        isBroken:
+          seat.status === SeatStatus.MAINTENANCE ||
+          seat.status === SeatStatus.BLOCKED,
+        hasUpcomingBookedTicket: bookedSeatIds.has(seat.id),
+      }),
+    );
   }
 
   private async getUpcomingShowtimesForRoom(
@@ -751,13 +749,15 @@ export class BranchRoomService {
       orderBy: { startTime: 'asc' },
     });
 
-    return showtimes.map((st: any) => ({
-      showtimeId: st.id,
-      movieId: st.movieId,
-      movieName: st.movie?.movieName ?? 'Phim đang xếp lịch',
-      startTime: st.startTime,
-      endTime: st.endTime,
-    }));
+    return showtimes.map((st: any) =>
+      RoomUpcomingShowtimeDto.of(
+        st.id,
+        st.movieId,
+        st.movie?.movieName ?? 'Phim đang xếp lịch',
+        st.startTime,
+        st.endTime,
+      ),
+    );
   }
 
   private async generateDefaultSeatsForRoom(
@@ -831,12 +831,12 @@ export class BranchRoomService {
           });
 
           if (assignedBranch) {
-            return {
-              branchId: assignedBranch.id,
-              branchName: assignedBranch.branchName,
-              address: assignedBranch.address,
-              branchStatus: assignedBranch.branchStatus as any,
-            };
+            return RoomManagerBranchDto.of(
+              assignedBranch.id,
+              assignedBranch.branchName,
+              assignedBranch.address,
+              assignedBranch.branchStatus as any,
+            );
           }
         }
       }
@@ -864,12 +864,12 @@ export class BranchRoomService {
       };
     }
 
-    return {
-      branchId: defaultBranch.id,
-      branchName: defaultBranch.branchName,
-      address: defaultBranch.address,
-      branchStatus: defaultBranch.branchStatus as any,
-    };
+    return RoomManagerBranchDto.of(
+      defaultBranch.id,
+      defaultBranch.branchName,
+      defaultBranch.address,
+      defaultBranch.branchStatus as any,
+    );
   }
 
   private async guard<T>(operation: () => Promise<T>): Promise<T> {
