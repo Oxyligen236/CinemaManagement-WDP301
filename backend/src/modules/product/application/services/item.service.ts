@@ -16,6 +16,9 @@ import {
 } from '@prisma/client';
 import { StockAdjustmentType } from '../../domain/enums/stock-adjustment-type.enum';
 import { ExcelStockMode } from '../../domain/enums/excel-stock-mode.enum';
+import { ItemCategory as DomainItemCategory } from '../../domain/enums/item-category.enum';
+import { ItemSize as DomainItemSize } from '../../domain/enums/item-size.enum';
+import { ItemStatus as DomainItemStatus } from '../../domain/enums/item-status.enum';
 import {
   CONCESSION_CONSTANTS,
   CONCESSION_MESSAGES,
@@ -67,33 +70,6 @@ export class ItemService {
     return branch;
   }
 
-  private mapToItemRes(item: any): ItemRes {
-    const isLowStock =
-      item.stockQuantity <= item.lowStockThreshold &&
-      item.status !== ItemStatus.INACTIVE;
-    return ItemRes.of({
-      itemId: item.id,
-      branchId: item.branchId,
-      name: item.name,
-      category: item.category,
-      size: item.size ?? null,
-      price: item.price,
-      costPrice: item.costPrice ?? 0,
-      stockQuantity: item.stockQuantity,
-      lowStockThreshold: item.lowStockThreshold,
-      isLowStock,
-      status: item.status,
-      imageKey: item.imageKey ?? null,
-      description: item.description ?? null,
-      createdAt: item.createdAt
-        ? new Date(item.createdAt).toISOString()
-        : undefined,
-      updatedAt: item.updatedAt
-        ? new Date(item.updatedAt).toISOString()
-        : undefined,
-    });
-  }
-
   async createItem(
     managerUserId: string,
     req: CreateItemReq,
@@ -140,7 +116,29 @@ export class ItemService {
 
     return ItemMutationRes.of(
       CONCESSION_MESSAGES.CREATE_ITEM_SUCCESS,
-      this.mapToItemRes(item),
+      ItemRes.of({
+        itemId: item.id,
+        branchId: item.branchId,
+        name: item.name,
+        category: item.category as unknown as DomainItemCategory,
+        size: (item.size as unknown as DomainItemSize) ?? null,
+        price: item.price,
+        costPrice: item.costPrice ?? 0,
+        stockQuantity: item.stockQuantity,
+        lowStockThreshold: item.lowStockThreshold,
+        isLowStock:
+          item.stockQuantity <= item.lowStockThreshold &&
+          item.status !== ItemStatus.INACTIVE,
+        status: item.status as unknown as DomainItemStatus,
+        imageKey: item.imageKey ?? null,
+        description: item.description ?? null,
+        createdAt: item.createdAt
+          ? new Date(item.createdAt).toISOString()
+          : undefined,
+        updatedAt: item.updatedAt
+          ? new Date(item.updatedAt).toISOString()
+          : undefined,
+      }),
     );
   }
 
@@ -204,7 +202,29 @@ export class ItemService {
 
     return ItemMutationRes.of(
       CONCESSION_MESSAGES.UPDATE_ITEM_SUCCESS,
-      this.mapToItemRes(updated),
+      ItemRes.of({
+        itemId: updated.id,
+        branchId: updated.branchId,
+        name: updated.name,
+        category: updated.category as unknown as DomainItemCategory,
+        size: (updated.size as unknown as DomainItemSize) ?? null,
+        price: updated.price,
+        costPrice: updated.costPrice ?? 0,
+        stockQuantity: updated.stockQuantity,
+        lowStockThreshold: updated.lowStockThreshold,
+        isLowStock:
+          updated.stockQuantity <= updated.lowStockThreshold &&
+          updated.status !== ItemStatus.INACTIVE,
+        status: updated.status as unknown as DomainItemStatus,
+        imageKey: updated.imageKey ?? null,
+        description: updated.description ?? null,
+        createdAt: updated.createdAt
+          ? new Date(updated.createdAt).toISOString()
+          : undefined,
+        updatedAt: updated.updatedAt
+          ? new Date(updated.updatedAt).toISOString()
+          : undefined,
+      }),
     );
   }
 
@@ -254,7 +274,31 @@ export class ItemService {
       ? items.slice(skip, skip + limit)
       : items;
 
-    const itemDtos = pagedItems.map((i) => this.mapToItemRes(i));
+    const itemDtos = pagedItems.map((i) =>
+      ItemRes.of({
+        itemId: i.id,
+        branchId: i.branchId,
+        name: i.name,
+        category: i.category as unknown as DomainItemCategory,
+        size: (i.size as unknown as DomainItemSize) ?? null,
+        price: i.price,
+        costPrice: i.costPrice ?? 0,
+        stockQuantity: i.stockQuantity,
+        lowStockThreshold: i.lowStockThreshold,
+        isLowStock:
+          i.stockQuantity <= i.lowStockThreshold &&
+          i.status !== ItemStatus.INACTIVE,
+        status: i.status as unknown as DomainItemStatus,
+        imageKey: i.imageKey ?? null,
+        description: i.description ?? null,
+        createdAt: i.createdAt
+          ? new Date(i.createdAt).toISOString()
+          : undefined,
+        updatedAt: i.updatedAt
+          ? new Date(i.updatedAt).toISOString()
+          : undefined,
+      }),
+    );
     return Page.from(itemDtos, total, page, limit);
   }
 
@@ -266,7 +310,29 @@ export class ItemService {
     if (!item) {
       throw new NotFoundException(CONCESSION_MESSAGES.ITEM_NOT_FOUND);
     }
-    return this.mapToItemRes(item);
+    return ItemRes.of({
+      itemId: item.id,
+      branchId: item.branchId,
+      name: item.name,
+      category: item.category as unknown as DomainItemCategory,
+      size: (item.size as unknown as DomainItemSize) ?? null,
+      price: item.price,
+      costPrice: item.costPrice ?? 0,
+      stockQuantity: item.stockQuantity,
+      lowStockThreshold: item.lowStockThreshold,
+      isLowStock:
+        item.stockQuantity <= item.lowStockThreshold &&
+        item.status !== ItemStatus.INACTIVE,
+      status: item.status as unknown as DomainItemStatus,
+      imageKey: item.imageKey ?? null,
+      description: item.description ?? null,
+      createdAt: item.createdAt
+        ? new Date(item.createdAt).toISOString()
+        : undefined,
+      updatedAt: item.updatedAt
+        ? new Date(item.updatedAt).toISOString()
+        : undefined,
+    });
   }
 
   async adjustItemStock(
@@ -348,7 +414,29 @@ export class ItemService {
 
     return ItemMutationRes.of(
       CONCESSION_MESSAGES.STATUS_UPDATE_SUCCESS,
-      this.mapToItemRes(saved),
+      ItemRes.of({
+        itemId: saved.id,
+        branchId: saved.branchId,
+        name: saved.name,
+        category: saved.category as unknown as DomainItemCategory,
+        size: (saved.size as unknown as DomainItemSize) ?? null,
+        price: saved.price,
+        costPrice: saved.costPrice ?? 0,
+        stockQuantity: saved.stockQuantity,
+        lowStockThreshold: saved.lowStockThreshold,
+        isLowStock:
+          saved.stockQuantity <= saved.lowStockThreshold &&
+          saved.status !== ItemStatus.INACTIVE,
+        status: saved.status as unknown as DomainItemStatus,
+        imageKey: saved.imageKey ?? null,
+        description: saved.description ?? null,
+        createdAt: saved.createdAt
+          ? new Date(saved.createdAt).toISOString()
+          : undefined,
+        updatedAt: saved.updatedAt
+          ? new Date(saved.updatedAt).toISOString()
+          : undefined,
+      }),
     );
   }
 
