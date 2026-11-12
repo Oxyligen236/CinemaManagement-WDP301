@@ -346,6 +346,11 @@ export default function ManageUsersPage() {
   async function saveUser(event: FormEvent) {
     event.preventDefault();
     if (!selectedUser || !form) return;
+
+    if (editingOtherAdmin) {
+      setError("Không thể cập nhật tài khoản quản trị viên khác.");
+      return;
+    }
     if (!validateAll(form)) return;
 
     setSaving(true);
@@ -456,6 +461,17 @@ export default function ManageUsersPage() {
 
   const editingSelf =
     !creating && !!selectedUser && selectedUser.userId === currentUserId;
+
+  const editingOtherAdmin =
+    !creating &&
+    !!selectedUser &&
+    selectedUser.role === "ADMIN" &&
+    selectedUser.userId !== currentUserId;
+
+  /** Vai trò / chi nhánh / trạng thái bị khóa khi sửa chính mình hoặc admin khác. */
+  const roleLocked =
+    !creating &&
+    (editingSelf || editingOtherAdmin || selectedUser?.isActive === false);
 
   return (
     <div className="space-y-6 font-['Arial',sans-serif]">
@@ -716,6 +732,7 @@ export default function ManageUsersPage() {
                   id="admin-form-email"
                   type="email"
                   required
+                  disabled={editingOtherAdmin}
                   value={form.email}
                   onChange={(event) => {
                     setForm({ ...form, email: event.target.value });
@@ -786,6 +803,7 @@ export default function ManageUsersPage() {
                   <input
                     id="admin-form-firstname"
                     required
+                    disabled={editingOtherAdmin}
                     maxLength={NAME_MAX_LENGTH}
                     value={form.firstName}
                     onChange={(event) => {
@@ -818,6 +836,7 @@ export default function ManageUsersPage() {
                   <input
                     id="admin-form-lastname"
                     required
+                    disabled={editingOtherAdmin}
                     maxLength={NAME_MAX_LENGTH}
                     value={form.lastName}
                     onChange={(event) => {
@@ -853,13 +872,13 @@ export default function ManageUsersPage() {
                   id="admin-form-branch"
                   required={
                     !editingSelf &&
+                    !editingOtherAdmin &&
                     (form.role === "MANAGER" || form.role === "STAFF")
                   }
                   value={form.branchId}
                   disabled={
                     (form.role !== "MANAGER" && form.role !== "STAFF") ||
-                    (!creating &&
-                      (editingSelf || selectedUser?.isActive === false))
+                    roleLocked
                   }
                   onChange={(event) => {
                     setForm({
@@ -894,6 +913,14 @@ export default function ManageUsersPage() {
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     Không thể gán chi nhánh cho tài khoản quản trị viên.
                   </p>
+                ) : editingOtherAdmin ? (
+                  <p
+                    role="status"
+                    className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b45309]"
+                  >
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Không thể gán chi nhánh cho tài khoản quản trị viên.
+                  </p>
                 ) : (
                   !creating &&
                   selectedUser?.isActive === false && (
@@ -915,10 +942,7 @@ export default function ManageUsersPage() {
                 <select
                   id="admin-form-role"
                   value={form.role}
-                  disabled={
-                    !creating &&
-                    (editingSelf || selectedUser?.isActive === false)
-                  }
+                  disabled={roleLocked}
                   onChange={(event) => {
                     const role = event.target.value as Role;
                     setForm({
@@ -951,6 +975,14 @@ export default function ManageUsersPage() {
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     Không thể thay đổi vai trò của tài khoản quản trị viên.
                   </p>
+                ) : editingOtherAdmin ? (
+                  <p
+                    role="status"
+                    className="mt-1.5 flex items-start gap-1.5 text-[12px] font-semibold text-[#b45309]"
+                  >
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Không thể thay đổi vai trò của tài khoản quản trị viên.
+                  </p>
                 ) : (
                   !creating &&
                   selectedUser?.isActive === false && (
@@ -973,7 +1005,9 @@ export default function ManageUsersPage() {
                   id="admin-form-active"
                   type="checkbox"
                   checked={form.isActive}
-                  disabled={selectedUser?.userId === currentUserId}
+                  disabled={
+                    selectedUser?.userId === currentUserId || editingOtherAdmin
+                  }
                   onChange={(event) =>
                     setForm({ ...form, isActive: event.target.checked })
                   }
@@ -986,7 +1020,7 @@ export default function ManageUsersPage() {
 
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || editingOtherAdmin}
                 className="inline-flex h-[44px] w-full items-center justify-center gap-2 bg-[#da291c] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[#b82116] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
               >
                 {saving && (

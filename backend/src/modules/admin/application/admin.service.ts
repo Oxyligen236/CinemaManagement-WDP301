@@ -208,6 +208,12 @@ export class AdminService {
     });
 
     if (!user) throw new NotFoundException('Không tìm thấy tài khoản');
+
+    if (user.role === Role.ADMIN) {
+      throw new ForbiddenException(
+        'Không thể chỉ định chi nhánh cho tài khoản quản trị viên',
+      );
+    }
     if (!user.isActive) {
       throw new BadRequestException(
         'Không thể chỉ định chi nhánh cho một tài khoản không hoạt động',
@@ -270,6 +276,12 @@ export class AdminService {
 
   async createUser(input: CreateUserDto): Promise<AdminUserMutateRes> {
     const email = input.email.toLowerCase();
+
+    if ((input.role as unknown as Role) === Role.ADMIN) {
+      throw new ForbiddenException(
+        'Không thể tạo tài khoản với vai trò quản trị viên',
+      );
+    }
     if (input.branchId) {
       if (
         input.isActive === false ||
@@ -340,19 +352,23 @@ export class AdminService {
       );
     }
 
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!target) {
+      throw new NotFoundException(
+        userId === adminUserId
+          ? 'Không tìm thấy tài khoản của bạn'
+          : 'Không tìm thấy tài khoản để cập nhật',
+      );
+    }
+
     if (userId === adminUserId) {
-      const self = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true },
-      });
-
-      if (!self) {
-        throw new NotFoundException('Không tìm thấy tài khoản của bạn');
-      }
-
       if (
         input.role !== undefined &&
-        (input.role as unknown as Role) !== self.role
+        (input.role as unknown as Role) !== target.role
       ) {
         throw new ForbiddenException(
           'Không thể thay đổi vai trò của chính bạn',
@@ -364,6 +380,20 @@ export class AdminService {
           'Không thể vô hiệu hóa tài khoản của chính bạn',
         );
       }
+    } else if (target.role === Role.ADMIN) {
+      throw new ForbiddenException(
+        'Không thể cập nhật tài khoản quản trị viên khác',
+      );
+    }
+
+    if (
+      input.role !== undefined &&
+      (input.role as unknown as Role) === Role.ADMIN &&
+      target.role !== Role.ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Không thể gán vai trò quản trị viên cho tài khoản khác',
+      );
     }
 
     if (input.email) {
