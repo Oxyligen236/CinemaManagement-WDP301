@@ -28,6 +28,9 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
+
 const MANAGER_NAV_ITEMS: NavItem[] = [
   {
     label: 'Tổng quan Chi nhánh',
@@ -74,6 +77,11 @@ export default function BranchManagerLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [branchInfo, setBranchInfo] = useState<{
+    branchName: string;
+    address?: string;
+    branchStatus?: string;
+  } | null>(null);
 
   useEffect(() => {
     const rawUser = localStorage.getItem('cinema_user');
@@ -89,6 +97,23 @@ export default function BranchManagerLayout({
     } catch {
       // ignore
     }
+
+    const token = localStorage.getItem('cinema_access_token');
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    fetch(`${API_BASE_URL}/manager/dashboard/overview`, { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.branch) {
+          setBranchInfo(json.branch);
+        }
+      })
+      .catch(() => {
+        // ignore background fetch error
+      });
   }, [router]);
 
   function logout() {
@@ -127,7 +152,7 @@ export default function BranchManagerLayout({
           <span className="text-[#c1b687]">|</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
             <Building2 className="h-3.5 w-3.5 text-[#da291c]" />
-            Chi nhánh: Latte Cinema Nam Sài Gòn
+            Chi nhánh: {branchInfo?.branchName || 'Latte Cinema'}
           </span>
         </div>
 
@@ -304,14 +329,22 @@ export default function BranchManagerLayout({
                 Cụm rạp đang quản lý
               </p>
               <p className="mt-1 text-[13px] font-bold text-[#231f20]">
-                Latte Cinema Nam Sài Gòn
+                {branchInfo?.branchName ?? 'Đang tải thông tin...'}
               </p>
               <p className="mt-0.5 text-[11px] text-[#666]">
-                Tầng 3, TTTM Latte, Q.7, TP.HCM
+                {branchInfo?.address ?? 'Đang cập nhật địa chỉ...'}
               </p>
               <div className="mt-2.5 pt-2 border-t border-[#efebdb] flex items-center justify-between text-[11px]">
                 <span className="text-[#6f6247]">Trạng thái:</span>
-                <span className="font-bold text-[#15803d]">● Đang hoạt động</span>
+                <span
+                  className={`font-bold ${
+                    branchInfo?.branchStatus === 'ACTIVE'
+                      ? 'text-[#15803d]'
+                      : 'text-[#b45309]'
+                  }`}
+                >
+                  ● {branchInfo?.branchStatus === 'ACTIVE' ? 'Đang hoạt động' : (branchInfo?.branchStatus ?? 'Đang hoạt động')}
+                </span>
               </div>
             </div>
           </div>
