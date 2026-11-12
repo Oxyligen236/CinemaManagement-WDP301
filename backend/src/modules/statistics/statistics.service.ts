@@ -8,7 +8,13 @@ import { AuthenticatedUser } from '../auth/domain/types/authenticated-user.type'
 import { Role } from '../auth/infra/decorators/role.decorator';
 import { UserBranchQueryService } from '../user/application/services/user-branch-query.service';
 import { OrderStatus } from '@prisma/client';
-import { FinancialStatisticsQueryDto } from './statistics.dto';
+import {
+  CategoryFinancialStatDto,
+  FinancialStatisticsQueryDto,
+  FinancialStatisticsResDto,
+  MovieFinancialStatDto,
+  ProductFinancialStatDto,
+} from './statistics.dto';
 
 @Injectable()
 export class StatisticsService {
@@ -20,7 +26,7 @@ export class StatisticsService {
   async getFinancial(
     user: AuthenticatedUser,
     query: FinancialStatisticsQueryDto,
-  ) {
+  ): Promise<FinancialStatisticsResDto> {
     const branchId = await this.resolveBranch(user, query.branchId);
     const { start, end, date, period } = this.dateRange(
       query.date,
@@ -39,7 +45,7 @@ export class StatisticsService {
     const paidOrderIds = paidOrders.map((o) => o.id);
 
     if (paidOrderIds.length === 0) {
-      return {
+      return FinancialStatisticsResDto.of({
         date,
         period,
         branchId: branchId ?? null,
@@ -53,7 +59,7 @@ export class StatisticsService {
         topSellingMovie: null,
         lowestSellingMovie: null,
         dailyShowtimeChart: [],
-      };
+      });
     }
 
     const [seatOrders, productOrders] = await Promise.all([
@@ -128,13 +134,23 @@ export class StatisticsService {
       }
     }
 
-    const products = Array.from(productAggMap.values()).sort(
-      (a, b) =>
-        b.revenue - a.revenue || a.productName.localeCompare(b.productName),
-    );
+    const products = Array.from(productAggMap.values())
+      .sort(
+        (a, b) =>
+          b.revenue - a.revenue || a.productName.localeCompare(b.productName),
+      )
+      .map((p) =>
+        ProductFinancialStatDto.of(
+          p.productId,
+          p.productName,
+          p.category,
+          p.quantitySold,
+          p.revenue,
+        ),
+      );
     const totalProductRevenue = products.reduce((sum, p) => sum + p.revenue, 0);
 
-    const productsByCategory = Object.values(
+    const rawCategories = Object.values(
       products.reduce<
         Record<
           string,
@@ -151,6 +167,9 @@ export class StatisticsService {
         result[product.category] = entry;
         return result;
       }, {}),
+    );
+    const productsByCategory = rawCategories.map((c) =>
+      CategoryFinancialStatDto.of(c.category, c.quantitySold, c.revenue),
     );
 
     const movieAggMap = new Map<
@@ -182,12 +201,22 @@ export class StatisticsService {
       }
     }
 
-    const movies = Array.from(movieAggMap.values()).sort(
-      (a, b) =>
-        b.ticketsSold - a.ticketsSold || a.movieName.localeCompare(b.movieName),
-    );
+    const movies = Array.from(movieAggMap.values())
+      .sort(
+        (a, b) =>
+          b.ticketsSold - a.ticketsSold ||
+          a.movieName.localeCompare(b.movieName),
+      )
+      .map((m) =>
+        MovieFinancialStatDto.of(
+          m.movieId,
+          m.movieName,
+          m.ticketsSold,
+          m.ticketRevenue,
+        ),
+      );
 
-    return {
+    return FinancialStatisticsResDto.of({
       date,
       period,
       branchId: branchId ?? null,
@@ -201,7 +230,7 @@ export class StatisticsService {
       topSellingMovie: movies[0] ?? null,
       lowestSellingMovie: movies.at(-1) ?? null,
       dailyShowtimeChart: movies,
-    };
+    });
   }
 
   private async resolveBranch(user: AuthenticatedUser, requested?: string) {

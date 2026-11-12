@@ -556,14 +556,6 @@ export default function MovieDetailPage({
                     <span className="w-32 text-[#6b7280] font-medium shrink-0">Khởi chiếu</span>
                     <span className="font-semibold text-[#111827]">{formatDateVi(movie.releaseDate)}</span>
                   </div>
-                  <div className="flex items-center">
-                    <span className="w-32 text-[#6b7280] font-medium shrink-0">Đạo diễn</span>
-                    <span className="text-[#4b5563]">Đang cập nhật</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-32 text-[#6b7280] font-medium shrink-0">Diễn viên</span>
-                    <span className="text-[#4b5563]">Đang cập nhật</span>
-                  </div>
                 </div>
               </div>
 
@@ -731,6 +723,32 @@ export default function MovieDetailPage({
                                   typeof slot.availableSeats === 'number'
                                     ? slot.availableSeats > 0
                                     : true;
+                                const startMs = new Date(slot.startTime).getTime();
+                                const isPast = !isNaN(startMs) && startMs <= new Date().getTime();
+
+                                if (isPast) {
+                                  return (
+                                    <button
+                                      key={slot.showtimeId}
+                                      type="button"
+                                      disabled
+                                      title="Suất chiếu đã bắt đầu hoặc đã kết thúc"
+                                      className="p-3 bg-[#f3f4f6] border border-[#e5e7eb] rounded-xl flex flex-col items-center justify-center min-w-[120px] opacity-60 cursor-not-allowed text-[#6b7280]"
+                                    >
+                                      <div className="flex items-center gap-1 font-bold text-base line-through">
+                                        <span>{startStr}</span>
+                                        {endStr && (
+                                          <span className="text-xs font-normal text-[#9ca3af]">
+                                            ~ {endStr}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] font-medium text-[#6b7280] mt-0.5">
+                                        Đã qua giờ
+                                      </div>
+                                    </button>
+                                  );
+                                }
 
                                 return (
                                   <button

@@ -15,7 +15,27 @@ sequenceDiagram
     %% ================= PART 1: IPN WEBHOOK & ORDER FULFILLMENT =================
     Customer ->> VNPay: Enter OTP & confirm payment
 
-    alt [vnp_ResponseCode == '00' (Payment Successful)]
+    alt [Payment Failed / Cancelled by Customer at Gateway]
+             VNPay -->> Customer: Payment failed / cancelled, prepare redirect
+        VNPay ->>+ VNPayCtrl: GET /payments/vnpay/ipn (vnp_ResponseCode!=00, vnp_TxnRef, vnp_SecureHash)
+        VNPayCtrl ->>+ OrderSvc: handleVnpayIpn(query)
+        OrderSvc ->>+ Prisma: update Payment { status: FAILED }
+        Prisma ->>+ Database: update Payment
+        Database -->>- Prisma: Payment updated
+        Prisma -->>- OrderSvc: Payment updated
+        OrderSvc -->>- VNPayCtrl: { RspCode: '00', Message: 'Confirm Success' }
+        VNPayCtrl -->>- VNPay: HTTP 200 { RspCode: '00', Message: 'Confirm Success' }
+
+        %% ================= PART 2: CLIENT REDIRECTION (FAILED) =================
+        VNPay ->>+ VNPayCtrl: GET /payments/vnpay/return (vnp_ResponseCode!=00, vnp_TxnRef)
+        VNPayCtrl ->>+ OrderSvc: handleVnpayReturn(query)
+        OrderSvc -->>- VNPayCtrl: { orderId, isSuccess: false, responseCode: '24' }
+        VNPayCtrl -->>- UI: 302 Redirect /booking/payment-return?orderId=...&status=failed
+        UI -->> Customer: Display payment failure notification & retry options
+
+
+      
+    else  [vnp_ResponseCode == '00' (Payment Successful)]
         VNPay -->> Customer: Payment successful, prepare redirect
         VNPay ->>+ VNPayCtrl: GET /payments/vnpay/ipn (vnp_ResponseCode=00, vnp_TxnRef, vnp_SecureHash)
         VNPayCtrl ->>+ OrderSvc: handleVnpayIpn(query)
@@ -51,22 +71,5 @@ sequenceDiagram
         OrderCtrl ->>+ OrderSvc: getBookingSummary(userId, orderId)
         OrderSvc -->>- OrderCtrl: BookingSummaryRes (status: PAID, ticketDetails, products)
         OrderCtrl -->>- UI: 200 OK (BookingSummaryRes)
-        UI -->> Customer: Display booking confirmation screen & electronic QR tickets
-    else [Payment Failed / Cancelled by Customer at Gateway]
-        VNPay -->> Customer: Payment failed / cancelled, prepare redirect
-        VNPay ->>+ VNPayCtrl: GET /payments/vnpay/ipn (vnp_ResponseCode!=00, vnp_TxnRef, vnp_SecureHash)
-        VNPayCtrl ->>+ OrderSvc: handleVnpayIpn(query)
-        OrderSvc ->>+ Prisma: update Payment { status: FAILED }
-        Prisma ->>+ Database: update Payment
-        Database -->>- Prisma: Payment updated
-        Prisma -->>- OrderSvc: Payment updated
-        OrderSvc -->>- VNPayCtrl: { RspCode: '00', Message: 'Confirm Success' }
-        VNPayCtrl -->>- VNPay: HTTP 200 { RspCode: '00', Message: 'Confirm Success' }
-
-        %% ================= PART 2: CLIENT REDIRECTION (FAILED) =================
-        VNPay ->>+ VNPayCtrl: GET /payments/vnpay/return (vnp_ResponseCode!=00, vnp_TxnRef)
-        VNPayCtrl ->>+ OrderSvc: handleVnpayReturn(query)
-        OrderSvc -->>- VNPayCtrl: { orderId, isSuccess: false, responseCode: '24' }
-        VNPayCtrl -->>- UI: 302 Redirect /booking/payment-return?orderId=...&status=failed
-        UI -->> Customer: Display payment failure notification & retry options
+        UI -->> Customer: Display booking confirmation screen & electronic QR tickets 
     end

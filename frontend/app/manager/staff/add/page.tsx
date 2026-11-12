@@ -137,7 +137,9 @@ export default function AddBranchStaffPage() {
           }),
         },
       );
-      router.push(`/manager/staff?created=${encodeURIComponent(result.message)}`);
+      router.push(
+        `/manager/staff?created=${encodeURIComponent(result.message)}`,
+      );
     } catch (submitError) {
       // AF-2: backend chỉ rõ trường nào sai (email trùng, vị trí ngoài danh
       // mục...) nên hiện câu lỗi ngay dưới ô nhập đó. Chỉ khi không xác định
@@ -156,8 +158,7 @@ export default function AddBranchStaffPage() {
   const positions =
     options?.jobPositions ?? (Object.keys(POSITION_LABELS) as JobPosition[]);
   const statuses = options?.creatableStatuses ?? ["ACTIVE", "INACTIVE"];
-  const branchInactive =
-    !!options && options.branch.branchStatus !== "ACTIVE";
+  const branchInactive = !!options && options.branch.branchStatus !== "ACTIVE";
 
   return (
     <div className="space-y-6 font-['Arial',sans-serif]">
@@ -170,8 +171,8 @@ export default function AddBranchStaffPage() {
             Thêm Nhân viên Chi nhánh
           </h1>
           <p className="mt-1 text-[13px] text-[#666]">
-            Tạo tài khoản nhân viên mới. Tài khoản được gán vai trò Nhân viên
-            và chi nhánh bạn đang quản lý.
+            Tạo tài khoản nhân viên mới. Tài khoản được gán vai trò Nhân viên và
+            chi nhánh bạn đang quản lý.
           </p>
         </div>
 
@@ -207,77 +208,6 @@ export default function AddBranchStaffPage() {
               }
             />
           )}
-
-          <div>
-            <label htmlFor="staff-add-email" className={LABEL_CLASS}>
-              Email đăng nhập *
-            </label>
-            <input
-              id="staff-add-email"
-              type="email"
-              required
-              autoComplete="off"
-              maxLength={254}
-              value={form.email}
-              aria-invalid={!!fieldErrors.email}
-              aria-describedby={
-                fieldErrors.email ? "staff-add-email-error" : undefined
-              }
-              onChange={(event) => {
-                setForm({ ...form, email: event.target.value });
-                clearFieldError("email");
-              }}
-              onBlur={(event) =>
-                validateField({ ...form, email: event.target.value }, "email")
-              }
-              className={INPUT_CLASS}
-            />
-            <FieldError
-              id="staff-add-email-error"
-              message={fieldErrors.email}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="staff-add-password" className={LABEL_CLASS}>
-              Mật khẩu tạm thời *
-            </label>
-            <input
-              id="staff-add-password"
-              type="password"
-              required
-              autoComplete="new-password"
-              minLength={8}
-              maxLength={PASSWORD_MAX_LENGTH}
-              value={form.password}
-              aria-invalid={!!fieldErrors.password}
-              aria-describedby={
-                fieldErrors.password
-                  ? "staff-add-password-error"
-                  : "staff-add-password-hint"
-              }
-              onChange={(event) => {
-                setForm({ ...form, password: event.target.value });
-                clearFieldError("password");
-              }}
-              onBlur={(event) =>
-                validateField(
-                  { ...form, password: event.target.value },
-                  "password",
-                )
-              }
-              className={INPUT_CLASS}
-            />
-            <FieldError
-              id="staff-add-password-error"
-              message={fieldErrors.password}
-            />
-            <p id="staff-add-password-hint" className="mt-1 text-[11px] text-[#777]">
-              Tối thiểu 8 ký tự. Nhân viên nên đổi mật khẩu sau lần đăng nhập
-              đầu tiên.
-            </p>
-          </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="staff-add-lastname" className={LABEL_CLASS}>
@@ -342,8 +272,82 @@ export default function AddBranchStaffPage() {
               />
             </div>
           </div>
+          <div>
+            <label htmlFor="staff-add-email" className={LABEL_CLASS}>
+              Email đăng nhập *
+            </label>
+            <input
+              id="staff-add-email"
+              type="email"
+              required
+              autoComplete="off"
+              maxLength={254}
+              value={form.email}
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={
+                fieldErrors.email ? "staff-add-email-error" : undefined
+              }
+              onChange={(event) => {
+                setForm({ ...form, email: event.target.value });
+                clearFieldError("email");
+              }}
+              onBlur={(event) =>
+                validateField({ ...form, email: event.target.value }, "email")
+              }
+              className={INPUT_CLASS}
+            />
+            <FieldError
+              id="staff-add-email-error"
+              message={fieldErrors.email}
+            />
+          </div>
 
-          <LockedBranchField id="staff-add-branch" branch={options?.branch ?? null} />
+          <div>
+            <label htmlFor="staff-add-password" className={LABEL_CLASS}>
+              Mật khẩu tạm thời *
+            </label>
+            <input
+              id="staff-add-password"
+              type="password"
+              required
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={PASSWORD_MAX_LENGTH}
+              value={form.password}
+              aria-invalid={!!fieldErrors.password}
+              aria-describedby={
+                fieldErrors.password
+                  ? "staff-add-password-error"
+                  : "staff-add-password-hint"
+              }
+              onChange={(event) => {
+                setForm({ ...form, password: event.target.value });
+                clearFieldError("password");
+              }}
+              onBlur={(event) =>
+                validateField(
+                  { ...form, password: event.target.value },
+                  "password",
+                )
+              }
+              className={INPUT_CLASS}
+            />
+            <FieldError
+              id="staff-add-password-error"
+              message={fieldErrors.password}
+            />
+            <p
+              id="staff-add-password-hint"
+              className="mt-1 text-[11px] text-[#777]"
+            >
+              Tối thiểu 8 ký tự.
+            </p>
+          </div>
+
+          <LockedBranchField
+            id="staff-add-branch"
+            branch={options?.branch ?? null}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

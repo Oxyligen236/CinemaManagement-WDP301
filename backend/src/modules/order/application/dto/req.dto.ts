@@ -5,7 +5,6 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -15,7 +14,6 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { PageRequest } from '../../../../common/dto/page.dto';
-import { PaymentMethod } from '../../contracts/payment.contract';
 import { Role } from '../../../auth/infra/decorators/role.decorator';
 
 export class BookingProductReq {
@@ -124,17 +122,6 @@ export class CreatePosOrderReq {
   @ValidateNested({ each: true })
   @Type(() => PosProductItemReq)
   products?: PosProductItemReq[];
-}
-
-export class ProcessPosCashPaymentReq {
-  @IsNumber()
-  @Min(0)
-  cashReceived!: number;
-}
-
-export class InitiatePosQrPaymentReq {
-  @IsEnum(PaymentMethod)
-  paymentMethod!: PaymentMethod;
 }
 
 export class CancelPosOrderReq {

@@ -14,12 +14,20 @@ import {
 } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { VietnamTime } from '../domain/vietnam-time.helper';
+import {
+  MyShiftResDto,
+  WorkCanDeleteResDto,
+  WorkDailyAssignmentDto,
+  WorkScheduleResDto,
+  WorkShiftStatsResDto,
+  WorkStaffItemDto,
+} from './dto/res.dto';
 
 @Injectable()
 export class WorkScheduleService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(input: CreateWorkScheduleDto) {
+  async create(input: CreateWorkScheduleDto): Promise<WorkScheduleResDto> {
     const branch = await this.prisma.branch.findFirst({
       where: {
         OR: [{ id: input.branchId }, { branchName: input.branchId }],
@@ -58,21 +66,23 @@ export class WorkScheduleService {
         userIds: [],
       },
     });
-    return {
+    return WorkScheduleResDto.of({
       ...created,
       scheduleId: created.id,
-    };
+    });
   }
 
-  async list(branchId?: string) {
+  async list(branchId?: string): Promise<WorkScheduleResDto[]> {
     const schedules = await this.prisma.workSchedule.findMany({
       where: branchId ? { branchId } : {},
       orderBy: { startTime: 'asc' },
     });
-    return schedules.map((s) => ({ ...s, scheduleId: s.id }));
+    return schedules.map((s) =>
+      WorkScheduleResDto.of({ ...s, scheduleId: s.id }),
+    );
   }
 
-  async listForManager(userId: string) {
+  async listForManager(userId: string): Promise<WorkScheduleResDto[]> {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: userId,
@@ -83,7 +93,11 @@ export class WorkScheduleService {
     return this.list(manager?.branchId ?? undefined);
   }
 
-  async assign(scheduleId: string, managerId: string, userIds: string[]) {
+  async assign(
+    scheduleId: string,
+    managerId: string,
+    userIds: string[],
+  ): Promise<WorkScheduleResDto> {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
@@ -115,10 +129,10 @@ export class WorkScheduleService {
       where: { id: scheduleId },
       data: { userIds },
     });
-    return { ...updated, scheduleId: updated.id };
+    return WorkScheduleResDto.of({ ...updated, scheduleId: updated.id });
   }
 
-  async listStaffForManager(managerId: string) {
+  async listStaffForManager(managerId: string): Promise<WorkStaffItemDto[]> {
     const manager = await this.prisma.user.findFirst({
       where: {
         id: managerId,
@@ -140,32 +154,32 @@ export class WorkScheduleService {
       },
       orderBy: { firstName: 'asc' },
     });
-    return staff.map((s) => ({ ...s, userId: s.id }));
+    return staff.map((s) => WorkStaffItemDto.of({ ...s, userId: s.id }));
   }
 
-  async canDelete(scheduleId: string) {
+  async canDelete(scheduleId: string): Promise<WorkCanDeleteResDto> {
     const schedule = await this.prisma.workSchedule.findUnique({
       where: { id: scheduleId },
     });
     if (!schedule) throw new NotFoundException('Không tìm thấy ca làm');
     if (schedule.userIds?.length)
-      return { canDelete: false, reason: 'Ca làm đã được gán nhân viên.' };
+      return WorkCanDeleteResDto.of(false, 'Ca làm đã được gán nhân viên.');
     const hasAssignments = await this.prisma.shiftAssignment.findFirst({
       where: { scheduleId },
       select: { id: true },
     });
     if (hasAssignments)
-      return {
-        canDelete: false,
-        reason: 'Ca làm đã được phân công cho nhân viên theo ngày.',
-      };
+      return WorkCanDeleteResDto.of(
+        false,
+        'Ca làm đã được phân công cho nhân viên theo ngày.',
+      );
     const hasAttendance = await this.prisma.shiftAttendance.findFirst({
       where: { scheduleId },
       select: { id: true },
     });
     if (hasAttendance)
-      return { canDelete: false, reason: 'Ca làm đã có dữ liệu chấm công.' };
-    return { canDelete: true };
+      return WorkCanDeleteResDto.of(false, 'Ca làm đã có dữ liệu chấm công.');
+    return WorkCanDeleteResDto.of(true);
   }
 
   async remove(scheduleId: string) {
@@ -175,7 +189,10 @@ export class WorkScheduleService {
     return { deleted: true };
   }
 
-  async update(scheduleId: string, input: CreateWorkScheduleDto) {
+  async update(
+    scheduleId: string,
+    input: CreateWorkScheduleDto,
+  ): Promise<WorkScheduleResDto> {
     const current = await this.prisma.workSchedule.findUnique({
       where: { id: scheduleId },
     });
@@ -208,10 +225,13 @@ export class WorkScheduleService {
         isOvernight: end <= start,
       },
     });
-    return { ...updated, scheduleId: updated.id };
+    return WorkScheduleResDto.of({ ...updated, scheduleId: updated.id });
   }
 
-  async dailyAssignments(managerId: string, date: string) {
+  async dailyAssignments(
+    managerId: string,
+    date: string,
+  ): Promise<WorkDailyAssignmentDto[]> {
     this.assertDate(date);
     const branchId = await this.managerBranch(managerId);
     const [schedules, assignments, attendance] = await Promise.all([
@@ -241,18 +261,20 @@ export class WorkScheduleService {
     const attendanceByKey = new Map(
       attendance.map((x) => [`${x.scheduleId}:${x.userId}`, x]),
     );
-    return schedules.map((schedule) => ({
-      ...schedule,
-      scheduleId: schedule.id,
-      assignments: assignments
-        .filter((x) => x.scheduleId === schedule.id)
-        .map((x) => ({
-          ...x,
-          user: usersById.get(x.userId),
-          attendance:
-            attendanceByKey.get(`${x.scheduleId}:${x.userId}`) ?? null,
-        })),
-    }));
+    return schedules.map((schedule) =>
+      WorkDailyAssignmentDto.of({
+        ...schedule,
+        scheduleId: schedule.id,
+        assignments: assignments
+          .filter((x) => x.scheduleId === schedule.id)
+          .map((x) => ({
+            ...x,
+            user: usersById.get(x.userId),
+            attendance:
+              attendanceByKey.get(`${x.scheduleId}:${x.userId}`) ?? null,
+          })),
+      }),
+    );
   }
   async assignDay(
     managerId: string,
@@ -579,7 +601,10 @@ export class WorkScheduleService {
     });
   }
 
-  async myShifts(userId: string, requestedDate?: string) {
+  async myShifts(
+    userId: string,
+    requestedDate?: string,
+  ): Promise<MyShiftResDto[]> {
     const date = requestedDate ?? this.vnDate();
     this.assertDate(date);
     const assignments = await this.prisma.shiftAssignment.findMany({
@@ -596,12 +621,15 @@ export class WorkScheduleService {
       where: { userId, date },
     });
     const bySchedule = new Map(attendances.map((x) => [x.scheduleId, x]));
-    return schedules.map((schedule) => ({
-      ...schedule,
-      scheduleId: schedule.id,
-      attendance: bySchedule.get(schedule.id) ?? null,
-    }));
+    return schedules.map((schedule) =>
+      MyShiftResDto.of({
+        ...schedule,
+        scheduleId: schedule.id,
+        attendance: bySchedule.get(schedule.id) ?? null,
+      }),
+    );
   }
+
   private vnDate(now = new Date()) {
     return VietnamTime.today(now);
   }
@@ -614,12 +642,14 @@ export class WorkScheduleService {
     return { start: startAt, end: endAt };
   }
 
-  async stats(userId: string) {
+  async stats(userId: string): Promise<WorkShiftStatsResDto> {
     const a = await this.prisma.shiftAttendance.findFirst({
       where: { userId, date: this.vnDate() },
       orderBy: { checkInAt: 'desc' },
     });
-    if (!a?.checkInAt) return { revenue: 0, tickets: 0, products: 0 };
+    if (!a?.checkInAt) {
+      return WorkShiftStatsResDto.of({ revenue: 0, tickets: 0, products: 0 });
+    }
     const end = a.checkOutAt || new Date();
     const orders = await this.prisma.order.findMany({
       where: {
@@ -637,13 +667,13 @@ export class WorkScheduleService {
         _sum: { quantity: true },
       }),
     ]);
-    return {
+    return WorkShiftStatsResDto.of({
       revenue: orders.reduce((s, x) => s + x.totalAmount, 0),
       tickets,
       products: productAggr._sum.quantity || 0,
       checkInAt: a.checkInAt,
       checkOutAt: a.checkOutAt,
       scheduleId: a.scheduleId,
-    };
+    });
   }
 }

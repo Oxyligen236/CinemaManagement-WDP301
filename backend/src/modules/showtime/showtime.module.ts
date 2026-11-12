@@ -12,9 +12,12 @@ import { ShowtimeController } from './infra/showtime.controller';
 import { StaffShowtimeController } from './infra/staff-showtime.controller';
 import { ShowtimeBookingService } from './application/services/showtime-booking.service';
 import { ShowtimeScheduleService } from './application/services/showtime-schedule.service';
-import { SHOWTIME_CONTRACT } from './contracts/showtime.contract';
-import { ShowtimeContractImpl } from './contracts/showtime-contract.impl';
-export type { SeatBookingDetail } from './contract/seat-booking-detail';
+export {
+  SeatBookingDetailDto,
+  SeatBookingDetail,
+  SeatShowtimeDetailDto,
+  SeatShowtimeDetail,
+} from './application/dto/res.dto';
 
 @Module({
   imports: [
@@ -32,11 +35,6 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     ShowtimeScheduleService,
     PublicShowtimeQueryService,
     StaffShowtimeQueryService,
-    ShowtimeContractImpl,
-    {
-      provide: SHOWTIME_CONTRACT,
-      useClass: ShowtimeContractImpl,
-    },
   ],
   exports: [
     ShowtimeQueryService,
@@ -44,7 +42,6 @@ export type { SeatBookingDetail } from './contract/seat-booking-detail';
     ShowtimeScheduleService,
     PublicShowtimeQueryService,
     StaffShowtimeQueryService,
-    SHOWTIME_CONTRACT,
   ],
 })
 export class ShowtimeModule {}

@@ -31,18 +31,10 @@ import {
   toPriceValueDto,
 } from '../helpers/price-rule.helper';
 import { toNumberOrKeep } from '../helpers/to-number-or-keep.helper';
-import { CreatePriceValueUsecase } from '../usecase/create-price-value.usecase';
-import { DeletePriceValueUsecase } from '../usecase/delete-price-value.usecase';
-import { UpdatePriceValueUsecase } from '../usecase/update-price-value.usecase';
 import { PriceRuleOptionQueryService } from './price-rule-option-query.service';
 
 @Injectable()
-export class PriceRuleValueService
-  implements
-    CreatePriceValueUsecase,
-    UpdatePriceValueUsecase,
-    DeletePriceValueUsecase
-{
+export class PriceRuleValueService {
   private readonly logger = new Logger(PriceRuleValueService.name);
 
   constructor(
@@ -84,14 +76,14 @@ export class PriceRuleValueService
             adjustmentValue: multiplier,
           },
         });
-        return {
-          message: MSG_CREATE_SUCCESS,
-          value: toPriceValueDto({
+        return PriceValueMutationResDto.of(
+          MSG_CREATE_SUCCESS,
+          toPriceValueDto({
             ruleId: created.id,
             adjustmentValue: created.adjustmentValue,
           }),
-          field: await this.optionQueryService.getPriceField(group, fieldKey),
-        };
+          await this.optionQueryService.getPriceField(group, fieldKey),
+        );
       } else {
         const count = await this.prisma.dayPriceRule.count({
           where: {
@@ -117,14 +109,14 @@ export class PriceRuleValueService
             adjustmentValue: multiplier,
           },
         });
-        return {
-          message: MSG_CREATE_SUCCESS,
-          value: toPriceValueDto({
+        return PriceValueMutationResDto.of(
+          MSG_CREATE_SUCCESS,
+          toPriceValueDto({
             ruleId: created.id,
             adjustmentValue: created.adjustmentValue,
           }),
-          field: await this.optionQueryService.getPriceField(group, fieldKey),
-        };
+          await this.optionQueryService.getPriceField(group, fieldKey),
+        );
       }
     } catch (error) {
       throw this.mapWriteError(error);
@@ -161,14 +153,14 @@ export class PriceRuleValueService
           data: { adjustmentValue: multiplier },
         });
 
-        return {
-          message: MSG03,
-          value: toPriceValueDto({
+        return PriceValueMutationResDto.of(
+          MSG03,
+          toPriceValueDto({
             ruleId: updated.id,
             adjustmentValue: updated.adjustmentValue,
           }),
-          field: await this.optionQueryService.getPriceField(group, fieldKey),
-        };
+          await this.optionQueryService.getPriceField(group, fieldKey),
+        );
       } else {
         const current = await this.prisma.dayPriceRule.findFirst({
           where: { id: ruleId, dayType: field.fieldKey as any },
@@ -189,14 +181,14 @@ export class PriceRuleValueService
           data: { adjustmentValue: multiplier },
         });
 
-        return {
-          message: MSG03,
-          value: toPriceValueDto({
+        return PriceValueMutationResDto.of(
+          MSG03,
+          toPriceValueDto({
             ruleId: updated.id,
             adjustmentValue: updated.adjustmentValue,
           }),
-          field: await this.optionQueryService.getPriceField(group, fieldKey),
-        };
+          await this.optionQueryService.getPriceField(group, fieldKey),
+        );
       }
     } catch (error) {
       throw this.mapWriteError(error);
@@ -219,14 +211,14 @@ export class PriceRuleValueService
 
         await this.prisma.seatPriceRule.delete({ where: { id: ruleId } });
 
-        return {
-          message: MSG_DELETE_SUCCESS,
-          value: toPriceValueDto({
+        return PriceValueMutationResDto.of(
+          MSG_DELETE_SUCCESS,
+          toPriceValueDto({
             ruleId: current.id,
             adjustmentValue: current.adjustmentValue,
           }),
-          field: await this.optionQueryService.getPriceField(group, fieldKey),
-        };
+          await this.optionQueryService.getPriceField(group, fieldKey),
+        );
       } else {
         const current = await this.prisma.dayPriceRule.findFirst({
           where: { id: ruleId, dayType: field.fieldKey as any },
@@ -235,14 +227,14 @@ export class PriceRuleValueService
 
         await this.prisma.dayPriceRule.delete({ where: { id: ruleId } });
 
-        return {
-          message: MSG_DELETE_SUCCESS,
-          value: toPriceValueDto({
+        return PriceValueMutationResDto.of(
+          MSG_DELETE_SUCCESS,
+          toPriceValueDto({
             ruleId: current.id,
             adjustmentValue: current.adjustmentValue,
           }),
-          field: await this.optionQueryService.getPriceField(group, fieldKey),
-        };
+          await this.optionQueryService.getPriceField(group, fieldKey),
+        );
       }
     } catch (error) {
       throw this.mapWriteError(error);

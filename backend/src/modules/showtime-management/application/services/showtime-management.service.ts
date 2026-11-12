@@ -55,6 +55,8 @@ import {
   SearchManagedShowtimeReqDto,
 } from '../dto/req.dto';
 import {
+  ManagedDayPriceSelectionResDto,
+  ManagedSeatPriceSelectionResDto,
   ManagedShowtimeResDto,
   ManagerContextResDto,
   ShowtimeMutationResDto,
@@ -95,7 +97,7 @@ export class ShowtimeManagementService {
       if (!branch) {
         throw new ForbiddenException(MSG_NO_BRANCH);
       }
-      return { branchId: branch.branchId, branchName: branch.branchName };
+      return ManagerContextResDto.of(branch.branchId, branch.branchName);
     } catch (error) {
       this.fail(error, MSG_LOAD_FAILED);
     }
@@ -203,10 +205,10 @@ export class ShowtimeManagementService {
         }),
       );
 
-      return {
-        message: MSG02,
-        showtime: this.toManaged(created, movie, rooms, false),
-      };
+      return ShowtimeMutationResDto.of(
+        MSG02,
+        this.toManaged(created, movie, rooms, false),
+      );
     } catch (error) {
       this.fail(error, MSG_SAVE_FAILED);
     }
@@ -259,10 +261,10 @@ export class ShowtimeManagementService {
         }),
       );
 
-      return {
-        message: MSG02,
-        showtime: this.toManaged(updated, movie, rooms, false),
-      };
+      return ShowtimeMutationResDto.of(
+        MSG02,
+        this.toManaged(updated, movie, rooms, false),
+      );
     } catch (error) {
       this.fail(error, MSG_SAVE_FAILED);
     }
@@ -285,15 +287,10 @@ export class ShowtimeManagementService {
       const movieInfo = await this.movieOptionQuery.getMovieSchedulingInfo(
         deleted.movieId,
       );
-      return {
-        message: MSG02,
-        showtime: this.toManaged(
-          deleted,
-          movieInfo ?? this.unknownMovie(),
-          rooms,
-          false,
-        ),
-      };
+      return ShowtimeMutationResDto.of(
+        MSG02,
+        this.toManaged(deleted, movieInfo ?? this.unknownMovie(), rooms, false),
+      );
     } catch (error) {
       this.fail(error, MSG_SAVE_FAILED);
     }
@@ -435,7 +432,14 @@ export class ShowtimeManagementService {
     hasSoldTickets: boolean,
   ): ManagedShowtimeResDto {
     const room = rooms.find((item) => item.roomId === showtime.roomId);
-    return {
+    const seatPriceSelections = (showtime.seatPriceSelections ?? []).map((s) =>
+      ManagedSeatPriceSelectionResDto.of(s.seatType, s.ruleId, s.multiplier),
+    );
+    const dayPriceSelections = (showtime.dayPriceSelections ?? []).map((d) =>
+      ManagedDayPriceSelectionResDto.of(d.dayType, d.ruleId, d.multiplier),
+    );
+
+    return ManagedShowtimeResDto.of({
       showtimeId: showtime.showtimeId,
       movieId: showtime.movieId,
       movieName: movie.movieName,
@@ -446,10 +450,10 @@ export class ShowtimeManagementService {
       startTime: showtime.startTime,
       endTime: showtime.endTime,
       basePrice: showtime.basePrice,
-      seatPriceSelections: showtime.seatPriceSelections ?? [],
-      dayPriceSelections: showtime.dayPriceSelections ?? [],
+      seatPriceSelections,
+      dayPriceSelections,
       hasSoldTickets,
-    };
+    });
   }
 
   private unknownMovie(): MovieInfo {

@@ -25,7 +25,6 @@ import {
   PendingUser,
 } from './pending-registration.service';
 import { REGISTRATION_MESSAGES as MSG } from '../../domain/constants/auth-message.constants';
-import { GetVerificationStatusUsecase } from '../usecase/get-verification-status.usecase';
 import {
   VerificationChallengeRes,
   VerificationStatusRes,
@@ -37,7 +36,7 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 const MAX_RESENDS = 3;
 
 @Injectable()
-export class UserRegistrationService implements GetVerificationStatusUsecase {
+export class UserRegistrationService {
   private readonly logger = new Logger(UserRegistrationService.name);
 
   constructor(
@@ -71,14 +70,14 @@ export class UserRegistrationService implements GetVerificationStatusUsecase {
     message: string,
     alreadyPending: boolean,
   ): VerificationChallengeRes {
-    return {
+    return VerificationChallengeRes.of(
       message,
-      email: pending.email,
+      pending.email,
       alreadyPending,
-      verificationExpiresInSeconds: this.expiresInSeconds(pending),
-      resendAvailableInSeconds: this.resendAvailableInSeconds(pending),
-      resendsRemaining: Math.max(0, MAX_RESENDS - pending.resendCount),
-    };
+      this.expiresInSeconds(pending),
+      this.resendAvailableInSeconds(pending),
+      Math.max(0, MAX_RESENDS - pending.resendCount),
+    );
   }
 
   async register(input: {
@@ -147,22 +146,16 @@ export class UserRegistrationService implements GetVerificationStatusUsecase {
     const pending = this.pendingRegistrations.get(email);
 
     if (!pending) {
-      return {
-        email,
-        pending: false,
-        verificationExpiresInSeconds: 0,
-        resendAvailableInSeconds: 0,
-        resendsRemaining: 0,
-      };
+      return VerificationStatusRes.of(email, false, 0, 0, 0);
     }
 
-    return {
+    return VerificationStatusRes.of(
       email,
-      pending: true,
-      verificationExpiresInSeconds: this.expiresInSeconds(pending),
-      resendAvailableInSeconds: this.resendAvailableInSeconds(pending),
-      resendsRemaining: Math.max(0, MAX_RESENDS - pending.resendCount),
-    };
+      true,
+      this.expiresInSeconds(pending),
+      this.resendAvailableInSeconds(pending),
+      Math.max(0, MAX_RESENDS - pending.resendCount),
+    );
   }
 
   private async issueCode(

@@ -39,7 +39,6 @@ import {
   X,
   Armchair,
   MapPin,
-  User,
 } from "lucide-react";
 
 const BRANCH_NAMES: Record<string, string> = {
@@ -78,10 +77,6 @@ export default function StaffPosPage() {
   const [productCart, setProductCart] = useState<
     Map<string, SelectedProductCart>
   >(new Map());
-
-  // Thông tin Khách hàng (Tùy chọn cho đơn lẻ F&B / vé)
-  const [isGuestCustomer, setIsGuestCustomer] = useState(true);
-  const [customerPhone, setCustomerPhone] = useState("");
 
   // Khuyến mãi
   const [voucherCode, setVoucherCode] = useState("");
@@ -232,6 +227,13 @@ export default function StaffPosPage() {
   }, []);
 
   const handleSelectShowtime = (st: PosShowtime) => {
+    const startMs = new Date(st.startTime).getTime();
+    if (!isNaN(startMs) && startMs <= new Date().getTime()) {
+      setErrorBanner(
+        "Suất chiếu này đã bắt đầu hoặc đã qua giờ, không thể chọn.",
+      );
+      return;
+    }
     if (pendingOrder) {
       setErrorBanner(
         "Bạn đang có đơn hàng giữ chỗ chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước.",
@@ -341,8 +343,6 @@ export default function StaffPosPage() {
     setPendingOrder(null);
     setSelectedSeatIds([]);
     setProductCart(new Map());
-    setIsGuestCustomer(true);
-    setCustomerPhone("");
     setVoucherCode("");
     setVoucherDiscount(0);
     setVoucherApplied(null);
@@ -935,6 +935,8 @@ export default function StaffPosPage() {
                     {filteredShowtimes.map((st) => {
                       const isSelected =
                         selectedShowtime?.showtimeId === st.showtimeId;
+                      const startMs = new Date(st.startTime).getTime();
+                      const isPast = !isNaN(startMs) && startMs <= new Date().getTime();
                       const timeStr = new Date(st.startTime).toLocaleTimeString(
                         "vi-VN",
                         {
@@ -943,13 +945,22 @@ export default function StaffPosPage() {
                         },
                       );
                       return (
-                        <div
+                        <button
                           key={st.showtimeId}
+                          type="button"
+                          disabled={isPast}
                           onClick={() => handleSelectShowtime(st)}
-                          className={`p-4 border transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm"
-                              : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687]"
+                          title={
+                            isPast
+                              ? "Suất chiếu đã bắt đầu hoặc đã kết thúc"
+                              : undefined
+                          }
+                          className={`w-full text-left p-4 border transition-all ${
+                            isPast
+                              ? "border-[#e5e7eb] bg-[#f3f4f6] opacity-60 cursor-not-allowed"
+                              : isSelected
+                                ? "border-2 border-[#da291c] bg-[#fff8f8] shadow-sm cursor-pointer"
+                                : "border-[#dad2b4] bg-[#fcfbfa] hover:bg-white hover:border-[#c1b687] cursor-pointer"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -964,14 +975,27 @@ export default function StaffPosPage() {
                                 </strong>
                               </p>
                             </div>
-                            <span className="text-[11px] font-bold px-2 py-0.5 bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
-                              {st.format || "2D"}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isPast && (
+                                <span className="text-[11px] font-bold px-2 py-0.5 bg-[#e5e7eb] text-[#6b7280] border border-[#d1d5db]">
+                                  Đã qua giờ
+                                </span>
+                              )}
+                              <span className="text-[11px] font-bold px-2 py-0.5 bg-[#efebdb] text-[#6f6247] border border-[#dad2b4]">
+                                {st.format || "2D"}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="mt-3.5 flex items-center justify-between pt-2.5 border-t border-[#efebdb]">
                             <div className="flex items-center gap-2">
-                              <span className="text-[16px] font-black text-[#da291c] font-mono">
+                              <span
+                                className={`text-[16px] font-black font-mono ${
+                                  isPast
+                                    ? "line-through text-[#6b7280]"
+                                    : "text-[#da291c]"
+                                }`}
+                              >
                                 {timeStr}
                               </span>
                               <span className="text-[11px] text-[#888]">
@@ -982,11 +1006,15 @@ export default function StaffPosPage() {
                                 )
                               </span>
                             </div>
-                            <span className="text-[13px] font-bold text-[#15803d]">
+                            <span
+                              className={`text-[13px] font-bold ${
+                                isPast ? "text-[#6b7280]" : "text-[#15803d]"
+                              }`}
+                            >
                               {formatCurrency(st.basePrice || 75000)}
                             </span>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -1313,43 +1341,6 @@ export default function StaffPosPage() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Thông tin Khách hàng (Tùy chọn: Bỏ qua / Vãng lai hoặc Thành viên) */}
-            <div className="bg-[#fcfbfa] p-3 border border-[#dad2b4]">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-bold text-[#6f6247] uppercase flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-[#da291c]" />
-                  Khách hàng
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsGuestCustomer(true);
-                      setCustomerPhone("");
-                    }}
-                    className={`px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
-                      isGuestCustomer
-                        ? "bg-[#231f20] text-white border-[#231f20]"
-                        : "bg-white text-[#666] border-[#dad2b4] hover:bg-[#efebdb]"
-                    }`}
-                  >
-                    Bỏ qua (Vãng lai)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsGuestCustomer(false)}
-                    className={`px-2 py-0.5 text-[10px] font-bold border transition-colors cursor-pointer ${
-                      !isGuestCustomer
-                        ? "bg-[#da291c] text-white border-[#da291c]"
-                        : "bg-white text-[#666] border-[#dad2b4] hover:bg-[#efebdb]"
-                    }`}
-                  >
-                    Thành viên
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Khuyến mãi / Voucher */}

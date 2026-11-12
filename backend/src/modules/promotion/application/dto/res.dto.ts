@@ -35,3 +35,35 @@ export class PromotionResponseDto {
     return res;
   }
 }
+
+export class ValidatePromotionResultDto {
+  isValid!: boolean;
+  promotionId?: string;
+  promotionCode?: string;
+  discountType?: string;
+  discountValue?: number;
+  discountAmount!: number;
+  reason?: string;
+
+  static of(
+    isValid: boolean,
+    discountAmount: number,
+    promotionId?: string,
+    promotionCode?: string,
+    discountType?: string,
+    discountValue?: number,
+    reason?: string,
+  ): ValidatePromotionResultDto {
+    const res = new ValidatePromotionResultDto();
+    Object.assign(res, {
+      isValid,
+      discountAmount,
+      promotionId,
+      promotionCode,
+      discountType,
+      discountValue,
+      reason,
+    });
+    return res;
+  }
+}

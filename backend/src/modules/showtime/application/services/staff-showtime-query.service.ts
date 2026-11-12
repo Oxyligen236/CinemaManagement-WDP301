@@ -3,10 +3,9 @@ import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { RoomStatus, SeatStatus, SeatShowtimeStatus } from '@prisma/client';
 import { UserBranchQueryService } from '../../../user/application/services/user-branch-query.service';
 import { StaffShowtimeItemResDto } from '../dto/res.dto';
-import { GetStaffTodayShowtimesUsecase } from '../usecase/get-staff-today-showtimes.usecase';
 
 @Injectable()
-export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase {
+export class StaffShowtimeQueryService {
   constructor(
     private readonly userBranchQueryService: UserBranchQueryService,
     private readonly prisma: PrismaService,
@@ -141,21 +140,21 @@ export class StaffShowtimeQueryService implements GetStaffTodayShowtimesUsecase 
           : `${pubStorageUrl}/${rawPoster}`
         : undefined;
 
-      const item = new StaffShowtimeItemResDto();
-      item.showtimeId = st.id;
-      item.movieId = st.movieId;
-      item.movieTitle = movie?.movieName || 'Unknown';
-      item.moviePosterUrl = posterUrl ?? null;
-      item.roomId = st.roomId;
-      item.roomName = room?.roomName || 'Cinema';
-      item.branchId = branchId;
-      item.branchName = branchName;
-      item.startTime = st.startTime;
-      item.endTime = st.endTime;
-      item.basePrice = st.basePrice;
-      item.availableSeats = stats.available;
-      item.totalSeats = stats.total;
-      return item;
+      return StaffShowtimeItemResDto.of({
+        showtimeId: st.id,
+        movieId: st.movieId,
+        movieTitle: movie?.movieName || 'Unknown',
+        moviePosterUrl: posterUrl ?? null,
+        roomId: st.roomId,
+        roomName: room?.roomName || 'Cinema',
+        branchId,
+        branchName,
+        startTime: st.startTime,
+        endTime: st.endTime,
+        basePrice: st.basePrice,
+        availableSeats: stats.available,
+        totalSeats: stats.total,
+      });
     });
   }
 }

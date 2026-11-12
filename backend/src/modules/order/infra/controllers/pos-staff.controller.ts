@@ -16,18 +16,15 @@ import { RoleGuard } from '../../../auth/infra/guards/role.guard';
 import { Role, Roles } from '../../../auth/infra/decorators/role.decorator';
 import { AuthenticatedRequest, AuthUser } from '../../../auth/domain/auth-user';
 import { OrderService } from '../../application/services/order.service';
+import { PosOrderService } from '../../application/services/pos-order.service';
 import {
   ApplyPromotionReq,
   CancelPosOrderReq,
   CreatePosOrderReq,
-  InitiatePosQrPaymentReq,
-  ProcessPosCashPaymentReq,
 } from '../../application/dto/req.dto';
 import {
   CancelOrderRes,
   PosBookingSummaryRes,
-  PosCashPaymentResultRes,
-  PosQrPaymentRes,
   PosReceiptRes,
 } from '../../application/dto/res.dto';
 
@@ -38,6 +35,7 @@ import {
 export class PosStaffController {
   constructor(
     private readonly orderService: OrderService,
+    private readonly posOrderService: PosOrderService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -77,7 +75,7 @@ export class PosStaffController {
     @Body() body: CreatePosOrderReq,
   ): Promise<PosBookingSummaryRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.orderService.createPosBookingOrder(staffContext, body);
+    return this.posOrderService.createPosBookingOrder(staffContext, body);
   }
 
   @Post(':orderId/apply-promotion')
@@ -87,7 +85,7 @@ export class PosStaffController {
     @Body() body: ApplyPromotionReq,
   ): Promise<PosBookingSummaryRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.orderService.applyPosPromotion(staffContext, orderId, body);
+    return this.posOrderService.applyPosPromotion(staffContext, orderId, body);
   }
 
   @Post(':orderId/cancel')
@@ -108,41 +106,12 @@ export class PosStaffController {
     );
   }
 
-  @Post(':orderId/pay/cash')
-  async confirmPosCashPayment(
-    @Req() req: AuthenticatedRequest,
-    @Param('orderId') orderId: string,
-    @Body() body: ProcessPosCashPaymentReq,
-  ): Promise<PosCashPaymentResultRes> {
-    const staffContext = await this.getStaffContext(req);
-    return this.orderService.confirmPosCashPayment(staffContext, orderId, body);
-  }
-
-  @Post(':orderId/pay/qr')
-  async initiatePosQrPayment(
-    @Req() req: AuthenticatedRequest,
-    @Param('orderId') orderId: string,
-    @Body() body: InitiatePosQrPaymentReq,
-  ): Promise<PosQrPaymentRes> {
-    const staffContext = await this.getStaffContext(req);
-    return this.orderService.initiatePosQrPayment(staffContext, orderId, body);
-  }
-
-  @Get(':orderId/pay/status')
-  async checkPosPaymentStatus(
-    @Req() req: AuthenticatedRequest,
-    @Param('orderId') orderId: string,
-  ): Promise<PosCashPaymentResultRes | PosQrPaymentRes> {
-    const staffContext = await this.getStaffContext(req);
-    return this.orderService.checkPosPaymentStatus(staffContext, orderId);
-  }
-
   @Get(':orderId/receipt')
   async getPosReceipt(
     @Req() req: AuthenticatedRequest,
     @Param('orderId') orderId: string,
   ): Promise<PosReceiptRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.orderService.getPosReceipt(staffContext, orderId);
+    return this.posOrderService.getPosReceipt(staffContext, orderId);
   }
 }

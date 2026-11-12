@@ -16,19 +16,9 @@ import {
 import { ScheduleShowtimeInputDto } from '../dto/req.dto';
 import { ShowtimeResDto } from '../dto/res.dto';
 import { toShowtimeResDto } from '../helpers/showtime-res.mapper';
-import { CheckRoomAvailabilityUsecase } from '../usecase/check-room-availability.usecase';
-import { CreateShowtimeUsecase } from '../usecase/create-showtime.usecase';
-import { DeleteShowtimeUsecase } from '../usecase/delete-showtime.usecase';
-import { UpdateShowtimeUsecase } from '../usecase/update-showtime.usecase';
 
 @Injectable()
-export class ShowtimeScheduleService
-  implements
-    CreateShowtimeUsecase,
-    UpdateShowtimeUsecase,
-    DeleteShowtimeUsecase,
-    CheckRoomAvailabilityUsecase
-{
+export class ShowtimeScheduleService {
   private readonly logger = new Logger(ShowtimeScheduleService.name);
 
   constructor(private readonly prisma: PrismaService) {}

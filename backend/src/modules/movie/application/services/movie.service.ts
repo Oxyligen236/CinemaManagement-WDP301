@@ -7,6 +7,11 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  Movie,
+  MovieStatus as PrismaMovieStatus,
+  Prisma,
+} from '@prisma/client';
 import { Page } from '../../../../common/dto/page.dto';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import {
@@ -24,32 +29,20 @@ import {
   POSTER_MAX_SIZE,
   POSTER_PREFIX,
 } from '../../domain/constants/movie-asset.constants';
+import { MovieStatus } from '../../domain/enums/movie-status.enum';
 import { CreateMovieReqDto, SearchMovieReqDto } from '../dto/req.dto';
 import {
   GenreItemResDto,
   GenreResDto,
   MovieDetailResDto,
   MovieResDto,
+  MovieSummaryResDto,
   UploadMovieAssetResDto,
 } from '../dto/res.dto';
 import { sanitizeFileName } from '../helpers/sanitize-file-name.helper';
-import { CreateMovieUsecase } from '../usecase/create-movie.usecase';
-import { DeactivateMovieUsecase } from '../usecase/deactivate-movie.usecase';
-import { GetGenresUsecase } from '../usecase/get-genres.usecase';
-import { GetMovieDetailUsecase } from '../usecase/get-movie-detail.usecase';
-import { SearchMoviesUsecase } from '../usecase/search-movies.usecase';
-import { UploadMovieAssetUsecase } from '../usecase/upload-movie-asset.usecase';
 
 @Injectable()
-export class MovieService
-  implements
-    CreateMovieUsecase,
-    SearchMoviesUsecase,
-    DeactivateMovieUsecase,
-    GetGenresUsecase,
-    UploadMovieAssetUsecase,
-    GetMovieDetailUsecase
-{
+export class MovieService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly showtimeQueryService: ShowtimeQueryService,
@@ -82,13 +75,13 @@ export class MovieService
     } catch {
       throw new InternalServerErrorException(MSG10);
     }
-    return {
-      storageKey: key,
-      url: this.storageService.getPublicUrl(key),
-      originalName: file.originalname,
+    return UploadMovieAssetResDto.of(
+      key,
+      this.storageService.getPublicUrl(key),
+      file.originalname,
       size,
-      contentType: file.mimetype,
-    };
+      file.mimetype,
+    );
   }
 
   async createMovie(dto: CreateMovieReqDto): Promise<MovieResDto> {
@@ -106,7 +99,7 @@ export class MovieService
         posterKey: dto.posterKey,
         trailerUrl: dto.trailerUrl,
         releaseDate: dto.releaseDate ? new Date(dto.releaseDate) : undefined,
-        status: dto.status as any,
+        status: dto.status as unknown as PrismaMovieStatus,
         isActive: true,
       },
     });
@@ -116,7 +109,7 @@ export class MovieService
   async searchMovies(query: SearchMovieReqDto): Promise<Page<MovieResDto>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
-    const where: any = {};
+    const where: Prisma.MovieWhereInput = {};
 
     const keyword = query.keyword?.trim();
     if (keyword) {
@@ -180,11 +173,13 @@ export class MovieService
     const genres = await this.prisma.genre.findMany({
       orderBy: { genreName: 'asc' },
     });
-    return genres.map((genre) => ({
-      genreId: genre.id,
-      genreName: genre.genreName,
-      genreDescription: genre.genreDescription ?? undefined,
-    }));
+    return genres.map((genre) =>
+      GenreResDto.of(
+        genre.id,
+        genre.genreName,
+        genre.genreDescription ?? undefined,
+      ),
+    );
   }
 
   async getMovieDetail(movieId: string): Promise<MovieDetailResDto> {
@@ -203,17 +198,14 @@ export class MovieService
         where: { id: { in: movie.genreIds } },
         select: { id: true, genreName: true },
       });
-      genres = genreDocs.map((g) => ({
-        genreId: g.id,
-        genreName: g.genreName,
-      }));
+      genres = genreDocs.map((g) => GenreItemResDto.of(g.id, g.genreName));
     }
 
-    return {
+    return MovieDetailResDto.of({
       movieId: movie.id,
       movieName: movie.movieName,
       duration: movie.duration,
-      status: movie.status as any,
+      status: movie.status as unknown as MovieStatus,
       posterUrl: this.resolvePosterUrl(movie),
       trailerUrl: movie.trailerUrl ?? undefined,
       description: movie.description ?? undefined,
@@ -225,7 +217,27 @@ export class MovieService
       genres,
       createdAt: movie.createdAt,
       updatedAt: movie.updatedAt,
-    };
+    });
+  }
+
+  async getMovieSummary(movieId: string): Promise<MovieSummaryResDto | null> {
+    const movie = await this.prisma.movie.findUnique({
+      where: { id: movieId },
+    });
+    if (!movie) {
+      return null;
+    }
+    return this.toSummary(movie);
+  }
+
+  async getMoviesSummary(movieIds: string[]): Promise<MovieSummaryResDto[]> {
+    if (!movieIds || movieIds.length === 0) {
+      return [];
+    }
+    const movies = await this.prisma.movie.findMany({
+      where: { id: { in: movieIds } },
+    });
+    return movies.map((movie) => this.toSummary(movie));
   }
 
   private resolvePosterUrl(doc: { posterKey?: string }): string | undefined {
@@ -239,12 +251,23 @@ export class MovieService
     }
   }
 
-  private toMovieResDto(doc: any): MovieResDto {
-    return {
+  private toSummary(movie: Movie): MovieSummaryResDto {
+    return MovieSummaryResDto.of(
+      movie.id,
+      movie.movieName,
+      movie.duration,
+      movie.status,
+      this.resolvePosterUrl(movie),
+      movie.releaseDate ? new Date(movie.releaseDate) : undefined,
+    );
+  }
+
+  private toMovieResDto(doc: Movie): MovieResDto {
+    return MovieResDto.of({
       movieId: doc.id,
       movieName: doc.movieName,
       duration: doc.duration,
-      status: doc.status,
+      status: doc.status as unknown as MovieStatus,
       posterKey: doc.posterKey,
       posterUrl: this.resolvePosterUrl(doc),
       trailerUrl: doc.trailerUrl ?? undefined,
@@ -254,6 +277,6 @@ export class MovieService
       genreIds: doc.genreIds,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
-    };
+    });
   }
 }

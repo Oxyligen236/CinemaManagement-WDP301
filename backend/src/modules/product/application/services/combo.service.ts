@@ -14,24 +14,15 @@ import {
   QueryBranchCombosReq,
   UpdateComboReq,
 } from '../dto/req.dto';
-import { ComboMutationRes, ComboRes, DeleteMutationRes } from '../dto/res.dto';
-import { CreateComboUsecase } from '../usecase/create-combo.usecase';
-import { UpdateComboUsecase } from '../usecase/update-combo.usecase';
-import { QueryBranchCombosUsecase } from '../usecase/query-branch-combos.usecase';
-import { GetComboDetailUsecase } from '../usecase/get-combo-detail.usecase';
-import { ChangeComboStatusUsecase } from '../usecase/change-combo-status.usecase';
-import { DeleteComboUsecase } from '../usecase/delete-combo.usecase';
+import {
+  ComboItemDetailRes,
+  ComboMutationRes,
+  ComboRes,
+  DeleteMutationRes,
+} from '../dto/res.dto';
 
 @Injectable()
-export class ComboService
-  implements
-    CreateComboUsecase,
-    UpdateComboUsecase,
-    QueryBranchCombosUsecase,
-    GetComboDetailUsecase,
-    ChangeComboStatusUsecase,
-    DeleteComboUsecase
-{
+export class ComboService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createCombo(
@@ -77,10 +68,7 @@ export class ComboService
 
     const comboRes = this.mapToComboRes(saved, itemsMap);
 
-    return {
-      message: 'Tạo gói combo thành công',
-      combo: comboRes,
-    };
+    return ComboMutationRes.of('Tạo gói combo thành công', comboRes);
   }
 
   async updateCombo(
@@ -149,10 +137,7 @@ export class ComboService
     const itemsMap = await this.fetchItemsMap(currentItemIds);
     const comboRes = this.mapToComboRes(saved, itemsMap);
 
-    return {
-      message: 'Cập nhật gói combo thành công',
-      combo: comboRes,
-    };
+    return ComboMutationRes.of('Cập nhật gói combo thành công', comboRes);
   }
 
   async queryBranchCombos(
@@ -240,10 +225,10 @@ export class ComboService
     const itemIds = (saved.items as any[])?.map((i) => i.itemId) ?? [];
     const itemsMap = await this.fetchItemsMap(itemIds);
 
-    return {
-      message: 'Cập nhật trạng thái combo thành công',
-      combo: this.mapToComboRes(saved, itemsMap),
-    };
+    return ComboMutationRes.of(
+      'Cập nhật trạng thái combo thành công',
+      this.mapToComboRes(saved, itemsMap),
+    );
   }
 
   async deleteCombo(
@@ -263,10 +248,7 @@ export class ComboService
 
     await this.prisma.combo.delete({ where: { id: comboId } });
 
-    return {
-      message: 'Xóa gói combo thành công',
-      id: comboId,
-    };
+    return DeleteMutationRes.of('Xóa gói combo thành công', comboId);
   }
 
   private async resolveManagerBranchId(managerUserId: string): Promise<string> {
@@ -381,7 +363,7 @@ export class ComboService
         minStock = possible;
       }
 
-      return {
+      return ComboItemDetailRes.of({
         itemId: sub.itemId,
         name: item?.name ?? 'Món đã bị xoá',
         category: item?.category ?? 'OTHER',
@@ -390,7 +372,7 @@ export class ComboService
         unitPrice,
         currentStock,
         isItemAvailable,
-      };
+      });
     });
 
     if (rawItems.length === 0 || minStock === Number.MAX_SAFE_INTEGER) {
@@ -400,7 +382,7 @@ export class ComboService
     const savingsAmount = Math.max(0, originalTotalPrice - combo.price);
     const isAvailable = combo.status === ComboStatus.AVAILABLE && minStock > 0;
 
-    return {
+    return ComboRes.of({
       comboId: combo.id,
       branchId: combo.branchId,
       name: combo.name,
@@ -419,6 +401,6 @@ export class ComboService
       updatedAt: combo.updatedAt
         ? new Date(combo.updatedAt).toISOString()
         : undefined,
-    };
+    });
   }
 }

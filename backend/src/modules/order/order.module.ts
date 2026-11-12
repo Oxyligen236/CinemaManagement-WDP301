@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ProductModule } from '../product/product.module';
 import { PromotionModule } from '../promotion/promotion.module';
 import { ShowtimeModule } from '../showtime/showtime.module';
@@ -9,15 +9,14 @@ import { EventModule } from '../infra/event/event.module';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { OrderService } from './application/services/order.service';
+import { PosOrderService } from './application/services/pos-order.service';
+import { TicketService } from './application/services/ticket.service';
 import { OrderExpirationConsumer } from './application/handlers/order-expiration.consumer';
 import { OrderController } from './infra/controllers/order.controller';
-import { VnpayReturnController } from './infra/controllers/vnpay-return.controller';
 import { OrderStaffController } from './infra/controllers/order-staff.controller';
 import { OrderAdminController } from './infra/controllers/order-admin.controller';
 import { PosStaffController } from './infra/controllers/pos-staff.controller';
 import { TicketController } from './infra/controllers/ticket.controller';
-import { SHOWTIME_BOOKING } from './contracts/showtime-booking.contract';
-import { ShowtimeBookingService } from '../showtime/application/services/showtime-booking.service';
 
 @Module({
   imports: [
@@ -25,7 +24,7 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
     PromotionModule,
     ShowtimeModule,
     BranchModule,
-    PaymentModule,
+    forwardRef(() => PaymentModule),
     QueueModule,
     EventModule,
     AuthModule,
@@ -33,7 +32,6 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
   ],
   controllers: [
     OrderController,
-    VnpayReturnController,
     OrderStaffController,
     OrderAdminController,
     PosStaffController,
@@ -41,12 +39,10 @@ import { ShowtimeBookingService } from '../showtime/application/services/showtim
   ],
   providers: [
     OrderService,
+    PosOrderService,
+    TicketService,
     OrderExpirationConsumer,
-    {
-      provide: SHOWTIME_BOOKING,
-      useExisting: ShowtimeBookingService,
-    },
   ],
-  exports: [OrderService],
+  exports: [OrderService, PosOrderService, TicketService],
 })
 export class OrderModule {}
