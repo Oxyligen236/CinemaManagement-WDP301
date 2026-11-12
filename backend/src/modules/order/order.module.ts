@@ -9,6 +9,8 @@ import { EventModule } from '../infra/event/event.module';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { OrderService } from './application/services/order.service';
+import { PosOrderService } from './application/services/pos-order.service';
+import { TicketService } from './application/services/ticket.service';
 import { OrderExpirationConsumer } from './application/handlers/order-expiration.consumer';
 import { OrderController } from './infra/controllers/order.controller';
 import { OrderStaffController } from './infra/controllers/order-staff.controller';
@@ -35,7 +37,12 @@ import { TicketController } from './infra/controllers/ticket.controller';
     PosStaffController,
     TicketController,
   ],
-  providers: [OrderService, OrderExpirationConsumer],
-  exports: [OrderService],
+  providers: [
+    OrderService,
+    PosOrderService,
+    TicketService,
+    OrderExpirationConsumer,
+  ],
+  exports: [OrderService, PosOrderService, TicketService],
 })
 export class OrderModule {}

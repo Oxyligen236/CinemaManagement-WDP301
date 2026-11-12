@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { OrderService } from '../../../order/application/services/order.service';
+import { PosOrderService } from '../../../order/application/services/pos-order.service';
 import { PaymentMethod } from '../../domain/enums/payment-method.enum';
 import { PaymentStatus } from '../../domain/enums/payment-status.enum';
 import {
@@ -34,6 +35,8 @@ export class PaymentService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => OrderService))
     private readonly orderService: OrderService,
+    @Inject(forwardRef(() => PosOrderService))
+    private readonly posOrderService: PosOrderService,
   ) {}
 
   async createVnpayPayment(
@@ -351,7 +354,7 @@ export class PaymentService {
     orderId: string,
     request: ProcessPosCashPaymentReq,
   ): Promise<PosCashPaymentResultRes> {
-    const order = await this.orderService.getOrderForPosPayment(
+    const order = await this.posOrderService.getOrderForPosPayment(
       staffContext,
       orderId,
     );
@@ -400,7 +403,7 @@ export class PaymentService {
     orderId: string,
     request: InitiatePosQrPaymentReq,
   ): Promise<PosQrPaymentRes> {
-    const order = await this.orderService.getOrderForPosPayment(
+    const order = await this.posOrderService.getOrderForPosPayment(
       staffContext,
       orderId,
     );
@@ -434,7 +437,7 @@ export class PaymentService {
     staffContext: { staffId: string; branchId: string },
     orderId: string,
   ): Promise<PosCashPaymentResultRes | PosQrPaymentRes> {
-    const order = await this.orderService.getOrderForPosPayment(
+    const order = await this.posOrderService.getOrderForPosPayment(
       staffContext,
       orderId,
     );

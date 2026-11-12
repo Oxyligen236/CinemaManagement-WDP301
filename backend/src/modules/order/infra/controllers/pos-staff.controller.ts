@@ -16,6 +16,7 @@ import { RoleGuard } from '../../../auth/infra/guards/role.guard';
 import { Role, Roles } from '../../../auth/infra/decorators/role.decorator';
 import { AuthenticatedRequest, AuthUser } from '../../../auth/domain/auth-user';
 import { OrderService } from '../../application/services/order.service';
+import { PosOrderService } from '../../application/services/pos-order.service';
 import {
   ApplyPromotionReq,
   CancelPosOrderReq,
@@ -34,6 +35,7 @@ import {
 export class PosStaffController {
   constructor(
     private readonly orderService: OrderService,
+    private readonly posOrderService: PosOrderService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -73,7 +75,7 @@ export class PosStaffController {
     @Body() body: CreatePosOrderReq,
   ): Promise<PosBookingSummaryRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.orderService.createPosBookingOrder(staffContext, body);
+    return this.posOrderService.createPosBookingOrder(staffContext, body);
   }
 
   @Post(':orderId/apply-promotion')
@@ -83,7 +85,7 @@ export class PosStaffController {
     @Body() body: ApplyPromotionReq,
   ): Promise<PosBookingSummaryRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.orderService.applyPosPromotion(staffContext, orderId, body);
+    return this.posOrderService.applyPosPromotion(staffContext, orderId, body);
   }
 
   @Post(':orderId/cancel')
@@ -110,6 +112,6 @@ export class PosStaffController {
     @Param('orderId') orderId: string,
   ): Promise<PosReceiptRes> {
     const staffContext = await this.getStaffContext(req);
-    return this.orderService.getPosReceipt(staffContext, orderId);
+    return this.posOrderService.getPosReceipt(staffContext, orderId);
   }
 }

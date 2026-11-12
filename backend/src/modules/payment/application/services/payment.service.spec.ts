@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { OrderService } from '../../../order/application/services/order.service';
+import { PosOrderService } from '../../../order/application/services/pos-order.service';
 import { PaymentService } from './payment.service';
 import { PaymentMethod } from '../../domain/enums/payment-method.enum';
 import { PaymentStatus } from '../../domain/enums/payment-status.enum';
@@ -25,10 +26,13 @@ describe('PaymentService', () => {
 
   const mockOrderService = {
     getOrderForOnlinePayment: jest.fn(),
-    getOrderForPosPayment: jest.fn(),
     getPaidOrderTickets: jest.fn(),
     fulfillOrderPayment: jest.fn(),
     fulfillVnpayOrder: jest.fn(),
+  };
+
+  const mockPosOrderService = {
+    getOrderForPosPayment: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -48,6 +52,10 @@ describe('PaymentService', () => {
         {
           provide: OrderService,
           useValue: mockOrderService,
+        },
+        {
+          provide: PosOrderService,
+          useValue: mockPosOrderService,
         },
       ],
     }).compile();
@@ -137,7 +145,7 @@ describe('PaymentService', () => {
 
   describe('confirmPosCashPayment', () => {
     it('should throw BadRequestException if cash received is less than totalAmount', async () => {
-      mockOrderService.getOrderForPosPayment.mockResolvedValue({
+      mockPosOrderService.getOrderForPosPayment.mockResolvedValue({
         orderId: 'order-pos-123',
         userId: 'staff-001',
         branchId: 'branch-hn-01',
@@ -153,7 +161,7 @@ describe('PaymentService', () => {
     });
 
     it('should process cash payment and fulfill order', async () => {
-      mockOrderService.getOrderForPosPayment.mockResolvedValue({
+      mockPosOrderService.getOrderForPosPayment.mockResolvedValue({
         orderId: 'order-pos-123',
         userId: 'staff-001',
         branchId: 'branch-hn-01',
@@ -209,7 +217,7 @@ describe('PaymentService', () => {
 
   describe('initiatePosQrPayment', () => {
     it('should initiate QR payment using totalAmount and return QR payload', async () => {
-      mockOrderService.getOrderForPosPayment.mockResolvedValue({
+      mockPosOrderService.getOrderForPosPayment.mockResolvedValue({
         orderId: 'order-pos-123',
         userId: 'staff-001',
         branchId: 'branch-hn-01',
@@ -239,7 +247,7 @@ describe('PaymentService', () => {
 
   describe('checkPosPaymentStatus', () => {
     it('should fulfill order when payment status is SUCCESS', async () => {
-      mockOrderService.getOrderForPosPayment.mockResolvedValue({
+      mockPosOrderService.getOrderForPosPayment.mockResolvedValue({
         orderId: 'order-pos-123',
         userId: 'staff-001',
         branchId: 'branch-hn-01',

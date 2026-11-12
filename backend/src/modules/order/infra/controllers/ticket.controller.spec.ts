@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TicketController } from './ticket.controller';
-import { OrderService } from '../../application/services/order.service';
+import { TicketService } from '../../application/services/ticket.service';
 import { UserBranchQueryService } from '../../../user/application/services/user-branch-query.service';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../../auth/infra/guards/role.guard';
@@ -13,11 +13,11 @@ import {
 
 describe('TicketController', () => {
   let controller: TicketController;
-  let orderService: jest.Mocked<Partial<OrderService>>;
+  let ticketService: jest.Mocked<Partial<TicketService>>;
   let userBranchQueryService: jest.Mocked<Partial<UserBranchQueryService>>;
 
   beforeEach(async () => {
-    orderService = {
+    ticketService = {
       scanTicket: jest.fn(),
       getTicketDetail: jest.fn(),
     };
@@ -30,8 +30,8 @@ describe('TicketController', () => {
       controllers: [TicketController],
       providers: [
         {
-          provide: OrderService,
-          useValue: orderService,
+          provide: TicketService,
+          useValue: ticketService,
         },
         {
           provide: UserBranchQueryService,
@@ -53,7 +53,7 @@ describe('TicketController', () => {
   });
 
   describe('scanTicket', () => {
-    it('should query branchId for STAFF role and call orderService.scanTicket', async () => {
+    it('should query branchId for STAFF role and call ticketService.scanTicket', async () => {
       const dto: ScanTicketReq = { ticketCode: 'TK-123456' };
       const req = {
         user: {
@@ -72,14 +72,14 @@ describe('TicketController', () => {
         message: 'Soát vé thành công',
       } as ScanTicketResultRes;
 
-      (orderService.scanTicket as jest.Mock).mockResolvedValue(mockResult);
+      (ticketService.scanTicket as jest.Mock).mockResolvedValue(mockResult);
 
       const result = await controller.scanTicket(dto, req);
 
       expect(userBranchQueryService.getBranchIdOfUser).toHaveBeenCalledWith(
         'staff-01',
       );
-      expect(orderService.scanTicket).toHaveBeenCalledWith(
+      expect(ticketService.scanTicket).toHaveBeenCalledWith(
         {
           staffId: 'staff-01',
           branchId: 'branch-01',
@@ -105,12 +105,12 @@ describe('TicketController', () => {
         message: 'Soát vé thành công',
       } as ScanTicketResultRes;
 
-      (orderService.scanTicket as jest.Mock).mockResolvedValue(mockResult);
+      (ticketService.scanTicket as jest.Mock).mockResolvedValue(mockResult);
 
       const result = await controller.scanTicket(dto, req);
 
       expect(userBranchQueryService.getBranchIdOfUser).not.toHaveBeenCalled();
-      expect(orderService.scanTicket).toHaveBeenCalledWith(
+      expect(ticketService.scanTicket).toHaveBeenCalledWith(
         {
           staffId: 'admin-01',
           branchId: undefined,
@@ -129,14 +129,14 @@ describe('TicketController', () => {
         null,
       );
 
-      (orderService.scanTicket as jest.Mock).mockResolvedValue({} as any);
+      (ticketService.scanTicket as jest.Mock).mockResolvedValue({} as any);
 
       await controller.scanTicket(dto, req);
 
       expect(userBranchQueryService.getBranchIdOfUser).toHaveBeenCalledWith(
         'staff-default',
       );
-      expect(orderService.scanTicket).toHaveBeenCalledWith(
+      expect(ticketService.scanTicket).toHaveBeenCalledWith(
         {
           staffId: 'staff-default',
           branchId: undefined,
@@ -148,18 +148,20 @@ describe('TicketController', () => {
   });
 
   describe('getTicketDetail', () => {
-    it('should call orderService.getTicketDetail with ticketCode', async () => {
+    it('should call ticketService.getTicketDetail with ticketCode', async () => {
       const mockTicket = {
         ticketId: 't-1',
         ticketCode: 'TK-123456',
         movieTitle: 'Inception',
       } as TicketDetailRes;
 
-      (orderService.getTicketDetail as jest.Mock).mockResolvedValue(mockTicket);
+      (ticketService.getTicketDetail as jest.Mock).mockResolvedValue(
+        mockTicket,
+      );
 
       const result = await controller.getTicketDetail('TK-123456');
 
-      expect(orderService.getTicketDetail).toHaveBeenCalledWith('TK-123456');
+      expect(ticketService.getTicketDetail).toHaveBeenCalledWith('TK-123456');
       expect(result).toBe(mockTicket);
     });
   });
