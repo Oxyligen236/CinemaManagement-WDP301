@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { SafeImage as Image } from '@/components/ui/safe-image';
-import Link from 'next/link';
-import { R2_PUBLIC_URL } from '@/lib/constants/r2';
-import { usePathname, useRouter } from 'next/navigation';
+import React, { useState } from "react";
+import { SafeImage as Image } from "@/components/ui/safe-image";
+import Link from "next/link";
+import { R2_PUBLIC_URL } from "@/lib/constants/r2";
+import { usePathname, useRouter } from "next/navigation";
+import { useStaffStatus } from "@/lib/hooks/use-staff-status";
 import {
   MonitorPlay,
   ClipboardList,
@@ -16,7 +17,7 @@ import {
   User,
   Home,
   ChevronRight,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -26,23 +27,23 @@ interface NavItem {
 
 const STAFF_NAV_ITEMS: NavItem[] = [
   {
-    label: 'Ca làm của tôi',
-    href: '/staff/my-shifts',
+    label: "Ca làm của tôi",
+    href: "/staff/my-shifts",
     icon: ClipboardList,
   },
   {
-    label: 'Bán vé tại quầy (POS)',
-    href: '/staff/pos',
+    label: "Bán vé tại quầy (POS)",
+    href: "/staff/pos",
     icon: MonitorPlay,
   },
   {
-    label: 'Đơn hàng tại quầy',
-    href: '/staff/orders',
+    label: "Đơn hàng tại quầy",
+    href: "/staff/orders",
     icon: ClipboardList,
   },
   {
-    label: 'Soát vé (Ticket Scan)',
-    href: '/staff/tickets/scan',
+    label: "Soát vé (Ticket Scan)",
+    href: "/staff/tickets/scan",
     icon: QrCode,
   },
 ];
@@ -55,21 +56,32 @@ export default function StaffLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { staffUser, branchInfo, currentShift, shiftStatus, loading } =
+    useStaffStatus();
 
   function logout() {
-    localStorage.removeItem('cinema_access_token');
-    localStorage.removeItem('cinema_user');
-    router.replace('/');
+    localStorage.removeItem("cinema_access_token");
+    localStorage.removeItem("cinema_user");
+    router.replace("/");
   }
 
   const isActiveRoute = (href: string) => {
-    if (href === '/staff/pos') {
-      return pathname === '/staff/pos';
+    if (href === "/staff/pos") {
+      return pathname === "/staff/pos";
     }
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
   const activeNav = STAFF_NAV_ITEMS.find((item) => isActiveRoute(item.href));
+
+  const userDisplayName =
+    staffUser?.firstName || staffUser?.lastName
+      ? `${staffUser.lastName || ""} ${staffUser.firstName || ""}`.trim()
+      : "Nhân viên Quầy POS";
+
+  const branchDisplayName =
+    branchInfo?.branchName ||
+    (staffUser?.branchId ? "Đang tải..." : "Chưa gán chi nhánh");
 
   return (
     <div className="min-h-screen flex flex-col bg-[#fcfbfa] font-['Arial',sans-serif] text-[#555]">
@@ -92,13 +104,14 @@ export default function StaffLayout({
           <span className="text-[#c1b687]">|</span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[#6f6247] font-semibold">
             <Building2 className="h-3.5 w-3.5 text-[#da291c]" />
-            Chi nhánh: Latte Cinema Nam Sài Gòn
+            Chi nhánh: {branchDisplayName}
           </span>
         </div>
 
         <ul className="flex items-center gap-5 text-[12px]">
           <li className="text-[#6f6247]">
-            Xin chào, <strong className="text-[#231f20]">Nhân viên Quầy POS</strong>
+            Xin chào,{" "}
+            <strong className="text-[#231f20]">{userDisplayName}</strong>
           </li>
           <li>
             <span className="bg-[#da291c] text-white text-[10px] uppercase font-bold px-2 py-0.5">
@@ -169,7 +182,9 @@ export default function StaffLayout({
             {activeNav && (
               <>
                 <ChevronRight className="h-3.5 w-3.5 text-[#9d9580]" />
-                <span className="font-bold text-[#231f20]">{activeNav.label}</span>
+                <span className="font-bold text-[#231f20]">
+                  {activeNav.label}
+                </span>
               </>
             )}
           </div>
@@ -189,8 +204,8 @@ export default function StaffLayout({
         className="flex-1 flex relative"
         style={{
           backgroundImage: "url('/sites/lottecinemavn/ui/bg_pattern.png')",
-          backgroundRepeat: 'repeat',
-          backgroundColor: '#fcfbfa',
+          backgroundRepeat: "repeat",
+          backgroundColor: "#fcfbfa",
         }}
       >
         {/* Mobile Sidebar Backdrop */}
@@ -204,7 +219,7 @@ export default function StaffLayout({
         {/* Left Navigation Sidebar */}
         <aside
           className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-white border-r border-[#e3e1d6] transition-transform duration-200 lg:static lg:translate-x-0 select-none ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           {/* Sidebar Title Box */}
@@ -240,21 +255,21 @@ export default function StaffLayout({
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center justify-between px-5 py-3.5 text-[13px] transition-colors ${
                     active
-                      ? 'bg-[#efebdb] text-[#da291c] font-bold border-l-4 border-[#da291c]'
-                      : 'text-[#555] hover:bg-[#fcfbfa] hover:text-[#231f20] font-semibold'
+                      ? "bg-[#efebdb] text-[#da291c] font-bold border-l-4 border-[#da291c]"
+                      : "text-[#555] hover:bg-[#fcfbfa] hover:text-[#231f20] font-semibold"
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <Icon
                       className={`h-4 w-4 shrink-0 ${
-                        active ? 'text-[#da291c]' : 'text-[#6f6247]'
+                        active ? "text-[#da291c]" : "text-[#6f6247]"
                       }`}
                     />
                     <span>{item.label}</span>
                   </div>
                   <ChevronRight
                     className={`h-3.5 w-3.5 ${
-                      active ? 'text-[#da291c]' : 'text-[#dad2b4]'
+                      active ? "text-[#da291c]" : "text-[#dad2b4]"
                     }`}
                   />
                 </Link>
@@ -268,18 +283,34 @@ export default function StaffLayout({
               <p className="text-[11px] font-bold uppercase tracking-wider text-[#6f6247]">
                 Ca trực nhân viên quầy
               </p>
-              <p className="mt-1 text-[13px] font-bold text-[#231f20]">
-                Latte Cinema Nam Sài Gòn
+              <p
+                className="mt-1 text-[13px] font-bold text-[#231f20] line-clamp-1"
+                title={branchInfo?.branchName || undefined}
+              >
+                {branchInfo?.branchName ||
+                  (staffUser?.branchId
+                    ? "Đang tải chi nhánh..."
+                    : "Chưa phân công chi nhánh")}
               </p>
-              <p className="mt-0.5 text-[11px] text-[#666]">
-                Tầng 3, TTTM Latte, Q.7, TP.HCM
+              <p
+                className="mt-0.5 text-[11px] text-[#666] line-clamp-2"
+                title={branchInfo?.address || undefined}
+              >
+                {branchInfo?.address ||
+                  (branchInfo?.branchName ? "Chưa cập nhật địa chỉ" : "---")}
               </p>
               <p className="mt-0.5 text-[11px] text-[#888]">
-                Ca sáng: 08:00 - 16:00
+                {loading && !currentShift
+                  ? "Đang tải ca trực..."
+                  : currentShift
+                    ? `${currentShift.shiftName}: ${currentShift.startTime} - ${currentShift.endTime}`
+                    : "Không có ca trực hôm nay"}
               </p>
               <div className="mt-2.5 pt-2 border-t border-[#efebdb] flex items-center justify-between text-[11px]">
                 <span className="text-[#6f6247]">Trạng thái:</span>
-                <span className="font-bold text-[#15803d]">● Ca trực đang mở</span>
+                <span className={`font-bold ${shiftStatus.colorClass}`}>
+                  ● {shiftStatus.text}
+                </span>
               </div>
             </div>
           </div>
@@ -303,7 +334,10 @@ export default function StaffLayout({
               className="h-[28px] w-auto max-h-[28px] object-contain block"
             />
             <span className="text-[#dedede]">|</span>
-            <span>CÔNG TY TNHH LATTE CINEMA VIỆT NAM - HỆ THỐNG ĐIỂM BÁN VÉ QUẦY & SOÁT VÉ</span>
+            <span>
+              CÔNG TY TNHH LATTE CINEMA VIỆT NAM - HỆ THỐNG ĐIỂM BÁN VÉ QUẦY &
+              SOÁT VÉ
+            </span>
           </div>
           <p className="text-[11px] text-[#777]">
             COPYRIGHT © LATTECINEMAVN.COM - ALL RIGHTS RESERVED.

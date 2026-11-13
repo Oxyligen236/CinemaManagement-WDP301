@@ -104,6 +104,9 @@ export default function MyShiftsPage() {
       if (end) await workScheduleApi.endShift();
       else if (scheduleId) await workScheduleApi.startShift(scheduleId);
       await load();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("shift-status-updated"));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể cập nhật ca");
     } finally {

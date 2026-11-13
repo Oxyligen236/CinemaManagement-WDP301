@@ -5,6 +5,7 @@ export class UserProfileRes {
   lastName!: string;
   role!: string;
   branchId?: string | null;
+  branchName?: string | null;
   jobPosition?: string | null;
   employmentStatus?: string | null;
   createdAt!: Date;
@@ -21,6 +22,7 @@ export class UserProfileRes {
     employmentStatus?: string | null,
     createdAt?: Date,
     updatedAt?: Date,
+    branchName?: string | null,
   ): UserProfileRes {
     const res = new UserProfileRes();
     res.id = id;
@@ -29,6 +31,7 @@ export class UserProfileRes {
     res.lastName = lastName;
     res.role = role;
     res.branchId = branchId ?? null;
+    res.branchName = branchName ?? null;
     res.jobPosition = jobPosition ?? null;
     res.employmentStatus = employmentStatus ?? null;
     res.createdAt = createdAt ?? new Date();
@@ -43,6 +46,7 @@ export class UserProfileRes {
     lastName: string;
     role: string;
     branchId?: string | null;
+    branchName?: string | null;
     jobPosition?: string | null;
     employmentStatus?: string | null;
     createdAt: Date;
@@ -59,6 +63,7 @@ export class UserProfileRes {
       entity.employmentStatus,
       entity.createdAt,
       entity.updatedAt,
+      entity.branchName,
     );
   }
 }
@@ -142,6 +147,7 @@ export class AuthUserPayloadRes {
   lastName!: string;
   role!: string;
   branchId?: string;
+  branchName?: string;
 
   static of(
     userId: string,
@@ -150,9 +156,18 @@ export class AuthUserPayloadRes {
     lastName: string,
     role: string,
     branchId?: string,
+    branchName?: string,
   ): AuthUserPayloadRes {
     const res = new AuthUserPayloadRes();
-    Object.assign(res, { userId, email, firstName, lastName, role, branchId });
+    Object.assign(res, {
+      userId,
+      email,
+      firstName,
+      lastName,
+      role,
+      branchId,
+      branchName,
+    });
     return res;
   }
 }

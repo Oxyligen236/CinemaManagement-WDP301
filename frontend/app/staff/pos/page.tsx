@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/pos.api";
 import { ThermalReceiptModal } from "@/components/staff/pos/thermal-receipt-modal";
 import { ConcessionCard } from "@/components/staff/pos/concession-card";
+import { fetchBranchInfo, type BranchInfo } from "@/lib/api/branch.api";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getFriendlyErrorMessage } from "@/lib/utils/error-handler";
 import {
@@ -144,6 +145,7 @@ export default function StaffPosPage() {
   // Thông tin tài khoản nhân viên & chi nhánh
   const [staffUser] = useState<{
     branchId?: string;
+    branchName?: string;
     email?: string;
     firstName?: string;
     lastName?: string;
@@ -156,6 +158,47 @@ export default function StaffPosPage() {
       return null;
     }
   });
+
+  const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("cinema_user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.branchId && parsed?.branchName) {
+          return {
+            branchId: parsed.branchId,
+            branchName: parsed.branchName,
+          };
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    let bId = staffUser?.branchId;
+    if (!bId && typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("cinema_user");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.branchId) bId = parsed.branchId;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    if (bId) {
+      void fetchBranchInfo(bId).then((info) => {
+        if (info) {
+          setBranchInfo(info);
+        }
+      });
+    }
+  }, [staffUser?.branchId]);
 
   // Tải danh sách suất chiếu & bắp nước ban đầu
   const loadInitialData = useCallback(async () => {
@@ -191,6 +234,12 @@ export default function StaffPosPage() {
         posApi.getStaffProducts().catch(() => null),
       ]);
       setShowtimes(showtimesRes);
+      if (showtimesRes.length > 0 && showtimesRes[0]?.branchName) {
+        setBranchInfo((prev) => prev || {
+          branchId,
+          branchName: showtimesRes[0].branchName!,
+        });
+      }
       if (catalogRes) setCatalog(catalogRes);
     } catch (err) {
       setErrorBanner(
@@ -667,6 +716,11 @@ export default function StaffPosPage() {
     return Math.max(...seats.map((s) => s.columnPosition), 1);
   }, [seats]);
 
+  const displayBranchName =
+    branchInfo?.branchName ||
+    (staffUser?.branchId ? BRANCH_NAMES[staffUser.branchId] : null) ||
+    (loading ? "Đang tải chi nhánh..." : staffUser?.branchId || "");
+
   return (
     <div className="space-y-4 font-['Arial',sans-serif]">
       {/* 1. Header Banner & Utility Bar */}
@@ -680,7 +734,7 @@ export default function StaffPosPage() {
               <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-[#da291c] text-white">
                 <MapPin className="h-3 w-3" />
                 <span>
-                  {BRANCH_NAMES[staffUser.branchId] || staffUser.branchId}
+                  {displayBranchName}
                 </span>
               </span>
             )}
@@ -694,7 +748,7 @@ export default function StaffPosPage() {
               <>
                 Chi nhánh trực thuộc:{" "}
                 <strong className="text-[#231f20]">
-                  {BRANCH_NAMES[staffUser.branchId] || staffUser.branchId}
+                  {displayBranchName}
                 </strong>
                 {" • "}
               </>
