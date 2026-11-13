@@ -221,6 +221,6 @@ export async function getPublicMovies(): Promise<PublicMovie[]> {
       : ['Phim Chiếu Rạp'],
     description: (m.description as string) || '',
     releaseDate: (m.releaseDate as string) || undefined,
-    status: (m.status as PublicMovie['status']) || 'NOW_SHOWING',
+    status: m.status === 'ENDED' ? 'ENDED' : 'NOW_SHOWING',
   }));
 }

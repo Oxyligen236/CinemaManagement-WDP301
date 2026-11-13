@@ -2,7 +2,6 @@
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Calendar,
   Clock,
@@ -42,14 +41,6 @@ function formatDateVi(dateStr?: string): string {
 }
 
 function MovieListContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const typeParam = searchParams.get('type')?.toLowerCase();
-  const initialStatus: 'NOW_SHOWING' | 'COMING_SOON' =
-    typeParam === 'comingsoon' ? 'COMING_SOON' : 'NOW_SHOWING';
-
-  const [activeTab, setActiveTab] = useState<'NOW_SHOWING' | 'COMING_SOON'>(initialStatus);
   const [keyword, setKeyword] = useState<string>('');
   const [debouncedKeyword, setDebouncedKeyword] = useState<string>('');
   const [selectedGenreId, setSelectedGenreId] = useState<string>('');
@@ -63,12 +54,6 @@ function MovieListContent() {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Sync tab from URL query param
-  useEffect(() => {
-    const nextTab = typeParam === 'comingsoon' ? 'COMING_SOON' : 'NOW_SHOWING';
-    setActiveTab(nextTab);
-  }, [typeParam]);
 
   // Load genres
   useEffect(() => {
@@ -108,7 +93,7 @@ function MovieListContent() {
     setError(null);
     try {
       const res = await getPublicMovieList({
-        status: activeTab,
+        status: 'NOW_SHOWING',
         keyword: debouncedKeyword || undefined,
         genreId: selectedGenreId || undefined,
         page,
@@ -124,19 +109,11 @@ function MovieListContent() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, debouncedKeyword, selectedGenreId, page]);
+  }, [debouncedKeyword, selectedGenreId, page]);
 
   useEffect(() => {
     fetchMovies();
   }, [fetchMovies]);
-
-  const handleTabChange = (tab: 'NOW_SHOWING' | 'COMING_SOON') => {
-    if (tab === activeTab) return;
-    setActiveTab(tab);
-    setPage(1);
-    const param = tab === 'COMING_SOON' ? 'comingsoon' : 'nowshowing';
-    router.push(`/movies?type=${param}`);
-  };
 
   const handleClearFilters = () => {
     setKeyword('');
@@ -168,40 +145,16 @@ function MovieListContent() {
             Danh Sách Phim Latte Cinema
           </h1>
           <p className="text-sm text-[#6b7280] mt-1">
-            Khám phá những siêu phẩm điện ảnh đỉnh cao đang và sắp khởi chiếu
+            Khám phá những siêu phẩm điện ảnh đỉnh cao đang khởi chiếu
           </p>
         </div>
 
-        {/* Tab switchers: NOW_SHOWING vs COMING_SOON */}
+        {/* Section Header: NOW_SHOWING */}
         <div className="flex border-b-2 border-[#e5e7eb] mb-6">
-          <button
-            type="button"
-            onClick={() => handleTabChange('NOW_SHOWING')}
-            className={`flex-1 sm:flex-none sm:min-w-[200px] pb-3.5 text-center text-sm sm:text-base font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
-              activeTab === 'NOW_SHOWING'
-                ? 'text-[#dc2626]'
-                : 'text-[#6b7280] hover:text-[#111827]'
-            }`}
-          >
+          <div className="sm:min-w-[200px] pb-3.5 text-center text-sm sm:text-base font-bold uppercase tracking-wider text-[#dc2626] relative">
             Phim Đang Chiếu
-            {activeTab === 'NOW_SHOWING' && (
-              <span className="absolute bottom-[-2px] left-0 w-full h-[3px] bg-[#dc2626]" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange('COMING_SOON')}
-            className={`flex-1 sm:flex-none sm:min-w-[200px] pb-3.5 text-center text-sm sm:text-base font-bold uppercase tracking-wider transition-all cursor-pointer relative ${
-              activeTab === 'COMING_SOON'
-                ? 'text-[#dc2626]'
-                : 'text-[#6b7280] hover:text-[#111827]'
-            }`}
-          >
-            Phim Sắp Chiếu
-            {activeTab === 'COMING_SOON' && (
-              <span className="absolute bottom-[-2px] left-0 w-full h-[3px] bg-[#dc2626]" />
-            )}
-          </button>
+            <span className="absolute bottom-[-2px] left-0 w-full h-[3px] bg-[#dc2626]" />
+          </div>
         </div>
 
         {/* Filter & Search Bar */}
@@ -327,8 +280,6 @@ function MovieListContent() {
                       .join(', ')
                   : 'Phim Chiếu Rạp';
 
-              const isNowShowing = movie.status === 'NOW_SHOWING';
-
               return (
                 <div
                   key={movie.movieId}
@@ -349,14 +300,8 @@ function MovieListContent() {
 
                     {/* Status Badge */}
                     <div className="absolute top-2 left-2">
-                      <span
-                        className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm ${
-                          isNowShowing
-                            ? 'bg-[#dc2626] text-white'
-                            : 'bg-[#0284c7] text-white'
-                        }`}
-                      >
-                        {isNowShowing ? 'Đang chiếu' : 'Sắp chiếu'}
+                      <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm bg-[#dc2626] text-white">
+                        Đang chiếu
                       </span>
                     </div>
 
@@ -404,19 +349,13 @@ function MovieListContent() {
                         Chi tiết
                       </Link>
 
-                      {isNowShowing ? (
-                        <Link
-                          href={`/ticketing?movieId=${encodeURIComponent(movie.movieId)}`}
-                          className="h-9 px-2 text-xs font-semibold text-white bg-[#dc2626] hover:bg-[#b91c1c] rounded-lg flex items-center justify-center gap-1 transition-colors text-center shadow-sm"
-                        >
-                          <Ticket className="w-3.5 h-3.5 shrink-0" />
-                          <span>Mua vé</span>
-                        </Link>
-                      ) : (
-                        <span className="h-9 px-2 text-[11px] font-medium text-[#9ca3af] bg-[#f9fafb] border border-[#e5e7eb] rounded-lg flex items-center justify-center text-center">
-                          Chưa mở bán
-                        </span>
-                      )}
+                      <Link
+                        href={`/ticketing?movieId=${encodeURIComponent(movie.movieId)}`}
+                        className="h-9 px-2 text-xs font-semibold text-white bg-[#dc2626] hover:bg-[#b91c1c] rounded-lg flex items-center justify-center gap-1 transition-colors text-center shadow-sm"
+                      >
+                        <Ticket className="w-3.5 h-3.5 shrink-0" />
+                        <span>Mua vé</span>
+                      </Link>
                     </div>
                   </div>
                 </div>

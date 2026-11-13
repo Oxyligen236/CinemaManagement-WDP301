@@ -91,7 +91,7 @@ function TicketingContent() {
   const [selectedDate, setSelectedDate] = useState<string>('');
 
   // Filter & Search states
-  const [movieTab, setMovieTab] = useState<'ALL' | 'NOW_SHOWING' | 'COMING_SOON'>('NOW_SHOWING');
+  const [movieTab, setMovieTab] = useState<'ALL' | 'NOW_SHOWING'>('NOW_SHOWING');
   const [movieSearch, setMovieSearch] = useState<string>('');
   const [branchSearch, setBranchSearch] = useState<string>('');
 
@@ -129,9 +129,6 @@ function TicketingContent() {
           );
           if (foundMovie) {
             setSelectedMovieId(foundMovie.movieId);
-            if (foundMovie.status === 'COMING_SOON') {
-              setMovieTab('COMING_SOON');
-            }
           }
         }
 
@@ -301,7 +298,6 @@ function TicketingContent() {
   const filteredMovies = useMemo(() => {
     return movies.filter((m) => {
       if (movieTab === 'NOW_SHOWING' && m.status && m.status !== 'NOW_SHOWING') return false;
-      if (movieTab === 'COMING_SOON' && m.status && m.status !== 'COMING_SOON') return false;
       if (movieSearch.trim()) {
         const query = movieSearch.trim().toLowerCase();
         return m.movieName.toLowerCase().includes(query);
@@ -446,17 +442,6 @@ function TicketingContent() {
               </button>
               <button
                 type="button"
-                onClick={() => setMovieTab('COMING_SOON')}
-                className={`flex-1 py-1 text-[11px] font-bold uppercase transition-colors cursor-pointer rounded-xs ${
-                  movieTab === 'COMING_SOON'
-                    ? 'bg-[#da291c] text-white'
-                    : 'bg-[#efebdb] text-[#6f6247] hover:bg-[#e4ddc8]'
-                }`}
-              >
-                Sắp chiếu
-              </button>
-              <button
-                type="button"
                 onClick={() => setMovieTab('ALL')}
                 className={`px-2 py-1 text-[11px] font-bold uppercase transition-colors cursor-pointer rounded-xs ${
                   movieTab === 'ALL'
@@ -526,11 +511,6 @@ function TicketingContent() {
                           }`}
                         >
                           <span>{movie.duration} phút</span>
-                          {movie.status === 'COMING_SOON' && (
-                            <span className="px-1 py-0.2 bg-[#0284c7] text-white text-[9px] font-bold rounded">
-                              SẮP CHIẾU
-                            </span>
-                          )}
                         </div>
                       </div>
                       <ChevronRight

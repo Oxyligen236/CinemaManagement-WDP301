@@ -53,6 +53,7 @@ describe('UserProfileCommandService', () => {
         firstName: 'Van B',
         lastName: 'Tran',
       },
+      include: { branch: true },
     });
     expect(mockEventEmitter.emit).toHaveBeenCalledWith(
       'user.profile.updated',
@@ -84,6 +85,7 @@ describe('UserProfileCommandService', () => {
       data: {
         firstName: 'Van C',
       },
+      include: { branch: true },
     });
     expect(mockEventEmitter.emit).toHaveBeenCalledWith(
       'user.profile.updated',
