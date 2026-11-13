@@ -36,6 +36,7 @@ describe('UserProfileQueryService', () => {
 
     expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
       where: { id: 'user-1' },
+      include: { branch: true },
     });
     expect(result.id).toBe('user-1');
     expect(result.email).toBe('user1@example.com');

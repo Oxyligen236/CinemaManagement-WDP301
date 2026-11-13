@@ -9,6 +9,7 @@ export class UserProfileQueryService {
   async execute(userId: string): Promise<UserProfileRes> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { branch: true },
     });
 
     if (!user || !user.isActive) {
@@ -26,6 +27,7 @@ export class UserProfileQueryService {
       user.employmentStatus,
       user.createdAt,
       user.updatedAt,
+      user.branch?.branchName,
     );
   }
 }

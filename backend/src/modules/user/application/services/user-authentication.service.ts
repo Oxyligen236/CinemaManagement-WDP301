@@ -15,6 +15,7 @@ export class UserAuthenticationService {
   async login(email: string, password: string): Promise<LoginSuccessRes> {
     const user = await this.prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
+      include: { branch: true },
     });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -44,6 +45,7 @@ export class UserAuthenticationService {
         user.lastName,
         user.role,
         user.branchId ?? undefined,
+        user.branch?.branchName ?? undefined,
       ),
     );
   }
