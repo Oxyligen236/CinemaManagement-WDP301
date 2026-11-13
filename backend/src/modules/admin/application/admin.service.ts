@@ -300,7 +300,7 @@ export class AdminService {
       });
       if (!branch) {
         throw new BadRequestException(
-          'Chi nhnhánh được chọn không hoạt động và không thể được chỉ định.',
+          'Chi nhánh được chọn không hoạt động và không thể được chỉ định.',
         );
       }
     }
@@ -334,7 +334,7 @@ export class AdminService {
     } catch (error: any) {
       if (error?.code === 'P2002') {
         throw new ConflictException(
-          'Tên người dùng phải là duy nhất trong toàn hệ thống.',
+          REGISTRATION_MESSAGES.EMAIL_ALREADY_REGISTERED,
         );
       }
       throw error;
