@@ -5,6 +5,7 @@ export interface UserProfile {
   lastName: string;
   role: 'ADMIN' | 'MANAGER' | 'STAFF' | 'USER' | 'CUSTOMER' | string;
   branchId?: string | null;
+  branchName?: string | null;
   jobPosition?: string | null;
   employmentStatus?: string | null;
   createdAt: string;

@@ -397,10 +397,10 @@ export default function UserProfilePage() {
                     </div>
                   )}
 
-                  {profile.branchId && (
+                  {(profile.branchName || profile.branchId) && (
                     <div className="flex items-center gap-1.5">
                       <Building2 className="h-4 w-4 text-[#6b7280]" />
-                      <span>Chi nhánh: {profile.branchId}</span>
+                      <span>Chi nhánh: {profile.branchName || profile.branchId}</span>
                     </div>
                   )}
 
@@ -548,10 +548,12 @@ export default function UserProfilePage() {
                   </div>
 
                   {/* Additional Staff / Manager info */}
-                  {(profile.jobPosition || profile.branchId || profile.employmentStatus) && (
+                  {(profile.jobPosition || profile.branchName || profile.branchId || profile.employmentStatus) && (
                     <div className="p-4 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg text-xs space-y-1 text-[#475569]">
                       <div className="font-semibold text-[#1e293b]">Thông tin nhân sự:</div>
-                      {profile.branchId && <div>• Mã chi nhánh phụ trách: {profile.branchId}</div>}
+                      {(profile.branchName || profile.branchId) && (
+                        <div>• Chi nhánh phụ trách: {profile.branchName || profile.branchId}</div>
+                      )}
                       {profile.jobPosition && <div>• Vị trí công tác: {profile.jobPosition}</div>}
                       {profile.employmentStatus && <div>• Tình trạng nhân sự: {profile.employmentStatus}</div>}
                     </div>

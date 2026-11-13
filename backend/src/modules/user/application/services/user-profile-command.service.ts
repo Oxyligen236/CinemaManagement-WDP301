@@ -35,6 +35,7 @@ export class UserProfileCommandService {
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
+      include: { branch: true },
     });
 
     this.eventEmitter.emit(
@@ -53,6 +54,7 @@ export class UserProfileCommandService {
       updatedUser.employmentStatus,
       updatedUser.createdAt,
       updatedUser.updatedAt,
+      updatedUser.branch?.branchName,
     );
   }
 }

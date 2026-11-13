@@ -461,7 +461,6 @@ export default function MovieDetailPage({
     );
   }
 
-  const isNowShowing = movie.status === 'NOW_SHOWING';
   const genreNames =
     movie.genres && movie.genres.length > 0
       ? movie.genres.map((g) => g.genreName).join(', ')
@@ -505,12 +504,8 @@ export default function MovieDetailPage({
                 />
 
                 {/* Status Badge */}
-                <span
-                  className={`absolute top-3 left-3 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded shadow-md ${
-                    isNowShowing ? 'bg-[#dc2626] text-white' : 'bg-[#0284c7] text-white'
-                  }`}
-                >
-                  {isNowShowing ? 'Đang chiếu' : 'Sắp chiếu'}
+                <span className="absolute top-3 left-3 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded shadow-md bg-[#dc2626] text-white">
+                  Đang chiếu
                 </span>
 
                 {/* 2D Digital Badge */}
@@ -561,21 +556,14 @@ export default function MovieDetailPage({
 
               {/* Bottom Actions */}
               <div className="mt-8 flex flex-wrap items-center gap-4">
-                {isNowShowing ? (
-                  <button
-                    type="button"
-                    onClick={handleCtaBooking}
-                    className="h-12 px-8 bg-[#dc2626] hover:bg-[#b91c1c] text-white font-bold text-base uppercase tracking-wider rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-md hover:shadow-lg cursor-pointer"
-                  >
-                    <Ticket className="w-5 h-5" />
-                    <span>Đặt vé ngay</span>
-                  </button>
-                ) : (
-                  <div className="h-12 px-6 bg-slate-100 text-[#6b7280] font-semibold text-sm rounded-xl flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    <span>Phim sắp khởi chiếu — Chưa mở bán vé</span>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={handleCtaBooking}
+                  className="h-12 px-8 bg-[#dc2626] hover:bg-[#b91c1c] text-white font-bold text-base uppercase tracking-wider rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-md hover:shadow-lg cursor-pointer"
+                >
+                  <Ticket className="w-5 h-5" />
+                  <span>Đặt vé ngay</span>
+                </button>
 
                 <Link
                   href="/movies"

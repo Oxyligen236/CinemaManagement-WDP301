@@ -55,7 +55,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8010';
 export async function getPublicMovieList(params?: {
   keyword?: string;
   genreId?: string;
-  status?: 'NOW_SHOWING' | 'COMING_SOON';
+  status?: 'NOW_SHOWING';
   page?: number;
   limit?: number;
 }): Promise<PublicMovieListResponse> {
@@ -102,7 +102,7 @@ export async function getPublicMovieList(params?: {
     movieId: String(m.movieId || m.id || m._id || ''),
     movieName: String(m.movieName || m.title || ''),
     duration: Number(m.duration || 120),
-    status: (m.status as PublicMovieListItem['status']) || 'NOW_SHOWING',
+    status: m.status === 'ENDED' ? 'ENDED' : 'NOW_SHOWING',
     posterUrl: (m.posterUrl as string) || undefined,
     trailerUrl: (m.trailerUrl as string) || undefined,
     description: (m.description as string) || '',
@@ -165,7 +165,7 @@ export async function getPublicMovieDetail(movieId: string): Promise<PublicMovie
     movieId: String(m.movieId || m.id || m._id || ''),
     movieName: String(m.movieName || m.title || ''),
     duration: Number(m.duration || 120),
-    status: (m.status as PublicMovieListItem['status']) || 'NOW_SHOWING',
+    status: m.status === 'ENDED' ? 'ENDED' : 'NOW_SHOWING',
     posterUrl: (m.posterUrl as string) || undefined,
     trailerUrl: (m.trailerUrl as string) || undefined,
     description: (m.description as string) || '',
