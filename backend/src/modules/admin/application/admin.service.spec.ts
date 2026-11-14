@@ -697,9 +697,7 @@ describe('AdminService (full coverage)', () => {
           lastName: 'B',
         }),
       ).rejects.toThrow(
-        new ConflictException(
-          'Tên người dùng phải là duy nhất trong toàn hệ thống.',
-        ),
+        new ConflictException(REGISTRATION_MESSAGES.EMAIL_ALREADY_REGISTERED),
       );
 
       mockPrisma.user.create.mockRejectedValueOnce(new Error('db offline'));
