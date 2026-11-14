@@ -105,4 +105,68 @@ describe('JwtGuard', () => {
     expect(verifyAsync).toHaveBeenCalledWith('ok');
     expect(request.user).toEqual(payload);
   });
+
+  it('rejects when Bearer token is empty', async () => {
+    const { context } = buildContext({ authorization: 'Bearer ' });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('Missing access token'),
+    );
+    expect(verifyAsync).not.toHaveBeenCalled();
+  });
+
+  it('rejects when account is inactive', async () => {
+    verifyAsync.mockResolvedValue({
+      sub: 'user-1',
+      email: 'u@cinema.local',
+      role: Role.USER,
+      tokenVersion: 0,
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      isActive: false,
+      role: Role.USER,
+      tokenVersion: 0,
+    });
+
+    const { context } = buildContext({ authorization: 'Bearer ok' });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('Account access has been revoked'),
+    );
+  });
+
+  it('rejects when account role does not match token role', async () => {
+    verifyAsync.mockResolvedValue({
+      sub: 'user-1',
+      email: 'u@cinema.local',
+      role: Role.USER,
+      tokenVersion: 0,
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      role: Role.STAFF,
+      tokenVersion: 0,
+    });
+
+    const { context } = buildContext({ authorization: 'Bearer ok' });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      new UnauthorizedException('Account access has been revoked'),
+    );
+  });
+
+  it('defaults undefined tokenVersion to 0 on both account and token payload', async () => {
+    const payload = {
+      sub: 'user-1',
+      email: 'u@cinema.local',
+      role: Role.USER,
+    };
+    verifyAsync.mockResolvedValue(payload);
+    mockPrisma.user.findUnique.mockResolvedValue({
+      isActive: true,
+      role: Role.USER,
+      tokenVersion: undefined,
+    });
+
+    const { context, request } = buildContext({ authorization: 'Bearer ok' });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(request.user).toEqual(payload);
+  });
 });

@@ -75,4 +75,21 @@ describe('PromotionListener', () => {
       mockPromotionPublicService.recordPromotionUsage,
     ).not.toHaveBeenCalled();
   });
+
+  it('bắt lỗi và không ném exception khi JSON.parse hoặc service lỗi', async () => {
+    await expect(
+      listener.handleOrderPaid('{invalid-json'),
+    ).resolves.toBeUndefined();
+
+    mockPromotionPublicService.recordPromotionUsage.mockRejectedValue(
+      new Error('db fail'),
+    );
+    await expect(
+      listener.handleOrderPaid({
+        orderId: 'order-1',
+        promotionId: 'promo-1',
+        userId: 'user-1',
+      }),
+    ).resolves.toBeUndefined();
+  });
 });

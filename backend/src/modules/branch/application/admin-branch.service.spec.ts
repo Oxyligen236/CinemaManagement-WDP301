@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { BranchStatus, RoomStatus, SeatStatus, SeatType } from '@prisma/client';
 import { AdminBranchService } from './admin-branch.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -300,6 +305,120 @@ describe('AdminBranchService (Pattern B)', () => {
         data: { branchStatus: BranchStatus.INACTIVE },
       });
       expect(result.message).toBe(BRANCH_MESSAGES.MSG03_UPDATED);
+    });
+
+    it('ném NotFoundException nếu branchId không tồn tại khi deactivateBranch', async () => {
+      mockPrisma.branch.findUnique.mockResolvedValue(null);
+
+      await expect(service.deactivateBranch('branch-missing')).rejects.toThrow(
+        new NotFoundException(BRANCH_MESSAGES.BRANCH_NOT_FOUND),
+      );
+    });
+  });
+
+  describe('listPublicBranches, enrichRooms, updateBranch edge cases & guard', () => {
+    it('listBranches khi rỗng và tìm kiếm theo hotline/address khi hotline null', async () => {
+      mockPrisma.branch.findMany.mockResolvedValueOnce([]);
+      const emptyRes = await service.listBranches({});
+      expect(emptyRes.branches).toEqual([]);
+
+      mockPrisma.branch.findMany.mockResolvedValueOnce([
+        { ...mockBranch, id: 'b-1', hotline: null, address: 'Quận 7' },
+        { ...mockBranch, id: 'b-2', hotline: '0909123456', address: 'Hà Nội' },
+      ]);
+      mockPrisma.room.findMany.mockResolvedValueOnce([
+        { id: 'r-1', roomName: 'P1', roomStatus: RoomStatus.AVAILABLE, branchId: 'b-1' },
+      ]);
+      mockPrisma.seat.findMany.mockResolvedValueOnce([
+        { roomId: 'r-1', seatType: SeatType.COUPLE, status: SeatStatus.AVAILABLE },
+      ]);
+      mockPrisma.showtime.findMany.mockResolvedValueOnce([{ roomId: 'r-1' }]);
+
+      const searchByHotline = await service.listBranches({ search: '0909' });
+      expect(searchByHotline.branches).toHaveLength(1);
+      expect(searchByHotline.branches[0].branchId).toBe('b-2');
+    });
+
+    it('getBranchDetail gọi enrichRooms với đủ loại ghế (STANDARD, VIP, COUPLE, broken) và suất chiếu sắp tới', async () => {
+      mockPrisma.branch.findUnique.mockResolvedValue(mockBranch);
+      mockPrisma.room.findMany.mockResolvedValue([
+        { id: 'r-1', roomName: 'Screen 1', roomStatus: RoomStatus.AVAILABLE, branchId: 'branch-1' },
+      ]);
+      mockPrisma.seat.findMany.mockResolvedValue([
+        { roomId: 'r-1', seatType: SeatType.STANDARD, status: SeatStatus.AVAILABLE },
+        { roomId: 'r-1', seatType: SeatType.VIP, status: SeatStatus.MAINTENANCE },
+        { roomId: 'r-1', seatType: SeatType.COUPLE, status: SeatStatus.BLOCKED },
+      ]);
+      mockPrisma.showtime.findMany.mockResolvedValue([
+        { roomId: 'r-1' },
+        { roomId: 'r-1' },
+      ]);
+
+      const detail = await service.getBranchDetail('branch-1');
+
+      expect(detail.rooms[0]).toMatchObject({
+        roomId: 'r-1',
+        totalSeats: 3,
+        availableSeats: 1,
+        brokenSeats: 2,
+        standardSeats: 1,
+        vipSeats: 1,
+        coupleSeats: 1,
+        upcomingShowtimesCount: 2,
+      });
+    });
+
+    it('updateBranch cập nhật address và hotline (kể cả rỗng fallback 1900 2224)', async () => {
+      mockPrisma.branch.findUnique.mockResolvedValue(mockBranch);
+      mockPrisma.branch.update.mockResolvedValue({
+        ...mockBranch,
+        address: 'Địa chỉ mới',
+        hotline: '1900 2224',
+      });
+
+      await service.updateBranch('branch-1', {
+        address: '  Địa chỉ mới  ',
+        hotline: '   ',
+      });
+
+      expect(mockPrisma.branch.update).toHaveBeenCalledWith({
+        where: { id: 'branch-1' },
+        data: {
+          address: 'Địa chỉ mới',
+          hotline: '1900 2224',
+        },
+      });
+    });
+
+    it('listPublicBranches lấy danh sách chi nhánh ACTIVE có và không có từ khóa search', async () => {
+      mockPrisma.branch.findMany.mockResolvedValue([mockBranch]);
+
+      const noSearch = await service.listPublicBranches('   ');
+      expect(mockPrisma.branch.findMany).toHaveBeenCalledWith({
+        where: { branchStatus: BranchStatus.ACTIVE },
+        orderBy: { branchName: 'asc' },
+      });
+      expect(noSearch.total).toBe(1);
+
+      await service.listPublicBranches('  Landmark  ');
+      expect(mockPrisma.branch.findMany).toHaveBeenLastCalledWith({
+        where: {
+          branchStatus: BranchStatus.ACTIVE,
+          OR: [
+            { branchName: { contains: 'Landmark', mode: 'insensitive' } },
+            { address: { contains: 'Landmark', mode: 'insensitive' } },
+          ],
+        },
+        orderBy: { branchName: 'asc' },
+      });
+    });
+
+    it('guard chuyển lỗi không phải HttpException thành ServiceUnavailableException', async () => {
+      mockPrisma.branch.findMany.mockRejectedValue(new Error('db down'));
+
+      await expect(service.listBranches({})).rejects.toThrow(
+        new ServiceUnavailableException(BRANCH_MESSAGES.SERVICE_UNAVAILABLE),
+      );
     });
   });
 });

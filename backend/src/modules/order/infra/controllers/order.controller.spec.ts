@@ -6,6 +6,7 @@ import { OrderStatus } from '../../domain/enums/order-status.enum';
 import { CreateBookingOrderReq } from '../../application/dto/req.dto';
 import { BookingSummaryRes } from '../../application/dto/res.dto';
 import { JwtGuard } from '../../../auth/infra/guards/jwt.guard';
+import { Role } from '../../../auth/infra/decorators/role.decorator';
 
 describe('OrderController', () => {
   let controller: OrderController;
@@ -16,6 +17,7 @@ describe('OrderController', () => {
     applyPromotion: jest.fn(),
     getMyOrderHistory: jest.fn(),
     getOrderDetail: jest.fn(),
+    cancelOrder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -162,6 +164,62 @@ describe('OrderController', () => {
         controller.applyPromotion(req, 'order-123', body),
       ).rejects.toThrow(UnauthorizedException);
       expect(mockOrderService.applyPromotion).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /orders/me, POST /orders/:orderId/cancel, GET /orders/:orderId', () => {
+    it('getMyOrders dung userId, sub hoac fallback user-default', async () => {
+      const page = { items: [], total: 0, page: 1, limit: 10, totalPages: 0 };
+      mockOrderService.getMyOrderHistory.mockResolvedValue(page);
+
+      const query = { page: 1, limit: 10 };
+      await controller.getMyOrders({ user: { userId: 'u-1' } }, query);
+      expect(mockOrderService.getMyOrderHistory).toHaveBeenCalledWith(
+        'u-1',
+        query,
+      );
+
+      await controller.getMyOrders({ user: { sub: 'u-2' } }, query);
+      expect(mockOrderService.getMyOrderHistory).toHaveBeenCalledWith(
+        'u-2',
+        query,
+      );
+
+      await controller.getMyOrders({}, query);
+      expect(mockOrderService.getMyOrderHistory).toHaveBeenCalledWith(
+        'user-default',
+        query,
+      );
+    });
+
+    it('cancelCustomerOrder huy don thanh cong va nem UnauthorizedException khi thieu user', async () => {
+      await expect(
+        controller.cancelCustomerOrder({ user: {} }, 'ord-1', {}),
+      ).rejects.toThrow(UnauthorizedException);
+
+      mockOrderService.cancelOrder.mockResolvedValue({
+        orderId: 'ord-1',
+        status: OrderStatus.CANCELLED,
+      });
+      await controller.cancelCustomerOrder(
+        { user: { sub: 'u-1' } },
+        'ord-1',
+        { reason: 'Changed mind' },
+      );
+      expect(mockOrderService.cancelOrder).toHaveBeenCalledWith(
+        'ord-1',
+        { userId: 'u-1', role: Role.USER },
+        'Changed mind',
+      );
+    });
+
+    it('getOrderDetail goi orderService.getOrderDetail', async () => {
+      const detail = { orderId: 'ord-1' };
+      mockOrderService.getOrderDetail.mockResolvedValue(detail);
+
+      const res = await controller.getOrderDetail('ord-1');
+      expect(res).toBe(detail);
+      expect(mockOrderService.getOrderDetail).toHaveBeenCalledWith('ord-1');
     });
   });
 });

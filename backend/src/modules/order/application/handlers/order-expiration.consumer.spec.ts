@@ -62,4 +62,12 @@ describe('OrderExpirationConsumer', () => {
 
     expect(mockOrderService.expireOrder).not.toHaveBeenCalled();
   });
+
+  it('ghi log loi va nem lai error khi expireOrder that bai', async () => {
+    mockOrderService.expireOrder.mockRejectedValue(new Error('expire failed'));
+
+    await expect(
+      consumer.handle({ orderId: 'order-err' }),
+    ).rejects.toThrow('expire failed');
+  });
 });

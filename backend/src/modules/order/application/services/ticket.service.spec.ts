@@ -561,5 +561,212 @@ describe('TicketService', () => {
       expect(result.length).toBe(1);
       expect(result[0].ticketCode).toBe('TK-20261104-ABCDEF');
     });
+
+    it('hỗ trợ object payload với seatShowtimeIds, items không price, custom tx và thiếu detail', async () => {
+      mockPrisma.ticket.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: 't-10',
+            ticketCode: 'TK-10',
+            price: 110000,
+            ticketStatus: TicketStatus.VALID,
+            usedAt: null,
+            seatShowtimeId: 'sst-1',
+            orderId: 'ord-obj',
+          },
+        ]);
+      mockShowtimeBookingService.getSeatShowtimeDetail.mockResolvedValueOnce({
+        seatShowtimeId: 'sst-1',
+        rowPosition: 'B',
+        columnPosition: 5,
+        price: 110000,
+        movieTitle: 'Mai',
+        roomName: 'P1',
+        startTime: new Date(),
+        endTime: new Date(),
+      });
+
+      const txMock = {
+        ticket: {
+          findMany: mockPrisma.ticket.findMany,
+          createMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+
+      const res1 = await service.createTicketsForOrder(
+        { orderId: 'ord-obj', seatShowtimeIds: ['sst-1'] },
+        txMock,
+      );
+      expect(res1).toHaveLength(1);
+      expect(txMock.ticket.createMany).toHaveBeenCalled();
+
+      mockPrisma.ticket.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      mockShowtimeBookingService.getSeatShowtimeDetail
+        .mockResolvedValueOnce({ seatShowtimeId: 'sst-2' })
+        .mockResolvedValueOnce({ seatShowtimeId: 'sst-3', price: 75000 });
+      await service.createTicketsForOrder({
+        orderId: 'ord-obj-2',
+        items: [{ seatShowtimeId: 'sst-2' }, { seatShowtimeId: 'sst-3', price: 75000 }],
+      });
+      expect(mockPrisma.ticket.createMany).toHaveBeenCalledWith({
+        data: [
+          expect.objectContaining({
+            orderId: 'ord-obj-2',
+            seatShowtimeId: 'sst-2',
+            price: 0,
+          }),
+          expect.objectContaining({
+            orderId: 'ord-obj-2',
+            seatShowtimeId: 'sst-3',
+            price: 75000,
+          }),
+        ],
+      });
+    });
+  });
+
+  describe('scanTicket & getTicketDetail fallback branches', () => {
+    it('chấp nhận thứ tự tham số (dto, staffContext), kiểm tra các nhánh lỗi và fallback', async () => {
+      const now = new Date();
+      mockPrisma.ticket.findUnique.mockResolvedValueOnce({
+        id: 't-used',
+        ticketCode: 'USED',
+        ticketStatus: TicketStatus.USED,
+        usedAt: undefined,
+      });
+      await expect(
+        service.scanTicket({ ticketCode: 'USED' }, {
+          staffId: 's-1',
+          branchId: 'b-1',
+          role: Role.STAFF,
+        }),
+      ).rejects.toThrow('trước đó');
+
+      mockPrisma.ticket.findUnique.mockResolvedValueOnce({
+        id: 't-cancelled',
+        ticketCode: 'CANC',
+        ticketStatus: TicketStatus.CANCELLED,
+      });
+      await expect(
+        service.scanTicket({ ticketCode: 'CANC' }, {
+          staffId: 's-1',
+          branchId: 'b-1',
+          role: Role.STAFF,
+        }),
+      ).rejects.toThrow('Vé không hợp lệ');
+
+      mockPrisma.ticket.findUnique.mockResolvedValueOnce({
+        id: 't-noshow',
+        ticketCode: 'NOSHOW',
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-none',
+      });
+      mockShowtimeBookingService.getSeatShowtimeDetail.mockResolvedValueOnce(
+        null,
+      );
+      await expect(
+        service.scanTicket(
+          { staffId: 's-1', branchId: 'b-1', role: Role.STAFF },
+          { ticketCode: 'NOSHOW' },
+        ),
+      ).rejects.toThrow('Không tìm thấy thông tin suất chiếu cho vé');
+
+      mockPrisma.ticket.findUnique.mockResolvedValueOnce({
+        id: 't-nobranch',
+        ticketCode: 'NOBRANCH',
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
+      });
+      mockShowtimeBookingService.getSeatShowtimeDetail.mockResolvedValueOnce({
+        seatShowtimeId: 'sst-1',
+        showtimeId: 'st-1',
+        branchId: 'b-1',
+        startTime: new Date(now.getTime() - 10 * 60 * 1000),
+        endTime: new Date(now.getTime() + 60 * 60 * 1000),
+      });
+      await expect(
+        service.scanTicket(
+          { staffId: 's-1', role: Role.STAFF },
+          { ticketCode: 'NOBRANCH' },
+        ),
+      ).rejects.toThrow('Nhân viên chưa được gán chi nhánh làm việc');
+
+      mockPrisma.ticket.findUnique.mockResolvedValueOnce({
+        id: 't-ok',
+        ticketCode: 'OK',
+        orderId: 'ord-1',
+        price: 80000,
+        ticketStatus: TicketStatus.VALID,
+        seatShowtimeId: 'sst-1',
+      });
+      mockShowtimeBookingService.getSeatShowtimeDetail.mockResolvedValueOnce({
+        seatShowtimeId: 'sst-1',
+        showtimeId: 'st-1',
+        movieTitle: 'Mai',
+        roomName: 'P1',
+        rowPosition: null,
+        columnPosition: null,
+        branchId: 'b-1',
+        branchName: 'HCM',
+        startTime: new Date(now.getTime() - 5 * 60 * 1000),
+        endTime: new Date(now.getTime() + 60 * 60 * 1000),
+      });
+      mockPrisma.ticket.update.mockResolvedValueOnce({
+        id: 't-ok',
+        ticketCode: 'OK',
+        orderId: 'ord-1',
+        price: 80000,
+        ticketStatus: TicketStatus.USED,
+        usedAt: null,
+        seatShowtimeId: 'sst-1',
+      });
+
+      const scanRes = await service.scanTicket(
+        { staffId: 'admin-1', role: Role.ADMIN },
+        { ticketCode: 'OK', showtimeId: 'st-1' },
+      );
+      expect(scanRes.seatLabel).toBe('');
+      expect(scanRes.usedAt).toBeUndefined();
+    });
+
+    it('getTicketDetail & getTicketsByOrderId fallback khi không có showtimeDetail', async () => {
+      mockPrisma.ticket.findUnique.mockResolvedValueOnce({
+        id: 't-det',
+        ticketCode: 'DET',
+        orderId: 'ord-det',
+        price: 90000,
+        ticketStatus: TicketStatus.USED,
+        usedAt: new Date('2026-04-01T10:00:00Z'),
+        seatShowtimeId: 'sst-none',
+      });
+      mockShowtimeBookingService.getSeatShowtimeDetail.mockResolvedValueOnce(
+        null,
+      );
+
+      const det = await service.getTicketDetail('  DET  ');
+      expect(det.seatLabel).toBe('');
+      expect(det.movieTitle).toBe('');
+
+      mockPrisma.ticket.findMany.mockResolvedValueOnce([
+        {
+          id: 't-item',
+          ticketCode: 'ITEM',
+          price: 90000,
+          ticketStatus: TicketStatus.VALID,
+          usedAt: null,
+          seatShowtimeId: 'sst-none',
+          orderId: 'ord-det',
+        },
+      ]);
+      mockShowtimeBookingService.getSeatShowtimeDetail.mockResolvedValueOnce(
+        null,
+      );
+      const list = await service.getTicketsByOrderId('ord-det');
+      expect(list).toHaveLength(1);
+      expect(list[0].seatLabel).toBe('');
+    });
   });
 });

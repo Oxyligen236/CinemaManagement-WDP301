@@ -24,6 +24,11 @@ describe('RoleGuard', () => {
     expect(guard.canActivate(buildContext())).toBe(true);
   });
 
+  it('allows when required roles array is empty', () => {
+    getAllAndOverride.mockReturnValue([]);
+    expect(guard.canActivate(buildContext())).toBe(true);
+  });
+
   it('allows ADMIN when ADMIN is required', () => {
     getAllAndOverride.mockReturnValue([Role.ADMIN]);
     expect(guard.canActivate(buildContext({ role: Role.ADMIN }))).toBe(true);

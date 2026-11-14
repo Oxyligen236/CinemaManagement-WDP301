@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Page } from '../../../../common/dto/page.dto';
@@ -412,6 +413,102 @@ describe('ShowtimeManagementService', () => {
       await expect(
         service.deleteShowtime(MANAGER, 'st-1'),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('dùng unknownMovie khi movieInfo trả về null', async () => {
+      showtimeQuery.getShowtimeDetail.mockResolvedValue(showtimeRes());
+      schedule.deleteShowtime.mockResolvedValue(showtimeRes());
+      movies.getMovieSchedulingInfo.mockResolvedValue(null);
+
+      const res = await service.deleteShowtime(MANAGER, 'st-1');
+      expect(res.showtime.movieName).toBe('');
+      expect(res.showtime.movieDuration).toBe(0);
+    });
+  });
+
+  describe('options, getShowtime detail, validation & error handling', () => {
+    it('403 khi getContext không tìm thấy thông tin chi nhánh', async () => {
+      branch.getBranchSummary.mockResolvedValue(null);
+
+      await expect(service.getContext(MANAGER)).rejects.toThrow(
+        new ForbiddenException(MSG_NO_BRANCH),
+      );
+    });
+
+    it('401 khi user không có userId', async () => {
+      await expect(service.getContext(undefined)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('searchMovieOptions và listRoomOptions trả dữ liệu và bọc lỗi hệ thống thành 500', async () => {
+      const moviePage = Page.from([MOVIE], 1, 1, 10);
+      movies.searchMovieOptions.mockResolvedValue(moviePage);
+      await expect(
+        service.searchMovieOptions(MANAGER, {
+          keyword: 'Dune',
+          page: 1,
+          limit: 10,
+        }),
+      ).resolves.toEqual(moviePage);
+
+      movies.searchMovieOptions.mockRejectedValue('boom');
+      await expect(
+        service.searchMovieOptions(MANAGER, { page: 1, limit: 10 }),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
+
+      await expect(service.listRoomOptions(MANAGER)).resolves.toEqual(ROOMS);
+
+      rooms.listRoomsByBranch.mockRejectedValue(new Error('rooms down'));
+      await expect(service.listRoomOptions(MANAGER)).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+    });
+
+    it('getShowtime trả chi tiết suất chiếu và ném 500 khi lỗi không phải 404', async () => {
+      showtimeQuery.getShowtimeDetail.mockResolvedValue(
+        showtimeRes({
+          seatPriceSelections: undefined,
+          dayPriceSelections: undefined,
+        }),
+      );
+      movies.getMovieSchedulingInfos.mockResolvedValue([]);
+
+      const detail = await service.getShowtime(MANAGER, 'st-1');
+      expect(detail.showtimeId).toBe('st-1');
+      expect(detail.movieName).toBe('');
+      expect(detail.seatPriceSelections).toEqual([]);
+
+      showtimeQuery.getShowtimeDetail.mockRejectedValue(new Error('db fail'));
+      await expect(service.getShowtime(MANAGER, 'st-1')).rejects.toBeInstanceOf(
+        InternalServerErrorException,
+      );
+    });
+
+    it('createShowtime báo 400 khi startTime sai định dạng giờ', async () => {
+      await expect(
+        service.createShowtime(MANAGER, body({ startTime: '25:99' })),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(schedule.createShowtime).not.toHaveBeenCalled();
+    });
+
+    it('updateShowtime giữ snapshot khi thiếu priceSelections và field undefined', async () => {
+      showtimeQuery.getShowtimeDetail.mockResolvedValue(
+        showtimeRes({
+          seatPriceSelections: undefined,
+          dayPriceSelections: undefined,
+        }),
+      );
+      schedule.updateShowtime.mockResolvedValue(showtimeRes());
+
+      await service.updateShowtime(MANAGER, 'st-1', body());
+      expect(schedule.updateShowtime).toHaveBeenCalledWith(
+        'st-1',
+        expect.objectContaining({
+          seatPriceSelections: [],
+          dayPriceSelections: [],
+        }),
+      );
     });
   });
 });

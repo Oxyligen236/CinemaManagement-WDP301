@@ -105,6 +105,61 @@ describe('PromotionAdminService', () => {
         ConflictException,
       );
     });
+
+    it('should throw BadRequestException if endDate is in the past', async () => {
+      await expect(
+        service.createPromotion({
+          promotionCode: 'OLD',
+          discountValue: 10,
+          discountType: DiscountType.PERCENTAGE,
+          startDate: '2020-01-01T00:00:00.000Z',
+          endDate: '2020-02-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(new BadRequestException('End date cannot be in the past'));
+    });
+
+    it('should throw BadRequestException if discountValue <= 0 or percentage > 100', async () => {
+      await expect(
+        service.createPromotion({
+          promotionCode: 'ZERO',
+          discountValue: 0,
+          discountType: DiscountType.FIXED,
+          startDate: '2030-01-01T00:00:00.000Z',
+          endDate: '2030-02-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Discount value must be greater than 0'),
+      );
+
+      await expect(
+        service.createPromotion({
+          promotionCode: 'OVER',
+          discountValue: 101,
+          discountType: DiscountType.PERCENTAGE,
+          startDate: '2030-01-01T00:00:00.000Z',
+          endDate: '2030-02-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Percentage discount cannot exceed 100%'),
+      );
+    });
+
+    it('should default isActive to true when omitted', async () => {
+      mockPrisma.promotion.findFirst.mockResolvedValue(null);
+      mockPrisma.promotion.create.mockResolvedValue(samplePromotion);
+
+      await service.createPromotion({
+        promotionCode: 'DEFAULTACTIVE',
+        discountValue: 50000,
+        discountType: DiscountType.FIXED,
+        startDate: '2030-01-01T00:00:00.000Z',
+        endDate: '2030-02-01T00:00:00.000Z',
+      });
+
+      expect(mockPrisma.promotion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ isActive: true }),
+      });
+    });
   });
 
   describe('getPromotions', () => {
@@ -117,6 +172,32 @@ describe('PromotionAdminService', () => {
       expect(result.total).toBe(1);
       expect(result.items).toHaveLength(1);
       expect(result.totalPages).toBe(1);
+    });
+
+    it('should apply search, discountType, isActive, sortOrder asc and fallback pagination', async () => {
+      mockPrisma.promotion.findMany.mockResolvedValue([]);
+      mockPrisma.promotion.count.mockResolvedValue(0);
+
+      await service.getPromotions({
+        page: 0,
+        limit: 0,
+        search: ' summer ',
+        discountType: DiscountType.PERCENTAGE as any,
+        isActive: false,
+        sortBy: 'promotionCode',
+        sortOrder: 'asc',
+      });
+
+      expect(mockPrisma.promotion.findMany).toHaveBeenCalledWith({
+        where: {
+          promotionCode: { contains: 'summer', mode: 'insensitive' },
+          discountType: DiscountType.PERCENTAGE,
+          isActive: false,
+        },
+        orderBy: { promotionCode: 'asc' },
+        skip: 0,
+        take: 10,
+      });
     });
   });
 
@@ -157,6 +238,71 @@ describe('PromotionAdminService', () => {
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(result.discountValue).toBe(25);
     });
+
+    it('should throw NotFoundException when promotion does not exist', async () => {
+      mockPrisma.promotion.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updatePromotion('missing', { discountValue: 10 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should validate dates, discountValue and percentage cap on update', async () => {
+      mockPrisma.promotion.findUnique.mockResolvedValue(samplePromotion);
+
+      await expect(
+        service.updatePromotion('test-uuid-1', {
+          startDate: '2030-05-01T00:00:00.000Z',
+          endDate: '2030-01-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Start date must be before end date'),
+      );
+
+      await expect(
+        service.updatePromotion('test-uuid-1', { discountValue: 0 }),
+      ).rejects.toThrow(
+        new BadRequestException('Discount value must be greater than 0'),
+      );
+
+      await expect(
+        service.updatePromotion('test-uuid-1', {
+          discountType: DiscountType.PERCENTAGE as any,
+          discountValue: 120,
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Percentage discount cannot exceed 100%'),
+      );
+    });
+
+    it('should update discountType, startDate, endDate, and isActive when provided', async () => {
+      mockPrisma.promotion.findUnique.mockResolvedValue(samplePromotion);
+      mockPrisma.promotion.update.mockResolvedValue({
+        ...samplePromotion,
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: 30000,
+        isActive: false,
+      });
+
+      await service.updatePromotion('test-uuid-1', {
+        discountType: DiscountType.FIXED_AMOUNT as any,
+        discountValue: 30000,
+        startDate: '2030-01-01T00:00:00.000Z',
+        endDate: '2030-02-01T00:00:00.000Z',
+        isActive: false,
+      });
+
+      expect(mockPrisma.promotion.update).toHaveBeenCalledWith({
+        where: { id: 'test-uuid-1' },
+        data: {
+          discountType: DiscountType.FIXED_AMOUNT,
+          discountValue: 30000,
+          startDate: new Date('2030-01-01T00:00:00.000Z'),
+          endDate: new Date('2030-02-01T00:00:00.000Z'),
+          isActive: false,
+        },
+      });
+    });
   });
 
   describe('changePromotionStatus', () => {
@@ -175,6 +321,14 @@ describe('PromotionAdminService', () => {
       });
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(result.isActive).toBe(false);
+    });
+
+    it('should throw NotFoundException if promotion does not exist', async () => {
+      mockPrisma.promotion.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.changePromotionStatus('missing', true),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -1,4 +1,7 @@
+import { BadRequestException } from '@nestjs/common';
+import { PIPES_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ValidationError } from 'class-validator';
 import { AdminBranchController } from './admin-branch.controller';
 import { AdminBranchService } from '../application/admin-branch.service';
 import { BranchQueryService } from '../application/services/branch-query.service';
@@ -6,6 +9,7 @@ import { JwtGuard } from '../../auth/infra/guards/jwt.guard';
 import { RoleGuard } from '../../auth/infra/guards/role.guard';
 import { BranchStatus } from '@prisma/client';
 import { CreateBranchDto, UpdateBranchDto } from '../application/dto/req.dto';
+import { BRANCH_MESSAGES } from '../domain/branch.rules';
 
 describe('AdminBranchController (Pattern B)', () => {
   let controller: AdminBranchController;
@@ -190,6 +194,50 @@ describe('AdminBranchController (Pattern B)', () => {
       const result = await controller.getPublicBranchDetail('b-1');
       expect(adminBranchService.getBranchDetail).toHaveBeenCalledWith('b-1');
       expect(result).toEqual(mockDetail);
+    });
+  });
+
+  describe('branchValidationPipe', () => {
+    it('validate DTO hợp lệ và format lỗi nested ValidationError theo BRANCH_MESSAGES', async () => {
+      const pipes = Reflect.getMetadata(
+        PIPES_METADATA,
+        AdminBranchController,
+      ) as Array<{
+        transform: (value: unknown, meta: any) => Promise<unknown>;
+        exceptionFactory: (errors: ValidationError[]) => BadRequestException;
+      }>;
+      expect(pipes).toHaveLength(1);
+      const pipe = pipes[0];
+
+      const valid = await pipe.transform(
+        { branchName: '  Latte  ', address: '  HCM  ' },
+        { type: 'body', metatype: CreateBranchDto },
+      );
+      expect(valid).toMatchObject({ branchName: 'Latte', address: 'HCM' });
+
+      const pipeErr = await pipe
+        .transform({ branchName: '', address: '' }, { type: 'body', metatype: CreateBranchDto })
+        .catch((e: unknown) => e);
+      expect(pipeErr).toBeInstanceOf(BadRequestException);
+
+      const nestedException = pipe.exceptionFactory([
+        {
+          property: 'meta',
+          children: [
+            {
+              property: 'hotline',
+              constraints: { isString: 'Hotline không hợp lệ' },
+            },
+          ],
+        },
+      ]);
+      expect(nestedException.getResponse()).toEqual({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: BRANCH_MESSAGES.MSG02_REQUIRED,
+        errors: ['Hotline không hợp lệ'],
+        fields: ['meta'],
+      });
     });
   });
 });

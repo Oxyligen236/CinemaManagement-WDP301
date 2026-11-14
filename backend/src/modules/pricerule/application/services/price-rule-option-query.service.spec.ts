@@ -174,5 +174,54 @@ describe('PriceRuleOptionQueryService', () => {
       expect(err).toBeInstanceOf(BadRequestException);
       expect((err as Error).message).toBe(MSG_INVALID_SELECTION);
     });
+
+    it('DAY group selection hợp lệ trả về map đúng key DAY:WEEKEND', async () => {
+      mockPrisma.dayPriceRule.findFirst.mockResolvedValue({
+        id: 'd-1',
+        adjustmentValue: 1.3,
+      });
+
+      const result = await service.resolvePriceSelections([
+        { group: PriceGroup.DAY, fieldKey: 'WEEKEND', ruleId: 'd-1' },
+      ]);
+
+      expect(result.dayPriceSelections).toContainEqual({
+        dayType: 'WEEKEND',
+        ruleId: 'd-1',
+        multiplier: 1.3,
+      });
+    });
+
+    it('DAY group DB lỗi khi resolve -> InternalServerErrorException', async () => {
+      mockPrisma.dayPriceRule.findFirst.mockRejectedValue(new Error('db fail'));
+
+      await expect(
+        service.resolvePriceSelections([
+          { group: PriceGroup.DAY, fieldKey: 'WEEKEND', ruleId: 'd-1' },
+        ]),
+      ).rejects.toThrow('Unable to load pricing configurations.');
+    });
+  });
+
+  describe('getPriceField', () => {
+    it('trả về field và values cho SEAT VIP', async () => {
+      mockPrisma.seatPriceRule.findMany.mockResolvedValue([
+        { id: 's-1', adjustmentValue: 1.2, updatedAt: new Date() },
+      ]);
+
+      const res = await service.getPriceField(PriceGroup.SEAT, 'VIP');
+
+      expect(res.group).toBe(PriceGroup.SEAT);
+      expect(res.fieldKey).toBe('VIP');
+      expect(res.values).toHaveLength(1);
+    });
+
+    it('DB lỗi khi đọc getPriceField -> InternalServerErrorException', async () => {
+      mockPrisma.dayPriceRule.findMany.mockRejectedValue(new Error('db fail'));
+
+      await expect(
+        service.getPriceField(PriceGroup.DAY, 'HOLIDAY'),
+      ).rejects.toThrow('Unable to load pricing configurations.');
+    });
   });
 });

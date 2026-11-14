@@ -166,4 +166,79 @@ describe('PublicShowtimeQueryService', () => {
     expect(result[0].totalSeats).toBe(3);
     expect(result[0].availableSeats).toBe(2);
   });
+
+  it('trả về [] khi không có suất chiếu nào khớp bộ lọc', async () => {
+    mockPrisma.showtime.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.getPublicShowtimes({ movieId: 'm-none', date: 'invalid-date' }),
+    ).resolves.toEqual([]);
+  });
+
+  it('tự nạp thông tin phòng, chi nhánh và fallback poster khi không lọc branchId', async () => {
+    const prevStorage = process.env.STORAGE_PUBLIC_URL;
+    process.env.STORAGE_PUBLIC_URL = 'https://cdn.latte.vn/';
+
+    try {
+      mockPrisma.showtime.findMany.mockResolvedValue([
+        {
+          id: 'st-1',
+          movieId: 'm-1',
+          roomId: 'r-1',
+          startTime: new Date('2026-10-26T09:00:00Z'),
+          endTime: new Date('2026-10-26T11:00:00Z'),
+          basePrice: 85000,
+        },
+        {
+          id: 'st-2',
+          movieId: 'm-missing',
+          roomId: 'r-missing',
+          startTime: new Date('2026-10-26T12:00:00Z'),
+          endTime: new Date('2026-10-26T14:00:00Z'),
+          basePrice: 85000,
+        },
+      ]);
+      mockPrisma.room.findMany.mockResolvedValue([
+        { id: 'r-1', roomName: 'IMAX 1', branchId: 'b-1' },
+      ]);
+      mockPrisma.branch.findMany.mockResolvedValue([
+        { id: 'b-1', branchName: 'Latte Q1' },
+      ]);
+      mockPrisma.movie.findMany.mockResolvedValue([
+        {
+          id: 'm-1',
+          movieName: 'Phim Hay',
+          duration: 120,
+          posterKey: 'posters/phim.jpg',
+          genreIds: undefined,
+        },
+      ]);
+      mockPrisma.seatShowtime.findMany.mockResolvedValue([]);
+      mockPrisma.seat.findMany.mockResolvedValue([]);
+
+      const result = await service.getPublicShowtimes({
+        movieId: 'm-1',
+        date: '2026-10-26T00:00:00.000Z',
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        posterUrl: 'https://cdn.latte.vn/posters/phim.jpg',
+        branchName: 'Latte Q1',
+        roomName: 'IMAX 1',
+      });
+      expect(result[1]).toMatchObject({
+        movieName: 'Unknown',
+        duration: 120,
+        roomName: 'Cinema',
+        branchId: undefined,
+        branchName: undefined,
+        totalSeats: 0,
+        availableSeats: 0,
+      });
+    } finally {
+      if (prevStorage === undefined) delete process.env.STORAGE_PUBLIC_URL;
+      else process.env.STORAGE_PUBLIC_URL = prevStorage;
+    }
+  });
 });

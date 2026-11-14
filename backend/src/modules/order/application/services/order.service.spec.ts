@@ -1388,4 +1388,439 @@ describe('OrderService', () => {
       );
     });
   });
+
+  describe('payment helpers & fulfill branches', () => {
+    it('getOrderForOnlinePayment kiểm tra not found và non-PENDING', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.getOrderForOnlinePayment('u-1', 'missing'),
+      ).rejects.toThrow(NotFoundException);
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-1',
+        userId: 'u-1',
+        status: OrderStatus.PAID,
+      });
+      await expect(
+        service.getOrderForOnlinePayment('u-1', 'ord-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('getPaidOrderTickets gọi ticketService.getTicketsByOrderId', async () => {
+      jest
+        .spyOn(ticketService, 'getTicketsByOrderId')
+        .mockResolvedValueOnce([mockTicket as any]);
+
+      const res = await service.getPaidOrderTickets('order-123');
+      expect(res).toHaveLength(1);
+      expect(ticketService.getTicketsByOrderId).toHaveBeenCalledWith(
+        'order-123',
+      );
+    });
+
+    it('fulfillVnpayOrder xử lý đủ nhánh 01 / 00 (PAID) / 02 / PENDING', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      expect(await service.fulfillVnpayOrder('missing')).toEqual({
+        RspCode: '01',
+        Message: 'Order not found',
+      });
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-paid',
+        status: OrderStatus.PAID,
+      });
+      expect(await service.fulfillVnpayOrder('ord-paid')).toEqual({
+        RspCode: '00',
+        Message: 'Confirm Success',
+      });
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-exp',
+        status: OrderStatus.EXPIRED,
+      });
+      expect(await service.fulfillVnpayOrder('ord-exp')).toEqual({
+        RspCode: '02',
+        Message: 'Order not pending',
+      });
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockPosOrder,
+        id: 'ord-pend',
+        status: OrderStatus.PENDING,
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValue([]);
+      mockPrisma.productOrder.findMany.mockResolvedValue([]);
+      jest
+        .spyOn(ticketService, 'getTicketsByOrderId')
+        .mockResolvedValueOnce([]);
+      expect(await service.fulfillVnpayOrder('ord-pend')).toEqual({
+        RspCode: '00',
+        Message: 'Confirm Success',
+      });
+    });
+
+    it('fulfillOrderPayment xử lý not found, đã PAID, CANCELLED, trong tx và lỗi eventBus', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      await expect(service.fulfillOrderPayment('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-paid',
+        status: OrderStatus.PAID,
+        updatedAt: undefined,
+      });
+      jest
+        .spyOn(ticketService, 'getTicketsByOrderId')
+        .mockResolvedValueOnce([mockTicket as any]);
+      const alreadyPaid = await service.fulfillOrderPayment('ord-paid');
+      expect(alreadyPaid.tickets).toHaveLength(1);
+      expect(alreadyPaid.paidAt).toBeInstanceOf(Date);
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-canc',
+        status: OrderStatus.CANCELLED,
+      });
+      await expect(service.fulfillOrderPayment('ord-canc')).rejects.toThrow(
+        ConflictException,
+      );
+
+      // Inside transaction: currentOrder already PAID -> skips update, falls back to getTicketsByOrderId
+      mockPrisma.order.findUnique
+        .mockResolvedValueOnce({
+          ...mockPosOrder,
+          status: OrderStatus.PENDING,
+        })
+        .mockResolvedValueOnce({
+          ...mockPosOrder,
+          status: OrderStatus.PAID,
+        });
+      jest
+        .spyOn(ticketService, 'getTicketsByOrderId')
+        .mockResolvedValueOnce([]);
+      (mockEventBus.publish as jest.Mock).mockRejectedValueOnce(
+        new Error('bus fail'),
+      );
+      const txPaid = await service.fulfillOrderPayment('order-pos-123');
+      expect(txPaid.tickets).toEqual([]);
+
+      // Inside transaction: currentOrder no longer pending -> ConflictException
+      mockPrisma.order.findUnique
+        .mockResolvedValueOnce({
+          ...mockPosOrder,
+          status: OrderStatus.PENDING,
+        })
+        .mockResolvedValueOnce({
+          ...mockPosOrder,
+          status: OrderStatus.EXPIRED,
+        });
+      await expect(
+        service.fulfillOrderPayment('order-pos-123'),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('createBookingOrder, getBookingSummary & applyPromotion uncovered branches', () => {
+    it('createBookingOrder ném lỗi rỗng/trùng ghế, lệch suất chiếu, DB fail và log warn nếu eventBus lỗi', async () => {
+      await expect(
+        service.createBookingOrder('u-1', {
+          showtimeId: 'st-1',
+          seatShowtimeIds: [],
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      await expect(
+        service.createBookingOrder('u-1', {
+          showtimeId: 'st-1',
+          seatShowtimeIds: ['sst-1', 'sst-1'],
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      mockShowtimeBookingService.reserveSeats.mockResolvedValueOnce([
+        {
+          seatShowtimeId: 'sst-1',
+          showtimeId: 'st-other',
+          basePrice: 90000,
+          startTime: new Date(Date.now() + 86_400_000),
+        },
+      ]);
+      await expect(
+        service.createBookingOrder('u-1', {
+          showtimeId: 'st-1',
+          seatShowtimeIds: ['sst-1'],
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockShowtimeBookingService.releaseSeats).toHaveBeenCalledWith([
+        'sst-1',
+      ]);
+
+      mockShowtimeBookingService.reserveSeats.mockResolvedValueOnce([
+        {
+          seatShowtimeId: 'sst-1',
+          showtimeId: 'st-1',
+          seatId: 's-1',
+          rowPosition: 'A',
+          columnPosition: 1,
+          seatType: 'STANDARD',
+          basePrice: 90000,
+          branchId: 'br-1',
+          startTime: new Date(Date.now() + 86_400_000),
+        },
+      ]);
+      mockPrisma.order.create.mockRejectedValueOnce(new Error('db create fail'));
+      await expect(
+        service.createBookingOrder('u-1', {
+          showtimeId: 'st-1',
+          seatShowtimeIds: ['sst-1'],
+        }),
+      ).rejects.toThrow('db create fail');
+      expect(mockShowtimeBookingService.releaseSeats).toHaveBeenCalledWith([
+        'sst-1',
+      ]);
+    });
+
+    it('getBookingSummary bao gồm products, promotionId (ok và error) và status != PENDING', async () => {
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: 'ord-sum',
+        userId: 'u-1',
+        totalAmount: 140000,
+        status: OrderStatus.PAID,
+        promotionId: 'promo-1',
+        createdAt: new Date(),
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValue([
+        { seatShowtimeId: 'sst-1', price: 100000 },
+      ]);
+      mockShowtimeBookingService.getSeatBookingDetails.mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          seatId: 's-1',
+          rowPosition: 'A',
+          columnPosition: 1,
+          seatType: 'STANDARD',
+          basePrice: 100000,
+        },
+      ]);
+      mockPrisma.productOrder.findMany.mockResolvedValue([
+        { productId: 'prod-001', quantity: 1, unitPrice: 60000 },
+      ]);
+
+      const summary = await service.getBookingSummary('u-1', 'ord-sum');
+      expect(summary.remainingSeconds).toBe(0);
+      expect(summary.products).toHaveLength(1);
+      expect(summary.promotion?.discountAmount).toBe(20000);
+
+      mockPromotionPublicService.getPromotionById.mockRejectedValueOnce(
+        new Error('promo unavailable'),
+      );
+      const summaryNoPromo = await service.getBookingSummary('u-1', 'ord-sum');
+      expect(summaryNoPromo.promotion).toBeUndefined();
+    });
+
+    it('applyPromotion kiểm tra not found, hết hạn hold, và tính productOrders', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.applyPromotion('u-1', 'missing', { promotionCode: 'SALE20' }),
+      ).rejects.toThrow(NotFoundException);
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-exp',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        totalAmount: 100000,
+        createdAt: new Date(Date.now() - ORDER_HOLD_TIMEOUT_MS - 10_000),
+      });
+      await expect(
+        service.applyPromotion('u-1', 'ord-exp', { promotionCode: 'SALE20' }),
+      ).rejects.toThrow('Order hold duration has expired');
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-app',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        totalAmount: 100000,
+        createdAt: new Date(),
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValueOnce([]);
+      mockPrisma.productOrder.findMany.mockResolvedValueOnce([
+        { productId: 'prod-001', quantity: 2, unitPrice: 50000 },
+      ]);
+      mockPromotionPublicService.validatePromotionCode.mockResolvedValueOnce({
+        isValid: true,
+        promotionId: 'promo-001',
+        promotionCode: 'SALE20',
+        discountType: 'PERCENTAGE',
+        discountValue: 20,
+        discountAmount: 20000,
+      });
+      mockPrisma.order.update.mockResolvedValueOnce({});
+
+      const applied = await service.applyPromotion('u-1', 'ord-app', {
+        promotionCode: 'SALE20',
+      });
+      expect(applied.products).toHaveLength(1);
+      expect(applied.totalAmount).toBe(80000);
+    });
+  });
+
+  describe('queryStaffOrders, queryAdminOrders, getOrderDetail & cancelOrder branches', () => {
+    it('queryStaffOrders và queryAdminOrders lọc userId, multi-status, date, fromDate/toDate và paginateOrders map product/branch', async () => {
+      mockPrisma.order.findMany.mockResolvedValue([
+        {
+          id: 'ord-1',
+          userId: 'u-1',
+          totalAmount: 90000,
+          status: OrderStatus.PAID,
+          branchId: 'branch-01',
+          createdAt: new Date(),
+        },
+      ]);
+      mockPrisma.order.count.mockResolvedValue(1);
+      mockPrisma.seatOrder.findMany.mockResolvedValue([{ orderId: 'ord-1' }]);
+      mockPrisma.productOrder.findMany.mockResolvedValue([
+        { orderId: 'ord-1' },
+      ]);
+
+      const staffRes = await service.queryStaffOrders({
+        page: 1,
+        limit: 10,
+        status: 'PENDING,PAID',
+        date: '2026-04-01',
+      });
+      expect(staffRes.items[0].hasProducts).toBe(true);
+      expect(staffRes.items[0].branchName).toBe('MyCast Cinema Nam Sài Gòn');
+
+      const staffSingleStatus = await service.queryStaffOrders({
+        page: 1,
+        limit: 10,
+        status: 'PENDING',
+      });
+      expect(staffSingleStatus.items).toHaveLength(1);
+
+      mockPrisma.order.findMany.mockResolvedValueOnce([]);
+      mockPrisma.order.count.mockResolvedValueOnce(0);
+      mockPrisma.seatOrder.findMany.mockResolvedValueOnce([]);
+      mockPrisma.productOrder.findMany.mockResolvedValueOnce([]);
+
+      const adminRes = await service.queryAdminOrders({
+        page: 1,
+        limit: 10,
+        userId: 'u-1',
+        status: 'PAID',
+        fromDate: '2026-04-01T00:00:00Z',
+        toDate: '2026-04-30T23:59:59Z',
+      });
+      expect(adminRes.total).toBe(0);
+    });
+
+    it('getOrderDetail dùng seatOrders fallback khi chưa có vé và gọi branchQueryService', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      await expect(service.getOrderDetail('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-det',
+        userId: 'u-1',
+        totalAmount: 130000,
+        status: OrderStatus.PENDING,
+        branchId: 'branch-01',
+        promotionId: 'promo-001',
+        createdAt: new Date(),
+      });
+      mockPrisma.ticket.findMany.mockResolvedValueOnce([]);
+      mockPrisma.productOrder.findMany.mockResolvedValueOnce([
+        { productId: 'prod-001', quantity: 1, unitPrice: 50000 },
+      ]);
+      mockPrisma.seatOrder.findMany.mockResolvedValueOnce([
+        { seatShowtimeId: 'sst-1', price: 100000 },
+      ]);
+      mockShowtimeBookingService.getSeatBookingDetails.mockResolvedValueOnce([
+        {
+          seatShowtimeId: 'sst-1',
+          movieName: 'Mai',
+          roomName: 'P1',
+          rowPosition: 'B',
+          columnPosition: 3,
+          basePrice: 100000,
+          startTime: new Date(),
+          endTime: new Date(),
+          branchId: 'branch-01',
+        },
+      ]);
+
+      const detail = await service.getOrderDetail('ord-det');
+      expect(detail.tickets).toHaveLength(1);
+      expect(detail.branchName).toBe('MyCast Cinema Nam Sài Gòn');
+      expect(detail.products).toHaveLength(1);
+      expect(detail.promotion?.discountAmount).toBe(20000);
+    });
+
+    it('cancelOrder xử lý hết các trạng thái lỗi, hết hạn hold, STAFF lookup seatOrders và eventBus lỗi', async () => {
+      for (const status of [
+        OrderStatus.EXPIRED,
+        OrderStatus.CANCELLED,
+        OrderStatus.PAID,
+        'UNKNOWN' as OrderStatus,
+      ]) {
+        mockPrisma.order.findUnique.mockResolvedValueOnce({
+          id: 'ord-err',
+          status,
+        });
+        await expect(
+          service.cancelOrder('ord-err', { userId: 'u-1', role: 'USER' }),
+        ).rejects.toThrow(BadRequestException);
+      }
+
+      // Expired hold -> auto-expire & throw BadRequestException
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-hold-exp',
+        status: OrderStatus.PENDING,
+        createdAt: new Date(Date.now() - ORDER_HOLD_TIMEOUT_MS - 5000),
+      });
+      mockPrisma.order.updateMany.mockResolvedValueOnce({ count: 0 });
+      await expect(
+        service.cancelOrder('ord-hold-exp', { userId: 'u-1', role: 'USER' }),
+      ).rejects.toThrow('hết hạn');
+
+      // STAFF without order.branchId -> resolves from seatOrders & rejects wrong branch
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-staff',
+        status: OrderStatus.PENDING,
+        branchId: null,
+        createdAt: new Date(),
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValueOnce([
+        { seatShowtimeId: 'sst-1' },
+      ]);
+      mockShowtimeBookingService.getSeatBookingDetails.mockResolvedValueOnce([
+        { seatShowtimeId: 'sst-1', branchId: 'branch-other' },
+      ]);
+      await expect(
+        service.cancelOrder('ord-staff', {
+          userId: 's-1',
+          role: 'STAFF',
+          branchId: 'branch-1',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      // eventBus publish failure only warns
+      mockPrisma.order.findUnique.mockResolvedValueOnce({
+        id: 'ord-warn',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        branchId: 'branch-1',
+        createdAt: new Date(),
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValueOnce([]);
+      (mockEventBus.publish as jest.Mock).mockRejectedValueOnce(
+        new Error('bus warn'),
+      );
+      const res = await service.cancelOrder('ord-warn', {
+        userId: 'u-1',
+        role: 'USER',
+      });
+      expect(res.status).toBe(OrderStatus.CANCELLED);
+    });
+  });
 });

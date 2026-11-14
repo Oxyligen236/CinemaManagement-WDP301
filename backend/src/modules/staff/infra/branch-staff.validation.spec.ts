@@ -1,6 +1,12 @@
 import { HttpException } from '@nestjs/common';
+import { ValidationError } from 'class-validator';
 import { JobPosition, EmploymentStatus } from '@prisma/client';
-import { staffValidationPipe } from './branch-staff.controller';
+import {
+  BranchStaffController,
+  staffValidationPipe,
+} from './branch-staff.controller';
+import { BranchStaffService } from '../application/branch-staff.service';
+import { AuthenticatedRequest } from '../../auth/domain/auth-user';
 import {
   CreateBranchStaffDto,
   UpdateBranchStaffDto,
@@ -156,5 +162,93 @@ describe('staffValidationPipe - UpdateBranchStaffDto', () => {
         employmentStatus: EmploymentStatus.RESIGNED,
       }),
     ).resolves.toBe(null);
+  });
+
+  it('gom cả lỗi từ nested ValidationError children khi gọi exceptionFactory', () => {
+    const factory = (
+      staffValidationPipe as unknown as {
+        exceptionFactory: (errors: ValidationError[]) => HttpException;
+      }
+    ).exceptionFactory;
+
+    const nestedErr: ValidationError = {
+      property: 'profile',
+      children: [
+        {
+          property: 'firstName',
+          constraints: { isNotEmpty: 'Thiếu tên', maxLength: 'Quá dài' },
+          children: [],
+        },
+        {
+          property: 'emptyNode',
+          children: [],
+        },
+      ],
+    };
+
+    const res = factory([nestedErr]).getResponse() as {
+      message: string;
+      fields: string[];
+      fieldErrors: Record<string, string>;
+    };
+
+    expect(res.fields).toEqual(['profile.firstName']);
+    expect(res.fieldErrors).toEqual({ 'profile.firstName': 'Thiếu tên' });
+    expect(res.message).toBe('Thiếu tên');
+  });
+});
+
+describe('BranchStaffController', () => {
+  let controller: BranchStaffController;
+  let mockService: jest.Mocked<BranchStaffService>;
+  const req = { user: { sub: 'mgr-1' } } as unknown as AuthenticatedRequest;
+
+  beforeEach(() => {
+    mockService = {
+      getOptions: jest.fn(),
+      listStaff: jest.fn(),
+      getStaff: jest.fn(),
+      createStaff: jest.fn(),
+      updateStaff: jest.fn(),
+    } as unknown as jest.Mocked<BranchStaffService>;
+    controller = new BranchStaffController(mockService);
+  });
+
+  it('getOptions gọi branchStaffService.getOptions với managerUserId', async () => {
+    mockService.getOptions.mockResolvedValue({ ok: true } as any);
+    const res = await controller.getOptions(req);
+    expect(mockService.getOptions).toHaveBeenCalledWith('mgr-1');
+    expect(res).toEqual({ ok: true });
+  });
+
+  it('listStaff gọi branchStaffService.listStaff với managerUserId và query', async () => {
+    const query = { search: 'An' };
+    mockService.listStaff.mockResolvedValue({ total: 0 } as any);
+    const res = await controller.listStaff(req, query);
+    expect(mockService.listStaff).toHaveBeenCalledWith('mgr-1', query);
+    expect(res).toEqual({ total: 0 });
+  });
+
+  it('getStaff gọi branchStaffService.getStaff với managerUserId và userId', async () => {
+    mockService.getStaff.mockResolvedValue({ staff: { userId: 's-1' } } as any);
+    const res = await controller.getStaff(req, 's-1');
+    expect(mockService.getStaff).toHaveBeenCalledWith('mgr-1', 's-1');
+    expect(res).toEqual({ staff: { userId: 's-1' } });
+  });
+
+  it('createStaff gọi branchStaffService.createStaff với managerUserId và body', async () => {
+    const dto = { ...VALID_CREATE } as CreateBranchStaffDto;
+    mockService.createStaff.mockResolvedValue({ message: 'ok' } as any);
+    const res = await controller.createStaff(req, dto);
+    expect(mockService.createStaff).toHaveBeenCalledWith('mgr-1', dto);
+    expect(res).toEqual({ message: 'ok' });
+  });
+
+  it('updateStaff gọi branchStaffService.updateStaff với managerUserId, userId và body', async () => {
+    const dto = { firstName: 'Bình' } as UpdateBranchStaffDto;
+    mockService.updateStaff.mockResolvedValue({ message: 'updated' } as any);
+    const res = await controller.updateStaff(req, 's-1', dto);
+    expect(mockService.updateStaff).toHaveBeenCalledWith('mgr-1', 's-1', dto);
+    expect(res).toEqual({ message: 'updated' });
   });
 });

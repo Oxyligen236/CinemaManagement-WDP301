@@ -44,6 +44,20 @@ describe('UserProfileQueryService', () => {
     expect(result.lastName).toBe('Nguyen');
     expect(result.role).toBe('USER');
     expect(result.branchId).toBeNull();
+    expect(result.branchName).toBeNull();
+  });
+
+  it('includes branchName when user has an assigned branch', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      ...mockUser,
+      branchId: 'b-1',
+      branch: { branchName: 'Cinema Q1' },
+    });
+
+    const result = await service.execute('user-1');
+
+    expect(result.branchId).toBe('b-1');
+    expect(result.branchName).toBe('Cinema Q1');
   });
 
   it('throws NotFoundException when user does not exist', async () => {
