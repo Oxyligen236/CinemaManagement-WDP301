@@ -513,4 +513,277 @@ describe('PosOrderService', () => {
       ).rejects.toThrow(BadRequestException);
     });
   });
+
+  describe('getOrderForPosPayment & error/fallback branches', () => {
+    it('getOrderForPosPayment kiểm tra không tìm thấy, sai branch (order.branchId & seat.branchId) và hợp lệ', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.getOrderForPosPayment(staffContext, 'missing'),
+      ).rejects.toThrow(NotFoundException);
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockPosOrder,
+        branchId: 'branch-other',
+      });
+      await expect(
+        service.getOrderForPosPayment(staffContext, 'order-pos-123'),
+      ).rejects.toThrow(ForbiddenException);
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockPosOrder,
+        branchId: null,
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValueOnce([
+        { seatShowtimeId: 'sst-1' },
+      ]);
+      mockShowtimeBookingService.getSeatBookingDetails.mockResolvedValueOnce([
+        { seatShowtimeId: 'sst-1', branchId: 'branch-other' },
+      ]);
+      await expect(
+        service.getOrderForPosPayment(staffContext, 'order-pos-123'),
+      ).rejects.toThrow(ForbiddenException);
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockPosOrder,
+        updatedAt: new Date('2026-04-01T10:00:00Z'),
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValueOnce([]);
+      const ok = await service.getOrderForPosPayment(
+        staffContext,
+        'order-pos-123',
+      );
+      expect(ok.orderId).toBe('order-pos-123');
+      expect(ok.totalAmount).toBe(180000);
+    });
+
+    it('createPosBookingOrder xử lý lỗi sản phẩm F&B, lỗi DB, lỗi queue (cả có và không có ghế) và lỗi eventBus', async () => {
+      // Missing F&B with seats -> releases seats
+      mockShowtimeBookingService.reserveSeats.mockResolvedValue([
+        {
+          seatShowtimeId: 'sst-1',
+          seatId: 's-1',
+          rowPosition: 'A',
+          columnPosition: 1,
+          seatType: 'STANDARD',
+          basePrice: 80000,
+          branchId: staffContext.branchId,
+          startTime: new Date(Date.now() + 86_400_000),
+        },
+      ]);
+      mockProductService.getProductsByIds.mockResolvedValueOnce(new Map());
+      await expect(
+        service.createPosBookingOrder(staffContext, {
+          seatShowtimeIds: ['sst-1'],
+          products: [{ productId: 'p-missing', quantity: 1 }],
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockShowtimeBookingService.releaseSeats).toHaveBeenCalledWith([
+        'sst-1',
+      ]);
+
+      // Product from wrong branch without seats
+      const wrongBranchProd = new Map([
+        [
+          'p-1',
+          {
+            productId: 'p-1',
+            productName: 'Cola',
+            unitPrice: 30000,
+            branchId: 'branch-other',
+          },
+        ],
+      ]);
+      mockProductService.getProductsByIds.mockResolvedValueOnce(wrongBranchProd);
+      await expect(
+        service.createPosBookingOrder(staffContext, {
+          products: [{ productId: 'p-1', quantity: 1 }],
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      // Product from wrong branch WITH seats -> releases seats
+      mockProductService.getProductsByIds.mockResolvedValueOnce(wrongBranchProd);
+      await expect(
+        service.createPosBookingOrder(staffContext, {
+          seatShowtimeIds: ['sst-1'],
+          products: [{ productId: 'p-1', quantity: 1 }],
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      // DB error during order.create with seats -> releases seats
+      mockPrisma.order.create.mockRejectedValueOnce(new Error('db write fail'));
+      await expect(
+        service.createPosBookingOrder(staffContext, {
+          seatShowtimeIds: ['sst-1'],
+        }),
+      ).rejects.toThrow('db write fail');
+
+      // Queue publish error with seats -> releases seats and cleans up order
+      mockQueueService.publish = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('queue down'));
+      await expect(
+        service.createPosBookingOrder(staffContext, {
+          seatShowtimeIds: ['sst-1'],
+        }),
+      ).rejects.toThrow('queue down');
+      expect(mockPrisma.seatOrder.deleteMany).toHaveBeenCalled();
+      expect(mockPrisma.productOrder.deleteMany).toHaveBeenCalled();
+      expect(mockPrisma.order.delete).toHaveBeenCalled();
+
+      // eventBus publish failure only logs warning and still returns summary
+      mockQueueService.publish = jest.fn().mockResolvedValue(undefined);
+      (mockEventBus.publish as jest.Mock).mockRejectedValueOnce(
+        new Error('bus down'),
+      );
+      const ok = await service.createPosBookingOrder(staffContext, {
+        seatShowtimeIds: ['sst-1'],
+      });
+      expect(ok.orderId).toBe('order-123');
+    });
+
+    it('applyPosPromotion kiểm tra lỗi và cập nhật tổng tiền thành công', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.applyPosPromotion(staffContext, 'missing', {
+          promotionCode: 'SALE',
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockPosOrder,
+        status: OrderStatus.PAID,
+      });
+      mockPrisma.seatOrder.findMany.mockResolvedValue([]);
+      await expect(
+        service.applyPosPromotion(staffContext, 'order-pos-123', {
+          promotionCode: 'SALE',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockPosOrder,
+        status: OrderStatus.PENDING,
+      });
+      mockPromotionPublicService.validatePromotionCode.mockResolvedValueOnce({
+        isValid: false,
+        reason: 'Hết lượt sử dụng',
+      });
+      await expect(
+        service.applyPosPromotion(staffContext, 'order-pos-123', {
+          promotionCode: 'SALE',
+        }),
+      ).rejects.toThrow('Hết lượt sử dụng');
+
+      mockPromotionPublicService.validatePromotionCode.mockResolvedValueOnce({
+        isValid: true,
+        promotionId: 'promo-1',
+        discountAmount: 30000,
+      });
+      mockPrisma.order.update.mockResolvedValueOnce({
+        ...mockPosOrder,
+        totalAmount: 150000,
+        createdAt: undefined,
+      });
+      mockPrisma.seatOrder.findMany
+        .mockResolvedValueOnce([]) // verifyOrderBranch
+        .mockResolvedValueOnce([{ seatShowtimeId: 'sst-1' }]); // buildPosBookingSummary
+      mockShowtimeBookingService.getSeatBookingDetails.mockResolvedValueOnce([
+        {
+          seatShowtimeId: 'sst-1',
+          seatId: 's-1',
+          rowPosition: 'A',
+          columnPosition: 1,
+          seatType: 'STANDARD',
+          basePrice: 180000,
+        },
+      ]);
+      mockPrisma.productOrder.findMany.mockResolvedValueOnce([
+        { productId: 'p-1', quantity: 1, unitPrice: 20000 },
+      ]);
+      mockProductService.getProductsByIds.mockResolvedValueOnce(new Map());
+
+      const summary = await service.applyPosPromotion(
+        staffContext,
+        'order-pos-123',
+        { promotionCode: 'SALE30' },
+      );
+      expect(summary.totalAmount).toBe(150000);
+      expect(summary.seats).toHaveLength(1);
+      expect(summary.products[0].productName).toBe('p-1');
+    });
+
+    it('getPosReceipt xử lý fallback paymentService, createTicketsForOrder, seatBookingDetails, branchQueryService', async () => {
+      mockPrisma.order.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.getPosReceipt(staffContext, 'missing'),
+      ).rejects.toThrow(NotFoundException);
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        ...mockPosOrder,
+        status: OrderStatus.PAID,
+      });
+      mockPrisma.seatOrder.findMany
+        .mockResolvedValueOnce([{ seatShowtimeId: 'sst-1' }]) // verifyOrderBranch
+        .mockResolvedValueOnce([{ seatShowtimeId: 'sst-1' }]); // getPosReceipt
+      mockShowtimeBookingService.getSeatBookingDetails
+        .mockResolvedValueOnce([
+          { seatShowtimeId: 'sst-1', branchId: 'branch-hn-01' },
+        ])
+        .mockRejectedValueOnce(new Error('seat lookup fail'));
+      mockPaymentService.checkPaymentStatus.mockRejectedValueOnce(
+        new Error('no payment'),
+      );
+      jest
+        .spyOn(ticketService, 'getTicketsByOrderId')
+        .mockResolvedValueOnce([]);
+      jest
+        .spyOn(ticketService, 'createTicketsForOrder')
+        .mockResolvedValueOnce([
+          {
+            ticketId: 't-1',
+            ticketCode: 'TK-1',
+            ticketStatus: 'VALID',
+            seatShowtimeId: 'sst-1',
+            movieTitle: 'Mai',
+            roomName: 'P1',
+            seatLabel: 'A1',
+            startTime: new Date('2026-04-01T14:00:00Z'),
+            endTime: new Date('2026-04-01T16:00:00Z'),
+            price: 90000,
+          },
+        ]);
+      mockPrisma.productOrder.findMany.mockResolvedValueOnce([]);
+
+      const receipt1 = await service.getPosReceipt(
+        { staffId: 'staff-001', branchId: 'branch-hn-01' },
+        'order-pos-123',
+      );
+      expect(receipt1.paymentMethod).toBe('CASH');
+      expect(receipt1.cashReceived).toBe(180000);
+      expect(receipt1.staffName).toBe('Thu ngân');
+      expect(receipt1.seats[0].seatType).toBe('Tiêu chuẩn');
+
+      // Non-CASH payment + branchQueryService error fallback
+      mockPrisma.seatOrder.findMany.mockResolvedValue([]);
+      mockPaymentService.checkPaymentStatus.mockResolvedValueOnce({
+        method: PaymentMethod.VNPAY,
+      });
+      jest.spyOn(ticketService, 'getTicketsByOrderId').mockResolvedValueOnce([]);
+      (
+        service as unknown as {
+          branchQueryService: { getBranchSummary: jest.Mock };
+        }
+      ).branchQueryService.getBranchSummary.mockRejectedValueOnce(
+        new Error('branch fail'),
+      );
+
+      const receipt2 = await service.getPosReceipt(
+        { staffId: 'staff-001', branchId: 'branch-hn-01' },
+        'order-pos-123',
+      );
+      expect(receipt2.paymentMethod).toBe(PaymentMethod.VNPAY);
+      expect(receipt2.cashReceived).toBeUndefined();
+      expect(receipt2.branchName).toContain('branch-hn-01');
+    });
+  });
 });

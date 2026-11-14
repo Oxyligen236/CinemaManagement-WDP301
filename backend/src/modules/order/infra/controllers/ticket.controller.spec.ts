@@ -145,6 +145,25 @@ describe('TicketController', () => {
         dto,
       );
     });
+
+    it('should extract sub when userId is absent', async () => {
+      const dto: ScanTicketReq = { ticketCode: 'TK-999' };
+      (userBranchQueryService.getBranchIdOfUser as jest.Mock).mockResolvedValue(
+        'br-9',
+      );
+      (ticketService.scanTicket as jest.Mock).mockResolvedValue({});
+
+      await controller.scanTicket(dto, { user: { sub: 'staff-sub' } });
+
+      expect(ticketService.scanTicket).toHaveBeenCalledWith(
+        {
+          staffId: 'staff-sub',
+          branchId: 'br-9',
+          role: Role.STAFF,
+        },
+        dto,
+      );
+    });
   });
 
   describe('getTicketDetail', () => {

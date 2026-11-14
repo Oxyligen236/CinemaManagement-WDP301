@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { SeatShowtimeStatus } from '@prisma/client';
 import { ShowtimeBookingService } from './showtime-booking.service';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
@@ -337,6 +341,106 @@ describe('ShowtimeBookingService', () => {
         branchName: 'Chi nhánh Hà Đông',
         branchAddress: '123 Quang Trung, Hà Đông, Hà Nội',
       });
+    });
+
+    it('trả về null khi thiếu movie hoặc room, và fallback branchName rỗng khi thiếu branch', async () => {
+      mockPrisma.seatShowtime.findUnique.mockResolvedValue({
+        id: 'sst-no-movie',
+        showtime: { movie: null, room: { id: 'r-1' } },
+        seat: { id: 's-1' },
+      });
+      await expect(service.getSeatShowtimeDetail('sst-no-movie')).resolves.toBeNull();
+
+      const startTime = new Date();
+      const endTime = new Date(startTime.getTime() + 3600000);
+      mockPrisma.seatShowtime.findUnique.mockResolvedValue({
+        id: 'sst-no-branch',
+        showtime: {
+          id: 'st-1',
+          movieId: 'm-1',
+          startTime,
+          endTime,
+          basePrice: 60000,
+          movie: { id: 'm-1', movieName: 'Phim' },
+          room: { id: 'r-1', roomName: 'R1', branchId: 'b-1', branch: null },
+        },
+        seat: { id: 's-1', rowPosition: 'A', columnPosition: 1 },
+      });
+
+      const res = await service.getSeatShowtimeDetail('sst-no-branch');
+      expect(res?.branchName).toBe('');
+    });
+  });
+
+  describe('additional reserveSeats, releaseSeats, confirmSeats & getSeatBookingDetails edges', () => {
+    it('reserveSeats ném ConflictException khi danh sách rỗng, thiếu ghế hoặc khác suất chiếu', async () => {
+      await expect(service.reserveSeats([])).rejects.toThrow(
+        new ConflictException(SEAT_BOOKING_MESSAGES.DUPLICATED_SEATS),
+      );
+
+      mockPrisma.seatShowtime.findMany.mockResolvedValueOnce([]);
+      await expect(service.reserveSeats(['ss-1'])).rejects.toThrow(
+        new ConflictException(SEAT_BOOKING_MESSAGES.SEATS_UNAVAILABLE),
+      );
+
+      mockPrisma.seatShowtime.findMany.mockResolvedValueOnce([
+        { id: 'ss-1', showtimeId: 'st-1', seatStatus: SeatShowtimeStatus.EMPTY },
+        { id: 'ss-2', showtimeId: 'st-2', seatStatus: SeatShowtimeStatus.EMPTY },
+      ]);
+      await expect(service.reserveSeats(['ss-1', 'ss-2'])).rejects.toThrow(
+        new ConflictException(SEAT_BOOKING_MESSAGES.SEATS_UNAVAILABLE),
+      );
+    });
+
+    it('reserveSeats không rollback khi ghế đầu tiên thất bại', async () => {
+      mockPrisma.seatShowtime.findMany.mockResolvedValue([
+        {
+          id: 'ss-1',
+          showtimeId: 'st-1',
+          seatStatus: SeatShowtimeStatus.EMPTY,
+          showtime: { startTime: new Date(Date.now() + 600000) },
+        },
+      ]);
+      mockPrisma.seatShowtime.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.reserveSeats(['ss-1'])).rejects.toThrow(
+        new ConflictException(SEAT_BOOKING_MESSAGES.SEAT_NO_LONGER_AVAILABLE),
+      );
+      expect(mockPrisma.seatShowtime.updateMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('releaseSeats([]) và confirmSeats([]) trả về 0, confirmSeats dùng prismaTx khi truyền vào', async () => {
+      await expect(service.releaseSeats([])).resolves.toBe(0);
+      await expect(service.confirmSeats([])).resolves.toBe(0);
+
+      const tx = {
+        seatShowtime: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+      await expect(service.confirmSeats(['ss-1'], tx as any)).resolves.toBe(1);
+      expect(tx.seatShowtime.updateMany).toHaveBeenCalled();
+    });
+
+    it('getSeatBookingDetails ném NotFoundException khi không đủ seatShowtime hoặc thiếu tham chiếu', async () => {
+      mockPrisma.seatShowtime.findMany.mockResolvedValueOnce([]);
+      await expect(service.getSeatBookingDetails(['ss-1'])).rejects.toThrow(
+        new NotFoundException('Seat showtime not found'),
+      );
+
+      mockPrisma.seatShowtime.findMany.mockResolvedValueOnce([
+        {
+          id: 'ss-1',
+          showtimeId: 'st-1',
+          seatId: 's-1',
+          seatStatus: SeatShowtimeStatus.EMPTY,
+          seat: null,
+          showtime: { room: { id: 'r-1' }, movie: { id: 'm-1' } },
+        },
+      ]);
+      await expect(service.getSeatBookingDetails(['ss-1'])).rejects.toThrow(
+        new NotFoundException('Seat showtime reference not found'),
+      );
     });
   });
 });

@@ -1,9 +1,13 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserRegistrationService } from './user-registration.service';
 import { PendingRegistrationService } from './pending-registration.service';
 import { REGISTRATION_MESSAGES } from '../../domain/constants/auth-message.constants';
 import { EventModule } from '../../../infra/event/event.module';
+import {
+  INTERNAL_EVENT_BUS,
+  InternalEventBus,
+} from '../../../infra/event/application/internal-event-bus.interface';
 import { MailListener } from '../../../infra/mail/infrastructure/listeners/mail.listener';
 import { SendVerificationEmailHandler } from '../../../infra/mail/application/handlers/send-verification-email.handler';
 import { SendWelcomeEmailHandler } from '../../../infra/mail/application/handlers/send-welcome-email.handler';
@@ -67,6 +71,7 @@ const buildHarness = async (sendMail: SendMailMock) => {
     created,
     service: moduleRef.get(UserRegistrationService),
     pending: moduleRef.get(PendingRegistrationService),
+    eventBus: moduleRef.get<InternalEventBus>(INTERNAL_EVENT_BUS),
   };
 };
 
@@ -414,6 +419,174 @@ describe('UserRegistrationService (email verification flow)', () => {
       await expect(
         harness.service.verifyEmail('nobody@cinema.local', '123456'),
       ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
+    });
+  });
+
+  describe('validation, status, and fallback error branches', () => {
+    it('rejects invalid payload types in register', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await expect(
+        harness.service.register(null as unknown as typeof REGISTER_INPUT),
+      ).rejects.toThrow(
+        new BadRequestException(REGISTRATION_MESSAGES.INVALID_DATA),
+      );
+
+      await expect(
+        harness.service.register({
+          ...REGISTER_INPUT,
+          email: 123 as unknown as string,
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(REGISTRATION_MESSAGES.INVALID_DATA),
+      );
+    });
+
+    it('rejects blank fields in register', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await expect(
+        harness.service.register({
+          ...REGISTER_INPUT,
+          email: '   ',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(REGISTRATION_MESSAGES.ALL_FIELDS_REQUIRED),
+      );
+
+      await expect(
+        harness.service.register({
+          ...REGISTER_INPUT,
+          password: '   ',
+        }),
+      ).rejects.toThrow(
+        new BadRequestException(REGISTRATION_MESSAGES.ALL_FIELDS_REQUIRED),
+      );
+    });
+
+    it('rejects register when email is already registered in database', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+      harness.mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'existing-user',
+      });
+
+      await expect(harness.service.register(REGISTER_INPUT)).rejects.toThrow(
+        new ConflictException(REGISTRATION_MESSAGES.EMAIL_ALREADY_REGISTERED),
+      );
+      expect(sendMail).not.toHaveBeenCalled();
+    });
+
+    it('returns verification status for missing, nullish, and active pending emails', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await expect(
+        harness.service.getVerificationStatus(null as unknown as string),
+      ).resolves.toEqual({
+        email: '',
+        pending: false,
+        verificationExpiresInSeconds: 0,
+        resendAvailableInSeconds: 0,
+        resendsRemaining: 0,
+      });
+
+      await expect(
+        harness.service.getVerificationStatus('missing@cinema.local'),
+      ).resolves.toEqual({
+        email: 'missing@cinema.local',
+        pending: false,
+        verificationExpiresInSeconds: 0,
+        resendAvailableInSeconds: 0,
+        resendsRemaining: 0,
+      });
+
+      await harness.service.register(REGISTER_INPUT);
+      const active = await harness.service.getVerificationStatus(
+        '  New.User@Cinema.local ',
+      );
+
+      expect(active.email).toBe('new.user@cinema.local');
+      expect(active.pending).toBe(true);
+      expect(active.verificationExpiresInSeconds).toBeGreaterThan(0);
+      expect(active.resendAvailableInSeconds).toBeGreaterThan(0);
+      expect(active.resendsRemaining).toBe(3);
+    });
+
+    it('handles nullish email/code safely in resendCode and verifyCode', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await expect(
+        harness.service.resendCode(null as unknown as string),
+      ).rejects.toThrow(REGISTRATION_MESSAGES.NO_PENDING_REGISTRATION);
+
+      await expect(
+        harness.service.verifyCode(
+          null as unknown as string,
+          null as unknown as string,
+        ),
+      ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
+
+      await harness.service.register(REGISTER_INPUT);
+      await expect(
+        harness.service.verifyCode(
+          REGISTER_INPUT.email,
+          null as unknown as string,
+        ),
+      ).rejects.toThrow(REGISTRATION_MESSAGES.CODE_INVALID_OR_EXPIRED);
+    });
+
+    it('rethrows non-P2002 database errors when creating user during verifyCode', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+      const { code } = sendMail.mock.calls[0][0].context as { code: string };
+
+      harness.mockPrisma.user.create.mockRejectedValueOnce(
+        new Error('Database connection lost'),
+      );
+
+      await expect(
+        harness.service.verifyEmail(REGISTER_INPUT.email, code),
+      ).rejects.toThrow('Database connection lost');
+    });
+
+    it('logs and swallows eventBus.publish errors when dispatching welcome email', async () => {
+      sendMail = createSendMailMock();
+      harness = await buildHarness(sendMail);
+
+      await harness.service.register(REGISTER_INPUT);
+      const { code } = sendMail.mock.calls[0][0].context as { code: string };
+
+      const publishSpy = jest
+        .spyOn(harness.eventBus, 'publish')
+        .mockRejectedValueOnce(new Error('Event bus failure'));
+
+      await expect(
+        harness.service.verifyEmail(REGISTER_INPUT.email, code),
+      ).resolves.toMatchObject({ email: 'new.user@cinema.local' });
+
+      publishSpy.mockRestore();
+
+      // Also cover non-Error thrown by eventBus.publish
+      await harness.service.register({
+        ...REGISTER_INPUT,
+        email: 'second@cinema.local',
+      });
+      const { code: code2 } = sendMail.mock.calls[1][0].context as {
+        code: string;
+      };
+      jest
+        .spyOn(harness.eventBus, 'publish')
+        .mockRejectedValueOnce('raw-bus-error');
+
+      await expect(
+        harness.service.verifyEmail('second@cinema.local', code2),
+      ).resolves.toMatchObject({ email: 'second@cinema.local' });
     });
   });
 });

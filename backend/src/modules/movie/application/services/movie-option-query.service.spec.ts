@@ -123,6 +123,17 @@ describe('MovieOptionQueryService', () => {
 
       expect(result.items[0].posterUrl).toBeUndefined();
     });
+
+    it('returns undefined when posterKey is missing without calling storageService', async () => {
+      mockPrisma.movie.findMany.mockResolvedValue([
+        movie({ posterKey: undefined }),
+      ]);
+
+      const result = await service.searchMovieOptions(undefined, 1, 10);
+
+      expect(result.items[0].posterUrl).toBeUndefined();
+      expect(storageService.getPublicUrl).not.toHaveBeenCalled();
+    });
   });
 
   describe('getMovieSchedulingInfo', () => {

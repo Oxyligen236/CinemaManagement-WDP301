@@ -16,6 +16,7 @@ type StoredUser = {
   lastName: string;
   role: Role;
   branchId?: string | null;
+  branch?: { branchName: string } | null;
 };
 
 const PASSWORD = 'Password123!';
@@ -92,5 +93,41 @@ describe('UserAuthenticationService.login', () => {
       expect.objectContaining({ role: Role.MANAGER }),
     );
     expect(result.user.role).toBe(Role.MANAGER);
+  });
+
+  it('defaults optional branchId, branchName, and tokenVersion when absent', async () => {
+    const { service, signAsync } = buildService(
+      buildUser({
+        role: Role.USER,
+        branchId: null,
+        tokenVersion: undefined,
+        branch: null,
+      }),
+    );
+
+    const result = await service.login('  Manager@Cinema.local ', PASSWORD);
+
+    expect(signAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        branchId: undefined,
+        tokenVersion: 0,
+      }),
+    );
+    expect(result.user.branchId).toBeUndefined();
+    expect(result.user.branchName).toBeUndefined();
+  });
+
+  it('includes branchName in response when user belongs to a branch', async () => {
+    const { service } = buildService(
+      buildUser({
+        branchId: 'b-1',
+        branch: { branchName: 'Cinema Q1' },
+      }),
+    );
+
+    const result = await service.login('manager@cinema.local', PASSWORD);
+
+    expect(result.user.branchId).toBe('b-1');
+    expect(result.user.branchName).toBe('Cinema Q1');
   });
 });

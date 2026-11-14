@@ -149,6 +149,85 @@ describe('PromotionPublicService', () => {
       expect(result.discountAmount).toBe(0);
       expect(result.reason).toBe('Mã giảm giá đã hết lượt sử dụng');
     });
+
+    it('thẩm định mã thất bại khi mã rỗng/khoảng trắng', async () => {
+      const result = await service.validatePromotionCode({
+        code: '   ',
+        orderAmount: 100000,
+        userId: 'user-1',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.reason).toBe('Mã giảm giá không được để trống');
+      expect(mockPrisma.promotion.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('thẩm định mã thất bại khi chưa đến ngày áp dụng hoặc đã hết hạn', async () => {
+      mockPrisma.promotion.findFirst.mockResolvedValueOnce({
+        ...defaultPromotion,
+        startDate: new Date(Date.now() + 86400000),
+        endDate: new Date(Date.now() + 172800000),
+      });
+      const early = await service.validatePromotionCode({
+        code: 'EARLY',
+        orderAmount: 100000,
+        userId: 'user-1',
+      });
+      expect(early.isValid).toBe(false);
+      expect(early.reason).toBe('Mã giảm giá chưa đến ngày áp dụng');
+
+      mockPrisma.promotion.findFirst.mockResolvedValueOnce({
+        ...defaultPromotion,
+        startDate: new Date('2020-01-01'),
+        endDate: new Date('2020-02-01'),
+      });
+      const expired = await service.validatePromotionCode({
+        code: 'EXPIRED',
+        orderAmount: 100000,
+        userId: 'user-1',
+      });
+      expect(expired.isValid).toBe(false);
+      expect(expired.reason).toBe('Mã giảm giá đã hết hạn sử dụng');
+    });
+
+    it('tính giảm giá cho loại FIXED, không check usage khi thiếu userId, và tôn trọng maxDiscountAmount', async () => {
+      mockPrisma.promotion.findFirst.mockResolvedValueOnce({
+        ...defaultPromotion,
+        discountType: DiscountType.FIXED,
+        discountValue: 150000,
+        minOrderValue: null,
+        usageLimit: null,
+        usedCount: undefined,
+      });
+
+      const fixedRes = await service.validatePromotionCode({
+        code: 'FIXED150',
+        orderAmount: 80000,
+        userId: '',
+      });
+
+      expect(fixedRes.isValid).toBe(true);
+      expect(fixedRes.discountAmount).toBe(80000);
+      expect(mockPrisma.promotionUsage.findFirst).not.toHaveBeenCalled();
+
+      mockPrisma.promotion.findFirst.mockResolvedValueOnce({
+        ...defaultPromotion,
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: 50,
+        maxDiscountAmount: 25000,
+        usedCount: undefined,
+        usageLimit: 10,
+      });
+      mockPrisma.promotionUsage.findFirst.mockResolvedValue(null);
+
+      const cappedRes = await service.validatePromotionCode({
+        code: 'CAP25',
+        orderAmount: 100000,
+        userId: 'user-1',
+      });
+      expect(cappedRes.isValid).toBe(true);
+      expect(cappedRes.discountAmount).toBe(25000);
+    });
   });
 
   describe('recordPromotionUsage', () => {

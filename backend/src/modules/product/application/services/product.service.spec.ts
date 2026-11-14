@@ -167,7 +167,19 @@ describe('ProductService', () => {
         branchStatus: BranchStatus.ACTIVE,
       });
 
-      mockPrisma.item.findMany.mockResolvedValue([]);
+      mockPrisma.item.findMany.mockResolvedValue([
+        {
+          id: 'ITEM-LOW',
+          name: 'Bắp nhỏ',
+          category: ItemCategory.POPCORN,
+          size: 'STANDARD',
+          price: 40000,
+          stockQuantity: 1,
+          status: ItemStatus.AVAILABLE,
+          imageKey: '///',
+          description: 'Mô tả',
+        },
+      ]);
       mockPrisma.combo.findMany.mockResolvedValue([
         {
           id: 'COMBO-EMPTY',
@@ -176,10 +188,101 @@ describe('ProductService', () => {
           status: ComboStatus.AVAILABLE,
           items: [{ itemId: 'ITEM-POPCORN', quantity: 1 }],
         },
+        {
+          id: 'COMBO-NO-ITEMS',
+          name: 'Combo No Items',
+          price: 80000,
+          status: ComboStatus.AVAILABLE,
+          items: [],
+        },
+        {
+          id: 'COMBO-NULL-ITEMS',
+          name: 'Combo Null Items',
+          price: 80000,
+          status: ComboStatus.AVAILABLE,
+          items: null,
+        },
+        {
+          id: 'COMBO-INSUFFICIENT',
+          name: 'Combo Insufficient',
+          price: 80000,
+          status: ComboStatus.AVAILABLE,
+          items: [{ itemId: 'ITEM-LOW', quantity: 2 }],
+        },
       ]);
 
-      const result = await service.getBranchConcessions('BRANCH-1');
-      expect(result.combos).toHaveLength(0);
+      const previousPublicUrl = process.env.STORAGE_PUBLIC_URL;
+      process.env.STORAGE_PUBLIC_URL = 'https://cdn.example.test';
+      try {
+        const result = await service.getBranchConcessions('BRANCH-1');
+        expect(result.combos).toHaveLength(0);
+        expect(result.items[0].imageUrl).toBeNull();
+        expect(result.items[0].description).toBe('Mô tả');
+      } finally {
+        if (previousPublicUrl === undefined)
+          delete process.env.STORAGE_PUBLIC_URL;
+        else process.env.STORAGE_PUBLIC_URL = previousPublicUrl;
+      }
+    });
+
+    it('xử lý combo hợp lệ có ảnh, mô tả, tên món fallback và tính minStock qua nhiều món', async () => {
+      const previousPublicUrl = process.env.STORAGE_PUBLIC_URL;
+      process.env.STORAGE_PUBLIC_URL = 'https://cdn.example.test';
+      mockPrisma.branch.findFirst.mockResolvedValue({
+        id: 'BRANCH-1',
+        branchStatus: BranchStatus.ACTIVE,
+      });
+      mockPrisma.item.findMany.mockResolvedValue([
+        {
+          id: 'ITEM-1',
+          name: '',
+          category: ItemCategory.POPCORN,
+          size: 'LARGE',
+          price: 50000,
+          stockQuantity: 4,
+          status: ItemStatus.AVAILABLE,
+          imageKey: 'items/pop.png',
+        },
+        {
+          id: 'ITEM-2',
+          name: 'Nước',
+          category: ItemCategory.BEVERAGE,
+          size: null,
+          price: 30000,
+          stockQuantity: 20,
+          status: ItemStatus.AVAILABLE,
+          imageKey: null,
+        },
+      ]);
+      mockPrisma.combo.findMany.mockResolvedValue([
+        {
+          id: 'COMBO-FULL',
+          name: 'Combo Full',
+          price: 70000,
+          status: ComboStatus.AVAILABLE,
+          imageKey: 'combos/full.png',
+          description: 'Combo tiết kiệm',
+          items: [
+            { itemId: 'ITEM-1', quantity: 1 },
+            { itemId: 'ITEM-2', quantity: 1 },
+          ],
+        },
+      ]);
+
+      try {
+        const result = await service.getBranchConcessions('BRANCH-1');
+        expect(result.combos).toHaveLength(1);
+        expect(result.combos[0].availableStock).toBe(4);
+        expect(result.combos[0].imageUrl).toBe(
+          'https://cdn.example.test/combos/full.png',
+        );
+        expect(result.combos[0].description).toBe('Combo tiết kiệm');
+        expect(result.combos[0].items[0].name).toBe('Món');
+      } finally {
+        if (previousPublicUrl === undefined)
+          delete process.env.STORAGE_PUBLIC_URL;
+        else process.env.STORAGE_PUBLIC_URL = previousPublicUrl;
+      }
     });
   });
 
@@ -316,6 +419,68 @@ describe('ProductService', () => {
       await expect(
         service.deductConcessionStock([{ productId: 'ITEM-1', quantity: 5 }]),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('ném ConflictException khi sản phẩm biến mất trước khi kiểm tra tồn kho và xử lý combo có items null', async () => {
+      mockPrisma.item.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ITEM-1',
+          name: 'Bắp rang',
+          stockQuantity: 5,
+          status: ItemStatus.AVAILABLE,
+        })
+        .mockResolvedValueOnce(null);
+      mockPrisma.combo.findUnique.mockResolvedValueOnce({
+        id: 'COMBO-NULL',
+        items: null,
+      });
+
+      await expect(
+        service.deductConcessionStock([
+          { productId: 'COMBO-NULL', quantity: 1 },
+          { productId: 'ITEM-1', quantity: 1 },
+        ]),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('cộng dồn số lượng khấu trừ khi trùng item và giữ nguyên status nếu không phải AVAILABLE', async () => {
+      mockPrisma.item.findUnique
+        .mockResolvedValueOnce({
+          id: 'ITEM-1',
+          name: 'Bắp rang',
+          stockQuantity: 5,
+          status: ItemStatus.OUT_OF_STOCK,
+        })
+        .mockResolvedValueOnce({
+          id: 'ITEM-1',
+          name: 'Bắp rang',
+          stockQuantity: 5,
+          status: ItemStatus.OUT_OF_STOCK,
+        })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ITEM-1',
+          name: 'Bắp rang',
+          stockQuantity: 3,
+          status: ItemStatus.OUT_OF_STOCK,
+        });
+      mockPrisma.combo.findUnique.mockResolvedValueOnce({
+        id: 'COMBO-1',
+        items: [{ itemId: 'ITEM-1', quantity: 1 }],
+      });
+      mockPrisma.item.update.mockResolvedValue({});
+
+      await service.deductConcessionStock([
+        { productId: 'ITEM-1', quantity: 1 },
+        { productId: 'ITEM-1', quantity: 1 },
+        { productId: 'COMBO-1', quantity: 1 },
+      ]);
+
+      expect(mockPrisma.item.update).toHaveBeenCalledWith({
+        where: { id: 'ITEM-1' },
+        data: { stockQuantity: 0 },
+      });
     });
 
     it('sử dụng prismaTx thay cho this.prisma khi được truyền vào', async () => {

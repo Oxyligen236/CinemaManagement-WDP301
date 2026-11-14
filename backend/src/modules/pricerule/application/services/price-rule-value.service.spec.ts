@@ -346,5 +346,131 @@ describe('PriceRuleValueService', () => {
       expect(err).toBeInstanceOf(NotFoundException);
       expect(mockPrisma.seatPriceRule.delete).not.toHaveBeenCalled();
     });
+
+    it('xóa ruleId ở PriceGroup.DAY thành công', async () => {
+      mockPrisma.dayPriceRule.findFirst.mockResolvedValue({
+        id: 'd-1',
+        dayType: 'WEEKEND',
+        adjustmentValue: 1.25,
+      });
+      mockPrisma.dayPriceRule.delete.mockResolvedValue({ id: 'd-1' });
+
+      const res = await service.deletePriceValue(
+        PriceGroup.DAY,
+        'WEEKEND',
+        'd-1',
+      );
+
+      expect(res.message).toBeDefined();
+      expect(mockPrisma.dayPriceRule.delete).toHaveBeenCalledWith({
+        where: { id: 'd-1' },
+      });
+    });
+
+    it('xóa ruleId không tồn tại ở PriceGroup.DAY -> NotFoundException', async () => {
+      mockPrisma.dayPriceRule.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.deletePriceValue(PriceGroup.DAY, 'WEEKEND', 'missing'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('PriceGroup.DAY create/update', () => {
+    it('createPriceValue DAY đạt tối đa 20 giá trị -> ConflictException', async () => {
+      mockPrisma.dayPriceRule.count.mockResolvedValue(20);
+
+      await expect(
+        service.createPriceValue(PriceGroup.DAY, 'WEEKEND', {
+          multiplier: 1.5,
+        }),
+      ).rejects.toThrow('A field can have at most 20 values.');
+    });
+
+    it('createPriceValue DAY trùng giá trị -> ConflictException', async () => {
+      mockPrisma.dayPriceRule.count.mockResolvedValue(1);
+      mockPrisma.dayPriceRule.findFirst.mockResolvedValue({ id: 'd-dup' });
+
+      await expect(
+        service.createPriceValue(PriceGroup.DAY, 'WEEKEND', {
+          multiplier: 1.5,
+        }),
+      ).rejects.toThrow(
+        'This multiplier value already exists for this field.',
+      );
+    });
+
+    it('updatePriceValue DAY thành công', async () => {
+      const updatedAt = new Date();
+      mockPrisma.dayPriceRule.findFirst
+        .mockResolvedValueOnce({
+          id: 'd-1',
+          dayType: 'WEEKEND',
+          adjustmentValue: 1.2,
+        })
+        .mockResolvedValueOnce(null);
+      mockPrisma.dayPriceRule.update.mockResolvedValue({
+        id: 'd-1',
+        adjustmentValue: 1.35,
+        updatedAt,
+      });
+
+      const res = await service.updatePriceValue(
+        PriceGroup.DAY,
+        'WEEKEND',
+        'd-1',
+        { multiplier: 1.35 },
+      );
+
+      expect(res.value?.multiplier).toBe(1.35);
+      expect(mockPrisma.dayPriceRule.update).toHaveBeenCalled();
+    });
+
+    it('updatePriceValue DAY không tồn tại -> NotFoundException', async () => {
+      mockPrisma.dayPriceRule.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updatePriceValue(PriceGroup.DAY, 'WEEKEND', 'missing', {
+          multiplier: 1.4,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updatePriceValue DAY trùng multiplier khác -> ConflictException', async () => {
+      mockPrisma.dayPriceRule.findFirst
+        .mockResolvedValueOnce({
+          id: 'd-1',
+          dayType: 'WEEKEND',
+          adjustmentValue: 1.2,
+        })
+        .mockResolvedValueOnce({ id: 'd-2' });
+
+      await expect(
+        service.updatePriceValue(PriceGroup.DAY, 'WEEKEND', 'd-1', {
+          multiplier: 1.5,
+        }),
+      ).rejects.toThrow(
+        'This multiplier value already exists for this field.',
+      );
+    });
+
+    it('updatePriceValue DAY lỗi DB -> InternalServerErrorException', async () => {
+      mockPrisma.dayPriceRule.findFirst
+        .mockResolvedValueOnce({
+          id: 'd-1',
+          dayType: 'WEEKEND',
+          adjustmentValue: 1.2,
+        })
+        .mockResolvedValueOnce(null);
+      mockPrisma.dayPriceRule.update.mockRejectedValue(new Error('db fail'));
+
+      await expect(
+        service.updatePriceValue(PriceGroup.DAY, 'WEEKEND', 'd-1', {
+          multiplier: 1.4,
+        }),
+      ).rejects.toThrow(
+        'Unable to save pricing configurations due to system failure. Please try again later.',
+      );
+    });
   });
 });

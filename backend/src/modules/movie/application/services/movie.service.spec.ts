@@ -335,6 +335,28 @@ describe('MovieService', () => {
     expect(page.items).toHaveLength(1);
   });
 
+  it('searchMovies filters by releaseDate and uses default page/limit', async () => {
+    mockPrisma.movie.findMany.mockResolvedValue([
+      buildMovieDoc({ posterKey: '' }),
+    ]);
+    mockPrisma.movie.count.mockResolvedValue(1);
+
+    const page = await service.searchMovies({ releaseDate: '2026-05-01' });
+
+    expect(mockPrisma.movie.findMany).toHaveBeenCalledWith({
+      where: {
+        releaseDate: {
+          gte: new Date('2026-05-01T00:00:00.000Z'),
+          lt: new Date('2026-05-02T00:00:00.000Z'),
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 10,
+    });
+    expect(page.items[0].posterUrl).toBeUndefined();
+  });
+
   describe('deactivateMovie', () => {
     it('throws NotFoundException when movie missing', async () => {
       mockPrisma.movie.findUnique.mockResolvedValue(null);
@@ -415,6 +437,25 @@ describe('MovieService', () => {
       expect(res.movieId).toBe('m1');
       expect(res.movieName).toBe('Film 1');
       expect(res.posterUrl).toBe(`${PUBLIC_BASE}/movies/posters/p1.png`);
+    });
+
+    it('throws NotFoundException when movie is missing or inactive', async () => {
+      mockPrisma.movie.findFirst.mockResolvedValue(null);
+
+      await expect(service.getMovieDetail('missing')).rejects.toThrow(
+        new NotFoundException('Không tìm thấy phim với mã định danh: missing'),
+      );
+    });
+
+    it('returns empty genres when genreIds is empty and releaseDate is null', async () => {
+      mockPrisma.movie.findFirst.mockResolvedValue(
+        buildMovieDoc({ genreIds: [], releaseDate: null }),
+      );
+
+      const res = await service.getMovieDetail('m1');
+      expect(mockPrisma.genre.findMany).not.toHaveBeenCalled();
+      expect(res.genres).toEqual([]);
+      expect(res.releaseDate).toBeUndefined();
     });
   });
 

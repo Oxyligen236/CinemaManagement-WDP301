@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+import { PIPES_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BranchRoomController } from './branch-room.controller';
 import { BranchRoomService } from '../application/branch-room.service';
@@ -10,6 +12,7 @@ import {
   UpdateBranchRoomDto,
   UpdateRoomSeatsDto,
 } from '../application/dto/req.dto';
+import { ROOM_MESSAGES } from '../domain/room.rules';
 
 describe('BranchRoomController (Pattern B)', () => {
   let controller: BranchRoomController;
@@ -179,6 +182,62 @@ describe('BranchRoomController (Pattern B)', () => {
 
       expect(branchRoomService.replaceRoomLayout).toHaveBeenCalledWith('mgr-001', 'r-1', layoutInput);
       expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('extractUserId fallback & roomValidationPipe', () => {
+    it('truyền undefined cho service khi header authorization thiếu hoặc token verify lỗi', async () => {
+      (branchRoomService.listRooms as jest.Mock).mockResolvedValue({ rooms: [] });
+
+      await controller.listRooms({ headers: {} } as unknown as Request, {});
+      expect(branchRoomService.listRooms).toHaveBeenCalledWith(undefined, {});
+
+      (jwtService.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('invalid token');
+      });
+      await controller.listRooms(mockManagerReq, {});
+      expect(branchRoomService.listRooms).toHaveBeenLastCalledWith(
+        undefined,
+        {},
+      );
+    });
+
+    it('roomValidationPipe format lỗi flat và nested ValidationError đúng chuẩn ROOM_MESSAGES', async () => {
+      const pipes = Reflect.getMetadata(
+        PIPES_METADATA,
+        BranchRoomController,
+      ) as Array<{ transform: (value: unknown, meta: any) => Promise<unknown> }>;
+      expect(pipes).toHaveLength(1);
+      const pipe = pipes[0];
+
+      const validDto = await pipe.transform(
+        { roomName: '  Phòng A  ', rowCount: '5', columnsPerRow: '8' },
+        { type: 'body', metatype: CreateBranchRoomDto },
+      );
+      expect(validDto).toMatchObject({
+        roomName: 'Phòng A',
+        rowCount: 5,
+        columnsPerRow: 8,
+      });
+
+      const err = await pipe
+        .transform(
+          {
+            roomName: '',
+            customSeats: [{ rowPosition: '', columnPosition: 0, seatType: 'BAD' }],
+          },
+          { type: 'body', metatype: CreateBranchRoomDto },
+        )
+        .catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: ROOM_MESSAGES.MSG01_INVALID_INPUT,
+        fields: expect.arrayContaining(['roomName', 'customSeats']),
+        errors: expect.any(Array),
+      });
     });
   });
 });

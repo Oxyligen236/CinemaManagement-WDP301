@@ -3,6 +3,8 @@ import {
   ConflictException,
   ForbiddenException,
   HttpException,
+  NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { BranchStaffService } from './branch-staff.service';
 import { BranchStatus, Role } from '@prisma/client';
@@ -312,6 +314,232 @@ describe('BranchStaffService.updateStaff - lỗi gắn với đúng trường', 
     expect((error as HttpException).getStatus()).toBe(404);
     expect((error as HttpException).message).toBe(
       STAFF_MESSAGES.STAFF_NOT_FOUND,
+    );
+  });
+
+  it('báo BadRequestException MSG01 khi body updateStaff rỗng', async () => {
+    const service = buildCrudService({ staffRow: STAFF_ROW });
+
+    await expect(service.updateStaff('mgr-1', 'staff-1', {})).rejects.toThrow(
+      new BadRequestException(STAFF_MESSAGES.MSG01),
+    );
+  });
+
+  it('báo NotFoundException khi nhân viên không thuộc chi nhánh của manager', async () => {
+    const service = buildCrudService({ staffRow: null });
+
+    await expect(
+      service.updateStaff('mgr-1', 'staff-missing', { firstName: 'Bình' }),
+    ).rejects.toThrow(new NotFoundException(STAFF_MESSAGES.STAFF_NOT_FOUND));
+  });
+
+  it('cập nhật đầy đủ thông tin và tăng tokenVersion khi vô hiệu hóa nhân viên đang ACTIVE', async () => {
+    const updatedRow = {
+      ...STAFF_ROW,
+      firstName: 'Bình',
+      lastName: 'Trần',
+      employmentStatus: EmploymentStatus.RESIGNED,
+      isActive: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const onUpdate = jest.fn().mockResolvedValue(updatedRow);
+    const service = buildCrudService({ staffRow: STAFF_ROW, onUpdate });
+
+    const res = await service.updateStaff('mgr-1', 'staff-1', {
+      firstName: 'Bình',
+      lastName: 'Trần',
+      jobPosition: JobPosition.TICKET_SELLER,
+      employmentStatus: EmploymentStatus.RESIGNED,
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith({
+      where: { id: 'staff-1' },
+      data: {
+        firstName: 'Bình',
+        lastName: 'Trần',
+        jobPosition: JobPosition.TICKET_SELLER,
+        employmentStatus: EmploymentStatus.RESIGNED,
+        isActive: false,
+        tokenVersion: { increment: 1 },
+      },
+    });
+    expect(res.message).toBe(STAFF_MESSAGES.MSG26);
+    expect(res.staff.employmentStatus).toBe(EmploymentStatus.RESIGNED);
+  });
+
+  it('không tăng tokenVersion khi chuyển từ INACTIVE về ACTIVE', async () => {
+    const inactiveStaff = {
+      ...STAFF_ROW,
+      isActive: false,
+      employmentStatus: EmploymentStatus.INACTIVE,
+      jobPosition: null,
+    };
+    const onUpdate = jest.fn().mockResolvedValue({
+      ...inactiveStaff,
+      isActive: true,
+      employmentStatus: EmploymentStatus.ACTIVE,
+    });
+    const service = buildCrudService({ staffRow: inactiveStaff, onUpdate });
+
+    const res = await service.updateStaff('mgr-1', 'staff-1', {
+      employmentStatus: EmploymentStatus.ACTIVE,
+    });
+
+    expect(onUpdate).toHaveBeenCalledWith({
+      where: { id: 'staff-1' },
+      data: {
+        employmentStatus: EmploymentStatus.ACTIVE,
+        isActive: true,
+      },
+    });
+    expect(res.staff.jobPosition).toBeNull();
+  });
+});
+
+describe('BranchStaffService.listStaff, getStaff & createStaff happy/error paths', () => {
+  const buildListService = (rows: any[] = [], staffRow: any = null) => {
+    const mockPrisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue(MANAGER),
+        findMany: jest.fn().mockResolvedValue(rows),
+        findFirst: jest.fn().mockResolvedValue(staffRow),
+      },
+      branch: {
+        findUnique: jest.fn().mockResolvedValue(BRANCH),
+      },
+    };
+    return {
+      service: new BranchStaffService(mockPrisma as unknown as PrismaService),
+      mockPrisma,
+    };
+  };
+
+  it('listStaff lọc theo search, jobPosition và từng trạng thái employmentStatus', async () => {
+    const row = {
+      id: 's-1',
+      email: 'nv@latte.vn',
+      firstName: 'An',
+      lastName: 'Lê',
+      branchId: BRANCH.id,
+      jobPosition: JobPosition.TICKET_SELLER,
+      employmentStatus: EmploymentStatus.ACTIVE,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const { service, mockPrisma } = buildListService([row]);
+
+    const resActive = await service.listStaff('mgr-1', {
+      search: 'An',
+      jobPosition: JobPosition.TICKET_SELLER,
+      employmentStatus: EmploymentStatus.ACTIVE,
+    });
+    expect(resActive.total).toBe(1);
+    expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+      where: {
+        branchId: BRANCH.id,
+        role: Role.STAFF,
+        OR: [
+          { email: { contains: 'An', mode: 'insensitive' } },
+          { firstName: { contains: 'An', mode: 'insensitive' } },
+          { lastName: { contains: 'An', mode: 'insensitive' } },
+        ],
+        jobPosition: JobPosition.TICKET_SELLER,
+        isActive: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    await service.listStaff('mgr-1', {
+      employmentStatus: EmploymentStatus.RESIGNED,
+    });
+    expect(mockPrisma.user.findMany).toHaveBeenLastCalledWith({
+      where: {
+        branchId: BRANCH.id,
+        role: Role.STAFF,
+        isActive: false,
+        employmentStatus: EmploymentStatus.RESIGNED,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    await service.listStaff('mgr-1', {
+      employmentStatus: EmploymentStatus.INACTIVE,
+    });
+    expect(mockPrisma.user.findMany).toHaveBeenLastCalledWith({
+      where: {
+        branchId: BRANCH.id,
+        role: Role.STAFF,
+        isActive: false,
+        employmentStatus: { not: EmploymentStatus.RESIGNED },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  it('getStaff trả về chi tiết nhân viên hoặc báo NotFoundException', async () => {
+    const row = {
+      id: 's-1',
+      email: 'nv@latte.vn',
+      firstName: 'An',
+      lastName: 'Lê',
+      branchId: BRANCH.id,
+      jobPosition: null,
+      employmentStatus: EmploymentStatus.INACTIVE,
+      isActive: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const { service } = buildListService([], row);
+    const detail = await service.getStaff('mgr-1', 's-1');
+    expect(detail.staff.userId).toBe('s-1');
+    expect(detail.staff.employmentStatus).toBe(EmploymentStatus.INACTIVE);
+
+    const { service: missingService } = buildListService([], null);
+    await expect(missingService.getStaff('mgr-1', 's-missing')).rejects.toThrow(
+      new NotFoundException(STAFF_MESSAGES.STAFF_NOT_FOUND),
+    );
+  });
+
+  it('createStaff tạo mới thành công, chuẩn hóa email lowercase và xử lý lỗi non-P2002', async () => {
+    const createdRow = {
+      id: 's-new',
+      email: 'nhanvien@latte.vn',
+      firstName: 'An',
+      lastName: 'Nguyễn',
+      branchId: BRANCH.id,
+      jobPosition: JobPosition.TICKET_SELLER,
+      employmentStatus: EmploymentStatus.ACTIVE,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const onCreate = jest.fn().mockResolvedValue(createdRow);
+    const service = buildCrudService({ onCreate });
+
+    const res = await service.createStaff('mgr-1', {
+      ...VALID_INPUT,
+      email: 'NhanVien@Latte.VN',
+    });
+
+    expect(onCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        email: 'nhanvien@latte.vn',
+        role: Role.STAFF,
+        branchId: BRANCH.id,
+        employmentStatus: EmploymentStatus.ACTIVE,
+        isActive: true,
+      }),
+    });
+    expect(res.message).toBe(STAFF_MESSAGES.MSG26);
+    expect(res.staff.userId).toBe('s-new');
+
+    const failService = buildCrudService({
+      onCreate: jest.fn().mockRejectedValue('raw string failure'),
+    });
+    await expect(failService.createStaff('mgr-1', VALID_INPUT)).rejects.toThrow(
+      new ServiceUnavailableException(STAFF_MESSAGES.SERVICE_UNAVAILABLE),
     );
   });
 });

@@ -84,14 +84,44 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "isolatedModules": false
+          },
+          "diagnostics": false
+        }
+      ]
     },
     "moduleNameMapper": {
       "^(\\..*)\\.js$": "$1"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!main.ts",
+      "!**/*.module.ts",
+      "!**/*.dto.ts",
+      "!**/dto/*.ts",
+      "!**/dtos/*.ts",
+      "!**/*.interface.ts",
+      "!**/*.type.ts",
+      "!**/*.entity.ts",
+      "!**/*.enum.ts",
+      "!**/*.constants.ts",
+      "!**/*.constant.ts",
+      "!**/*.contanst.ts",
+      "!**/*.event.ts",
+      "!**/*.spec.ts"
     ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 95,
+        "branches": 95,
+        "functions": 95,
+        "lines": 95
+      }
+    },
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }

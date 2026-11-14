@@ -105,5 +105,35 @@ describe('UserProfileCommandService', () => {
       service.execute('ghost-user', { firstName: 'Test' }),
     ).rejects.toThrow(NotFoundException);
     expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+
+    mockPrisma.user.findUnique.mockResolvedValue({
+      ...mockUser,
+      isActive: false,
+    });
+
+    await expect(
+      service.execute('user-1', { firstName: 'Test' }),
+    ).rejects.toThrow(NotFoundException);
+    expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+  });
+
+  it('updates only lastName when firstName is omitted and includes branchName when present', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+    mockPrisma.user.update.mockResolvedValue({
+      ...mockUser,
+      branchId: 'b-1',
+      branch: { branchName: 'Cinema Q1' },
+      lastName: 'Pham',
+    });
+
+    const result = await service.execute('user-1', { lastName: 'Pham' });
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { lastName: 'Pham' },
+      include: { branch: true },
+    });
+    expect(result.lastName).toBe('Pham');
+    expect(result.branchName).toBe('Cinema Q1');
   });
 });
