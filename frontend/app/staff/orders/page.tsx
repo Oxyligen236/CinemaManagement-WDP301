@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { OrderDetail, OrderStatus, OrderSummary } from '@/lib/types/order.types';
 import { orderApi } from '@/lib/api/order.api';
+import { useStaffStatus } from '@/lib/hooks/use-staff-status';
 import { OrderDetailModal } from '@/components/orders/OrderDetailModal';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { TableSkeleton } from '@/components/ui/TableSkeleton';
@@ -21,11 +22,30 @@ import {
   Clock,
 } from 'lucide-react';
 
+function getStoredStaffBranch() {
+  if (typeof window === 'undefined') return { branchId: undefined, branchName: undefined };
+  try {
+    const raw = localStorage.getItem('cinema_user');
+    if (!raw) return { branchId: undefined, branchName: undefined };
+    const u = JSON.parse(raw);
+    return {
+      branchId: u.branchId as string | undefined,
+      branchName: u.branchName as string | undefined,
+    };
+  } catch {
+    return { branchId: undefined, branchName: undefined };
+  }
+}
+
 export default function StaffOrdersPage() {
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
-  const [total, setTotal] = useState(0);
+  const { staffUser, branchInfo, loading: isStaffStatusLoading } = useStaffStatus();
+
+  const effectiveBranchId = branchInfo?.branchId || staffUser?.branchId || getStoredStaffBranch().branchId;
+  const effectiveBranchName = branchInfo?.branchName || staffUser?.branchName || getStoredStaffBranch().branchName;
+
+  const [rawOrders, setRawOrders] = useState<OrderSummary[]>([]);
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const pageSize = 10;
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
@@ -50,20 +70,18 @@ export default function StaffOrdersPage() {
       setError(null);
       try {
         const res = await orderApi.getStaffOrders({
-          page,
-          limit,
+          page: 1,
+          limit: 200,
           status,
           date: selectedDate || undefined,
         });
         if (!ignore) {
-          setOrders(res.items);
-          setTotal(res.total);
+          setRawOrders(res.items);
           setIsLoading(false);
         }
       } catch (err: unknown) {
         if (!ignore) {
-          setOrders([]);
-          setTotal(0);
+          setRawOrders([]);
           setError(
             err instanceof Error
               ? err.message
@@ -78,7 +96,36 @@ export default function StaffOrdersPage() {
     return () => {
       ignore = true;
     };
-  }, [page, limit, status, selectedDate, refreshKey]);
+  }, [status, selectedDate, refreshKey]);
+
+  // Lọc chỉ các đơn hàng thuộc chi nhánh của nhân viên
+  const filteredOrders = useMemo(() => {
+    if (!effectiveBranchId && !effectiveBranchName) return [];
+
+    const normalize = (s?: string) => (s || '').replace(/lotte/gi, 'latte').trim().toLowerCase();
+    const myName = normalize(effectiveBranchName);
+
+    return rawOrders.filter((o) => {
+      if (effectiveBranchId && o.branchId && o.branchId === effectiveBranchId) {
+        return true;
+      }
+      if (myName && o.branchName) {
+        const oName = normalize(o.branchName);
+        if (oName === myName || oName.includes(myName) || myName.includes(oName)) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [rawOrders, effectiveBranchId, effectiveBranchName]);
+
+  const total = filteredOrders.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const displayedOrders = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, page, pageSize]);
 
   const handleOpenDetail = async (orderId: string) => {
     setIsLoadingDetail(true);
@@ -123,7 +170,7 @@ export default function StaffOrdersPage() {
             <span>Đơn hàng tại quầy & Bắp nước</span>
           </h1>
           <p className="mt-0.5 text-[12px] text-[#666]">
-            Theo dõi tất cả giao dịch bán vé tại quầy và bán lẻ bắp nước trong ca trực của nhân viên.
+            Theo dõi tất cả giao dịch bán vé tại quầy và bán lẻ bắp nước trong ca trực của nhân viên{effectiveBranchName ? ` tại ${effectiveBranchName}` : ''}.
           </p>
         </div>
 
@@ -217,10 +264,17 @@ export default function StaffOrdersPage() {
       {/* 3. Table Orders */}
       {isLoading ? (
         <TableSkeleton rows={5} cols={8} />
-      ) : orders.length === 0 ? (
+      ) : displayedOrders.length === 0 ? (
         <div className="p-10 text-center bg-white border border-[#dad2b4] space-y-2">
-          <p className="text-[14px] font-bold text-[#231f20]">Không tìm thấy đơn hàng quầy nào</p>
-          <p className="text-xs text-[#666]">Không có giao dịch phù hợp với tiêu chí lọc hoặc chưa có giao dịch nào được ghi nhận.</p>
+          <p className="text-[14px] font-bold text-[#231f20]">
+            Không tìm thấy đơn hàng quầy nào
+            {effectiveBranchName ? ` cho chi nhánh ${effectiveBranchName}` : ''}
+          </p>
+          <p className="text-xs text-[#666]">
+            {effectiveBranchId || effectiveBranchName
+              ? 'Không có giao dịch phù hợp với tiêu chí lọc hoặc chưa có giao dịch nào được ghi nhận tại chi nhánh này.'
+              : 'Tài khoản chưa được gán chi nhánh làm việc.'}
+          </p>
         </div>
       ) : (
         <div className="border border-[#dad2b4] bg-white shadow-sm overflow-hidden">
@@ -239,7 +293,7 @@ export default function StaffOrdersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#efebdb]">
-                {orders.map((o) => (
+                {displayedOrders.map((o) => (
                   <tr key={o.orderId} className="hover:bg-[#fcfbfa] transition-colors">
                     <td className="px-4 py-3.5 font-mono font-bold text-xs text-[#231f20]">
                       #{o.orderId.slice(0, 8).toUpperCase()}
@@ -320,10 +374,10 @@ export default function StaffOrdersPage() {
       )}
 
       {/* 4. Pagination */}
-      {total > limit && (
+      {total > pageSize && (
         <div className="flex items-center justify-between pt-2">
           <span className="text-xs text-[#666]">
-            Hiển thị trang <strong>{page}</strong> / <strong>{Math.ceil(total / limit)}</strong> (Tổng cộng {total} đơn)
+            Hiển thị trang <strong>{page}</strong> / <strong>{totalPages}</strong> (Tổng cộng {total} đơn)
           </span>
           <div className="flex gap-2">
             <button
@@ -336,7 +390,7 @@ export default function StaffOrdersPage() {
             </button>
             <button
               type="button"
-              disabled={page >= Math.ceil(total / limit)}
+              disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
               className="px-3 py-1.5 border border-[#dad2b4] bg-[#efebdb] text-[#6f6247] hover:bg-[#dad2b4] disabled:opacity-40 text-xs font-bold transition-colors cursor-pointer"
             >
