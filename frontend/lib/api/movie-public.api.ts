@@ -98,7 +98,9 @@ export async function getPublicMovieList(params?: {
     ? data.items
     : [];
 
-  const mappedItems: PublicMovieListItem[] = items.map((m: Record<string, unknown>) => ({
+  const mappedItems: PublicMovieListItem[] = items
+    .filter((m: Record<string, unknown>) => m.isActive !== false && m.isActive !== 'false')
+    .map((m: Record<string, unknown>) => ({
     movieId: String(m.movieId || m.id || m._id || ''),
     movieName: String(m.movieName || m.title || ''),
     duration: Number(m.duration || 120),
