@@ -580,5 +580,18 @@ describe('lib/api/showtimes-public.api', () => {
         'Không thể tải danh sách phim (500: Fail)',
       );
     });
+
+    it('filters out deactivated movies where isActive is false', async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse([
+          { id: 'm1', movieName: 'Active Movie', isActive: true },
+          { id: 'm2', movieName: 'Deactivated Movie', isActive: false },
+          { id: 'm3', movieName: 'String False Movie', isActive: 'false' },
+        ]),
+      );
+      const res = await getPublicMovies();
+      expect(res).toHaveLength(1);
+      expect(res[0].movieId).toBe('m1');
+    });
   });
 });

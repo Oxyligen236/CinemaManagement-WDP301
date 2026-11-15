@@ -115,7 +115,8 @@ function TicketingContent() {
         ]);
 
         if (!isMounted) return;
-        setMovies(movieList);
+        const activeMovies = movieList.filter((m) => m.isActive !== false);
+        setMovies(activeMovies);
         setBranches(branchList);
 
         // Auto select date (today by default)
@@ -124,8 +125,11 @@ function TicketingContent() {
 
         // Auto select movie from URL if present
         if (initialMovieId) {
-          const foundMovie = movieList.find(
-            (m) => m.movieId === initialMovieId || m.movieId?.toLowerCase() === initialMovieId.toLowerCase()
+          const foundMovie = activeMovies.find(
+            (m) =>
+              (m.movieId === initialMovieId ||
+                m.movieId?.toLowerCase() === initialMovieId.toLowerCase()) &&
+              m.isActive !== false
           );
           if (foundMovie) {
             setSelectedMovieId(foundMovie.movieId);
@@ -297,6 +301,7 @@ function TicketingContent() {
   // Filtered movies
   const filteredMovies = useMemo(() => {
     return movies.filter((m) => {
+      if (m.isActive === false) return false;
       if (movieTab === 'NOW_SHOWING' && m.status && m.status !== 'NOW_SHOWING') return false;
       if (movieSearch.trim()) {
         const query = movieSearch.trim().toLowerCase();

@@ -33,6 +33,7 @@ export interface PublicMovie {
   description?: string;
   releaseDate?: string;
   status?: 'NOW_SHOWING' | 'COMING_SOON' | 'ENDED';
+  isActive?: boolean;
 }
 
 export interface MovieShowtimeGroup {
@@ -209,18 +210,20 @@ export async function getPublicMovies(): Promise<PublicMovie[]> {
     ? data.items
     : [];
 
-  return items.map((m: Record<string, unknown>) => ({
-    movieId: String(m.movieId || m.id || m._id || ''),
-    movieName: String(m.movieName || m.title || ''),
-    duration: Number(m.duration || 120),
-    posterUrl: (m.posterUrl as string) || undefined,
-    genreNames: Array.isArray(m.genreNames)
-      ? (m.genreNames as string[])
-      : typeof m.genreNames === 'string'
-      ? [m.genreNames]
-      : ['Phim Chiếu Rạp'],
-    description: (m.description as string) || '',
-    releaseDate: (m.releaseDate as string) || undefined,
-    status: m.status === 'ENDED' ? 'ENDED' : 'NOW_SHOWING',
-  }));
+  return items
+    .filter((m: Record<string, unknown>) => m.isActive !== false && m.isActive !== 'false')
+    .map((m: Record<string, unknown>) => ({
+      movieId: String(m.movieId || m.id || m._id || ''),
+      movieName: String(m.movieName || m.title || ''),
+      duration: Number(m.duration || 120),
+      posterUrl: (m.posterUrl as string) || undefined,
+      genreNames: Array.isArray(m.genreNames)
+        ? (m.genreNames as string[])
+        : typeof m.genreNames === 'string'
+        ? [m.genreNames]
+        : ['Phim Chiếu Rạp'],
+      description: (m.description as string) || '',
+      releaseDate: (m.releaseDate as string) || undefined,
+      status: m.status === 'ENDED' ? 'ENDED' : 'NOW_SHOWING',
+    }));
 }
