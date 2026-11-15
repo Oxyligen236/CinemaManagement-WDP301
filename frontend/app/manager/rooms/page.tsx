@@ -357,13 +357,12 @@ export default function ManageRoomSeatPage() {
         );
       }
 
-      setSeats(data.seats ?? []);
-      if (data.room) {
-        setSelectedRoomDetail(data.room);
-        setRooms((prev) =>
-          prev.map((r) => (r.roomId === data.room.roomId ? data.room : r)),
-        );
-      }
+      setSeats((prev) =>
+  prev.map((s) => {
+    const updated = data.seats?.find((u: SeatItem) => u.seatId === s.seatId);
+    return updated ? { ...s, ...updated } : s;
+  }),
+);
       setSelectedSeatIds([]);
       showToast(
         'success',
